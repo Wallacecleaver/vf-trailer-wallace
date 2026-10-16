@@ -30,6 +30,7 @@ const {
     getContributions, addContribution, updateContributionStatus, deleteContribution,
 } = require('../lib/contributions');
 const { renderContributeHtml } = require('../lib/contribute-view');
+const { renderRecoveryHtml } = require('../lib/recovery-view');
 const {
     getConfigureSettings, setConfigureSettings, resetConfigureSettings,
     getBehaviorSettings, setBehaviorSettings, resetBehaviorSettings,
@@ -1492,6 +1493,15 @@ app.get('/proposer', async (req, res) => {
     const settings = await getConfigureSettings();
     res.set('Content-Type', 'text/html; charset=utf-8');
     res.send(renderContributeHtml(settings));
+});
+
+// Page publique /recuperation : migration d'une ancienne URL d'addon vers le domaine
+// courant. La config est déjà dans le segment base64url de l'URL -> tout se fait côté
+// navigateur, rien n'est lu en base ni envoyé au serveur (la clé TMDB reste chez l'utilisateur).
+app.get('/recuperation', async (req, res) => {
+    const settings = await getConfigureSettings();
+    res.set('Content-Type', 'text/html; charset=utf-8');
+    res.send(renderRecoveryHtml(settings));
 });
 
 // Variantes PUBLIQUES (sans requireAuth) des helpers TMDB/YouTube déjà utilisés par le
