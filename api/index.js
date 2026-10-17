@@ -16,6 +16,7 @@ const { searchYoutubeTrailer, searchYoutubeRaw } = require('../lib/youtube-searc
 const { searchDailymotionTrailer, searchDailymotionRaw } = require('../lib/dailymotion-search');
 const { recordRequest, getStats, resetStats } = require('../lib/stats');
 const { recordInstallActivity, getInstallStats, resetInstalls, removeInstall } = require('../lib/install-stats');
+const { recordRecoveryClick, getRecoveryStats, resetRecoveryStats } = require('../lib/recovery-stats');
 const { logEvent, getLogs, clearLogs } = require('../lib/logs');
 const redis = require('../lib/redis');
 const { renderDashboardShell } = require('../lib/dashboard-view');
@@ -1454,6 +1455,16 @@ app.delete('/api/install-stats/:id', requireAuth, async (req, res) => {
     res.json({ success: await removeInstall(req.params.id) });
 });
 
+// ---- Récupération (gens qui refont leur config via /recuperation) ----
+app.get('/api/recovery-stats', requireAuth, async (req, res) => {
+    const stats = await getRecoveryStats();
+    res.json(stats ? { configured: true, ...stats } : { configured: false });
+});
+
+app.post('/api/recovery-stats/reset', requireAuth, async (req, res) => {
+    res.json({ success: await resetRecoveryStats() });
+});
+
 app.get('/api/overrides', requireAuth, async (req, res) => {
     res.json(await getOverrides());
 });
@@ -1514,6 +1525,13 @@ app.get('/recuperation', async (req, res) => {
     const settings = await getConfigureSettings();
     res.set('Content-Type', 'text/html; charset=utf-8');
     res.send(renderRecoveryHtml(settings));
+});
+
+// Public : la page /recuperation envoie ici le HASH (16 hex) de la config, jamais la config
+// ni la clé TMDB. Réponse toujours 204 : le suivi ne doit jamais gêner l'utilisateur.
+app.post('/api/recovery/click', async (req, res) => {
+    await recordRecoveryClick(req.body && req.body.id);
+    res.status(204).end();
 });
 
 // Variantes PUBLIQUES (sans requireAuth) des helpers TMDB/YouTube déjà utilisés par le
