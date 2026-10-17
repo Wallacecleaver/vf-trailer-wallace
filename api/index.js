@@ -1041,7 +1041,19 @@ app.get('/:config?/manifest.json', async (req, res) => {
     });
 });
 
-app.get(['/', '/configure', '/:config/configure'], async (req, res) => {
+// Racine du site : écran noir volontairement vide (rien à y voir). La page de configuration
+// n'est accessible que via /configure (ou /:config/configure).
+app.get('/', (req, res) => {
+    res.setHeader('Content-Type', 'text/html; charset=utf-8');
+    res.setHeader('X-Robots-Tag', 'noindex, nofollow');
+    res.setHeader('Cache-Control', 'no-store');
+    res.send('<!DOCTYPE html><html lang="fr"><head><meta charset="UTF-8">' +
+        '<meta name="viewport" content="width=device-width, initial-scale=1.0">' +
+        '<meta name="robots" content="noindex, nofollow"><meta name="theme-color" content="#000000">' +
+        '<title></title><style>html,body{height:100%;margin:0;background:#000}</style></head><body></body></html>');
+});
+
+app.get(['/configure', '/:config/configure'], async (req, res) => {
     const settings = await getConfigureSettings();
     res.setHeader('Content-Type', 'text/html; charset=utf-8');
     res.send(renderConfigureHtml(settings));
