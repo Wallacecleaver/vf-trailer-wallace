@@ -1567,8 +1567,13 @@ app.get('/recuperation', async (req, res) => {
 
 // Public : la page /recuperation envoie ici le HASH (16 hex) de la config, jamais la config
 // ni la clé TMDB. Réponse toujours 204 : le suivi ne doit jamais gêner l'utilisateur.
-app.post('/api/recovery/click', async (req, res) => {
-    await recordRecoveryClick(req.body && req.body.id);
+app.post(['/api/recovery/step', '/api/recovery/click'], async (req, res) => {
+    const r = await recordRecoveryClick(req.body && req.body.id);
+    // Une ligne dans Logs la première fois qu'une personne arrive : permet de vérifier d'un coup d'œil
+    // que le suivi fonctionne, sans ouvrir l'onglet Récupération.
+    if (r && r.isNew) {
+        await logEvent({ level: 'info', context: 'RECOVERY', event: 'recovery_started', message: 'Quelqu\'un a lancé la récupération vers la nouvelle adresse', meta: { id: req.body.id } });
+    }
     res.status(204).end();
 });
 
