@@ -528,6 +528,28 @@ async function resolveViaApis(type, imdbId, season, behavior, tmdbKey, trace) {
 
     const tmdbId = result.id;
     const mediaType = type === 'movie' ? 'movie' : 'tv';
+    // URLs des listes de vidéos TMDB. On lance leur téléchargement TOUT DE SUITE, en même temps que le
+    // titre / les titres alternatifs : avant, tout s'enchaînait (titre -> vidéos fr -> vidéos défaut),
+    // soit 2 à 4 allers-retours réseau perdus à attendre. Le filtrage et l'ordre de priorité restent
+    // exactement les mêmes plus bas ; seul l'attente réseau est mise en commun.
+    const vSeasonFr = `https://api.themoviedb.org/3/tv/${tmdbId}/season/${season}/videos?api_key=${tmdbKey}&language=fr-FR`;
+    const vSeasonDef = `https://api.themoviedb.org/3/tv/${tmdbId}/season/${season}/videos?api_key=${tmdbKey}`;
+    const vGlobalFr = `https://api.themoviedb.org/3/${mediaType}/${tmdbId}/videos?api_key=${tmdbKey}&language=fr-FR`;
+    const vGlobalDef = `https://api.themoviedb.org/3/${mediaType}/${tmdbId}/videos?api_key=${tmdbKey}`;
+    const jsonByUrl = new Map();
+    const getJson = url => {
+        let p = jsonByUrl.get(url);
+        if (!p) {
+            p = fetchT(url).then(r => r.json());
+            p.catch(() => {}); // une préchargée jamais attendue ne doit pas finir en unhandledRejection
+            jsonByUrl.set(url, p);
+        }
+        return p;
+    };
+    if (mediaType === 'tv' && season) getJson(vSeasonFr);
+    getJson(vGlobalFr);
+    if (behavior.trailerLanguage !== 'fr-only') getJson(vGlobalDef);
+
     // Titre FR + original + alternatifs en parallèle (deux allers-retours réseau
     // séparés) puis construction de la référence enrichie utilisée par le matching v2.
     const tMeta = Date.now();
@@ -545,8 +567,7 @@ async function resolveViaApis(type, imdbId, season, behavior, tmdbKey, trace) {
 
     async function fetchVideos(url, stepLabel) {
         const t0 = Date.now();
-        const res = await fetchT(url);
-        const data = await res.json();
+        const data = await getJson(url);
         const all = (data.results || []).filter(v => v.site === 'YouTube');
         const accepted = getAcceptedVideoTypes(behavior);
         let kept = all.filter(v =>
@@ -563,11 +584,11 @@ async function resolveViaApis(type, imdbId, season, behavior, tmdbKey, trace) {
 
     let trailers = [];
     if (mediaType === 'tv' && season) {
-        trailers = await fetchVideos(`https://api.themoviedb.org/3/tv/${tmdbId}/season/${season}/videos?api_key=${tmdbKey}&language=fr-FR`, `Vidéos saison ${season} (fr-FR)`);
-        if (!trailers.length && behavior.trailerLanguage !== 'fr-only') trailers = await fetchVideos(`https://api.themoviedb.org/3/tv/${tmdbId}/season/${season}/videos?api_key=${tmdbKey}`, `Vidéos saison ${season} (langue par défaut)`);
+        trailers = await fetchVideos(vSeasonFr, `Vidéos saison ${season} (fr-FR)`);
+        if (!trailers.length && behavior.trailerLanguage !== 'fr-only') trailers = await fetchVideos(vSeasonDef, `Vidéos saison ${season} (langue par défaut)`);
     }
-    if (!trailers.length) trailers = await fetchVideos(`https://api.themoviedb.org/3/${mediaType}/${tmdbId}/videos?api_key=${tmdbKey}&language=fr-FR`, 'Vidéos globales (fr-FR)');
-    if (!trailers.length && behavior.trailerLanguage !== 'fr-only') trailers = await fetchVideos(`https://api.themoviedb.org/3/${mediaType}/${tmdbId}/videos?api_key=${tmdbKey}`, 'Vidéos globales (langue par défaut)');
+    if (!trailers.length) trailers = await fetchVideos(vGlobalFr, 'Vidéos globales (fr-FR)');
+    if (!trailers.length && behavior.trailerLanguage !== 'fr-only') trailers = await fetchVideos(vGlobalDef, 'Vidéos globales (langue par défaut)');
 
     if (trailers.length > 0) {
         const best = pickBestTrailers(trailers, behavior.maxTrailers || 2);
@@ -583,9 +604,24 @@ async function resolveViaApis(type, imdbId, season, behavior, tmdbKey, trace) {
         rec('allocine', false, !officialTitle ? 'Titre officiel inconnu — repli Allociné impossible' : 'Repli Allociné désactivé dans les réglages');
         return { streams: [], officialTitle, source: null };
     }
-    const tAllo = Date.now();
-    const allocineStreams = await getAllocineTrailerStreams(officialTitle, ref);
-    rec('allocine', allocineStreams.length > 0, allocineStreams.length > 0 ? `${allocineStreams.length} bande-annonce(s) trouvée(s)` : 'Aucune bande-annonce trouvée sur Allociné', Date.now() - tAllo);
+    // Les trois replis sont LANCÉS EN MÊME TEMPS, puis lus dans l'ordre de priorité habituel
+    // (Allociné > YouTube > Dailymotion) : le résultat est identique à l'ancienne chaîne, mais un
+    // titre sans bande-annonce VF coûte la durée du repli le plus lent au lieu de la SOMME des trois.
+    // (Contrepartie : YouTube/Dailymotion sont aussi interrogés quand Allociné aurait suffi.)
+    // La logique "un repli désactivé coupe la suite de la chaîne" est conservée telle quelle.
+    const timed = promise => {
+        const t = Date.now();
+        const p = promise.then(v => ({ v, ms: Date.now() - t }));
+        p.catch(() => {});
+        return p;
+    };
+    const query = `${officialTitle} bande annonce VF`;
+    const pAllo = timed(getAllocineTrailerStreams(officialTitle, ref));
+    const pYt = behavior.youtubeSearchFallback ? timed(searchYoutubeTrailer(query, ref)) : null;
+    const pDm = pYt && behavior.dailymotionFallback ? timed(searchDailymotionTrailer(query, ref)) : null;
+
+    const { v: allocineStreams, ms: msAllo } = await pAllo;
+    rec('allocine', allocineStreams.length > 0, allocineStreams.length > 0 ? `${allocineStreams.length} bande-annonce(s) trouvée(s)` : 'Aucune bande-annonce trouvée sur Allociné', msAllo);
     if (allocineStreams.length > 0) {
         const streams = allocineStreams.map(s => ({ title: formatStreamTitle('trailer', officialTitle, season), url: s.url }));
         return { streams, officialTitle, source: 'allocine' };
@@ -593,14 +629,12 @@ async function resolveViaApis(type, imdbId, season, behavior, tmdbKey, trace) {
 
     // Dernier recours : recherche YouTube directe (scraping, pas d'API/clé/quota).
     // Le moins fiable des trois -> toujours en dernière position de la chaîne.
-    if (!behavior.youtubeSearchFallback) {
+    if (!pYt) {
         rec('youtube-search', false, 'Repli recherche YouTube désactivé dans les réglages');
         return { streams: [], officialTitle, source: null };
     }
-    const query = `${officialTitle} bande annonce VF`;
-    const tYt = Date.now();
-    const found = await searchYoutubeTrailer(query, ref);
-    rec('youtube-search', !!found, found ? `Trouvé: v=${found.videoId}` : `Rien de pertinent pour "${query}"`, Date.now() - tYt);
+    const { v: found, ms: msYt } = await pYt;
+    rec('youtube-search', !!found, found ? `Trouvé: v=${found.videoId}` : `Rien de pertinent pour "${query}"`, msYt);
     if (found) {
         return {
             streams: [{ title: formatStreamTitle('trailer', officialTitle, season), ytId: found.videoId }],
@@ -612,13 +646,12 @@ async function resolveViaApis(type, imdbId, season, behavior, tmdbKey, trace) {
     // Tout dernier recours : Dailymotion (API publique, voir lib/dailymotion-search.js).
     // Contrairement aux flux YouTube/Allociné/TMDB, un résultat Dailymotion n'est proposé
     // qu'en "ouvrir en externe" (pas de lecture inline) -- voir buildDailymotionStream.
-    if (!behavior.dailymotionFallback) {
+    if (!pDm) {
         rec('dailymotion-search', false, 'Repli Dailymotion désactivé dans les réglages');
         return { streams: [], officialTitle, source: null };
     }
-    const tDm = Date.now();
-    const foundDm = await searchDailymotionTrailer(query, ref);
-    rec('dailymotion-search', !!foundDm, foundDm ? `Trouvé: v=${foundDm.videoId}` : `Rien de pertinent pour "${query}"`, Date.now() - tDm);
+    const { v: foundDm, ms: msDm } = await pDm;
+    rec('dailymotion-search', !!foundDm, foundDm ? `Trouvé: v=${foundDm.videoId}` : `Rien de pertinent pour "${query}"`, msDm);
     if (!foundDm) return { streams: [], officialTitle, source: null };
     return {
         streams: [buildDailymotionStream(foundDm.videoId, formatStreamTitle('trailer', officialTitle, season))],
@@ -1401,9 +1434,9 @@ app.get('/:config?/stream/:type/:idWithExt', async (req, res) => {
                 logAiomRequest({ type, imdbId, season, config, result, ms, timeoutMs }),
                 recordAiomStat({ outcome: aiomOutcome(result), fromCache: !!result.fromCache, ms }),
             ]);
-            // Cache navigateur/CDN court : un résultat trouvé 10 min, un vide 1 min, un timeout jamais
+            // Cache navigateur/CDN : 10 min, trouvé ou non (un "aucun" ne change pas d'une minute à l'autre) ; un timeout jamais
             // (la résolution continue en arrière-plan, la requête suivante sera servie par le cache).
-            res.setHeader('Cache-Control', result.timedOut ? 'no-store' : result.streams.length ? 'public, max-age=600' : 'public, max-age=60');
+            res.setHeader('Cache-Control', result.timedOut ? 'no-store' : 'public, max-age=600');
             return res.json({ streams: result.streams });
         }
 
