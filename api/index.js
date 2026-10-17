@@ -17,6 +17,7 @@ const { searchDailymotionTrailer, searchDailymotionRaw } = require('../lib/daily
 const { recordRequest, getStats, resetStats } = require('../lib/stats');
 const { recordInstallActivity, getInstallStats, resetInstalls, removeInstall } = require('../lib/install-stats');
 const { recordRecoveryClick, getRecoveryStats, resetRecoveryStats } = require('../lib/recovery-stats');
+const { recordAiomStat, getAiomStats, resetAiomStats } = require('../lib/aiom-stats');
 const { logEvent, getLogs, clearLogs } = require('../lib/logs');
 const redis = require('../lib/redis');
 const { renderDashboardShell } = require('../lib/dashboard-view');
@@ -294,6 +295,28 @@ function withDeadline(promise, ms) {
     return Promise.race([promise, deadline]).finally(() => clearTimeout(timer));
 }
 
+// Résultat d'une requête AIOMetadata (même vocabulaire pour le journal et les compteurs).
+function aiomOutcome(result) {
+    const first = result.streams && result.streams[0];
+    if (result.timedOut) return 'timeout';
+    if (result.hidden) return 'masque';
+    if (first) return first.ytId ? 'ytId' : 'url';
+    return 'aucun';
+}
+
+// Une seule résolution à la fois par titre/config : AIOMetadata redemande souvent le même titre
+// pendant qu'une résolution lente tourne encore (délai dépassé -> nouvelle requête). Sans ça,
+// chaque requête relançait TMDB + Allociné + YouTube en parallèle pour rien.
+const _aiomInflight = new Map();
+function resolveStreamsSingleFlight(type, imdbId, season, config) {
+    const key = [type, imdbId, season || '', config.tmdbKey || '', config.pseudo || '', config.includeExtras].join('|');
+    const running = _aiomInflight.get(key);
+    if (running) return running;
+    const p = resolveStreams(type, imdbId, season, config).finally(() => _aiomInflight.delete(key));
+    _aiomInflight.set(key, p);
+    return p;
+}
+
 // Journal dashboard (page Logs, contexte AIOM) : une ligne par requête AIOMetadata, SANS toucher
 // aux stats globales (AIOMetadata peut interroger l'addon pour beaucoup de titres d'un coup : ça
 // gonflerait "Requêtes totales" et noierait les vraies demandes des utilisateurs Stremio).
@@ -303,10 +326,8 @@ const AIOM_LOG_DEDUPE_MS = 5 * 60 * 1000;
 const _aiomSeen = new Map();
 async function logAiomRequest({ type, imdbId, season, config, result, ms, timeoutMs }) {
     const first = result.streams && result.streams[0];
-    const outcome = result.timedOut ? 'timeout'
-        : result.hidden ? 'masqué'
-        : first ? (first.ytId ? 'ytId' : 'url')
-        : 'aucun';
+    const code = aiomOutcome(result);
+    const outcome = code === 'masque' ? 'masqué' : code;
 
     const key = `${type}:${imdbId}:${season || ''}:${outcome}`;
     const now = Date.now();
@@ -1372,10 +1393,14 @@ app.get('/:config?/stream/:type/:idWithExt', async (req, res) => {
         if (config.aiom) {
             const t0 = Date.now();
             const timeoutMs = aiomTimeoutMs(await getBehaviorSettingsFast()); // réglage du dashboard (cache mémoire 30 s)
-            const work = resolveStreams(type, imdbId, season, config);
+            const work = resolveStreamsSingleFlight(type, imdbId, season, config);
             work.catch(() => {}); // évite un unhandledRejection si le délai a déjà répondu
             const result = await withDeadline(work, timeoutMs);
-            await logAiomRequest({ type, imdbId, season, config, result, ms: Date.now() - t0, timeoutMs });
+            const ms = Date.now() - t0;
+            await Promise.all([
+                logAiomRequest({ type, imdbId, season, config, result, ms, timeoutMs }),
+                recordAiomStat({ outcome: aiomOutcome(result), fromCache: !!result.fromCache, ms }),
+            ]);
             // Cache navigateur/CDN court : un résultat trouvé 10 min, un vide 1 min, un timeout jamais
             // (la résolution continue en arrière-plan, la requête suivante sera servie par le cache).
             res.setHeader('Cache-Control', result.timedOut ? 'no-store' : result.streams.length ? 'public, max-age=600' : 'public, max-age=60');
@@ -1463,6 +1488,19 @@ app.get('/api/recovery-stats', requireAuth, async (req, res) => {
 
 app.post('/api/recovery-stats/reset', requireAuth, async (req, res) => {
     res.json({ success: await resetRecoveryStats() });
+});
+
+// ---- AIOMetadata (onglet dédié du dashboard) ----
+app.get('/api/aiom-stats', requireAuth, async (req, res) => {
+    const stats = await getAiomStats();
+    if (!stats) return res.json({ configured: false });
+    const behavior = await getBehaviorSettings();
+    const logs = (await getLogs()).filter(l => l.context === 'AIOM').slice(0, 30);
+    res.json({ configured: true, ...stats, timeoutSeconds: behavior.aiomTimeoutSeconds, recent: logs });
+});
+
+app.post('/api/aiom-stats/reset', requireAuth, async (req, res) => {
+    res.json({ success: await resetAiomStats() });
 });
 
 app.get('/api/overrides', requireAuth, async (req, res) => {
