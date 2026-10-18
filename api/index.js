@@ -12,7 +12,7 @@ const fetch = require('node-fetch');
 const crypto = require('crypto');
 const bcrypt = require('bcryptjs');
 const { getAllocineTrailerStreams } = require('../lib/allocine');
-const { resolveWebSources, buildWebStream, getEnabledWebSources, listWebSources, saveWebSource, deleteWebSource } = require('../lib/web-sources');
+const { probeDirectLink } = require('../lib/media-link');
 const { searchYoutubeTrailer, searchYoutubeRaw } = require('../lib/youtube-search');
 const { searchDailymotionTrailer, searchDailymotionRaw } = require('../lib/dailymotion-search');
 const { recordRequest, getStats, resetStats } = require('../lib/stats');
@@ -27,8 +27,7 @@ const {
     getOverrides, getOverride, setOverride, deleteOverride,
     logFailure, getFailedLog, clearFailedLog,
     logResolution, getResolvedLog, clearResolvedLog,
-    incrementOverrideUse,
-} = require('../lib/overrides');
+    incrementOverrideUse, youtubeIdFromUrl } = require('../lib/overrides');
 const {
     getContributions, addContribution, updateContributionStatus, deleteContribution,
 } = require('../lib/contributions');
@@ -587,7 +586,6 @@ async function resolveViaApis(type, imdbId, season, behavior, tmdbKey, trace) {
         return p;
     };
     const query = `${officialTitle} bande annonce VF`;
-    const webSourcesP = getEnabledWebSources(); // lecture mémoire 20 s : la requête SQL (si besoin) tourne pendant les replis
     const pAllo = timed(getAllocineTrailerStreams(officialTitle, ref));
     const pYt = behavior.youtubeSearchFallback ? timed(searchYoutubeTrailer(query, ref)) : null;
     const pDm = pYt && behavior.dailymotionFallback ? timed(searchDailymotionTrailer(query, ref)) : null;
@@ -597,22 +595,6 @@ async function resolveViaApis(type, imdbId, season, behavior, tmdbKey, trace) {
     if (allocineStreams.length > 0) {
         const streams = allocineStreams.map(s => ({ title: formatStreamTitle('trailer', officialTitle, season), url: s.url }));
         return { streams, officialTitle, source: 'allocine' };
-    }
-
-    // Sources web ajoutées depuis le dashboard (onglet « Sources web ») : vidéo DIRECTE .mp4 / .m3u8 lue
-    // sur la page du film. Entre Allociné et YouTube : lecture inline vérifiée, plus fiable qu'une recherche.
-    const webSources = await webSourcesP;
-    if (webSources.length) {
-        const t0web = Date.now();
-        const { hit, trace } = await resolveWebSources({ title: officialTitle, year: officialYear, ref, sources: webSources });
-        rec('web-sources', !!hit, hit ? `${hit.kind.toUpperCase()} trouvé sur ${hit.source}` : `Aucune vidéo directe (${webSources.length} source(s) interrogée(s))`, Date.now() - t0web);
-        if (hit) {
-            return {
-                streams: [buildWebStream(hit, formatStreamTitle('trailer', officialTitle, season))],
-                officialTitle,
-                source: 'web',
-            };
-        }
     }
 
     // Dernier recours : recherche YouTube directe (scraping, pas d'API/clé/quota).
@@ -665,14 +647,16 @@ async function isNewSearch(pseudoKey, imdbId, type) {
 
 // Construit la liste prioritaire de liens d'un override (rétrocompat avec ytId/url seuls).
 function buildOverrideLinks(override) {
+    // Une URL YouTube enregistrée dans le champ "URL directe" (anciens overrides) est servie comme un vrai lien YouTube.
+    const fromUrl = u => { const id = youtubeIdFromUrl(u); return id ? { ytId: id } : { url: u }; };
     const links = Array.isArray(override.links)
         ? override.links
             .filter(l => l && (typeof l.ytId === 'string' && l.ytId.trim() || typeof l.url === 'string' && l.url.trim()))
-            .map(l => l.ytId ? { ytId: l.ytId.trim() } : { url: l.url.trim() })
+            .map(l => l.ytId ? { ytId: l.ytId.trim() } : fromUrl(l.url.trim()))
         : [];
     if (!links.length) {
         if (typeof override.ytId === 'string' && override.ytId.trim()) links.push({ ytId: override.ytId.trim() });
-        else if (typeof override.url === 'string' && override.url.trim()) links.push({ url: override.url.trim() });
+        else if (typeof override.url === 'string' && override.url.trim()) links.push(fromUrl(override.url.trim()));
     }
     return links;
 }
@@ -693,10 +677,11 @@ async function isYoutubeLinkAvailable(ytId) {
 async function isUrlReachable(url) {
     try {
         const r = await fetchT(url, { method: 'HEAD', redirect: 'follow' }, 5000);
-        return r.ok || r.status < 400;
-    } catch {
-        return false;
-    }
+        if (r.ok || r.status < 400) return true;
+        // Beaucoup de CDN refusent HEAD (403/405/501) alors que le GET fonctionne : ce n'est pas un lien mort.
+        if (![400, 403, 405, 501].includes(r.status)) return false;
+    } catch { /* on retente en GET */ }
+    return (await probeDirectLink(url, 5000)).ok;
 }
 
 // TTL du cache "quel lien est actuellement vivant" pour les overrides à liens de repli
@@ -899,7 +884,7 @@ async function resolveStreamsCore(type, imdbId, season, config) {
         // TTL différencié par source : TMDB (catalogué, stable) > Allociné (HTML
         // scrapé, peut changer) > YouTube search (le moins fiable, re-vérifié souvent).
         let ttl;
-        if (result.source === 'allocine' || result.source === 'web') ttl = (behavior.allocineCacheTtlHours || 2) * 3600;
+        if (result.source === 'allocine') ttl = (behavior.allocineCacheTtlHours || 2) * 3600;
         else if (result.source === 'youtube_search') ttl = (behavior.youtubeSearchCacheTtlHours || 1) * 3600;
         else ttl = (behavior.cacheTtlHours || 6) * 3600;
         await setCached(cacheKey, result, ttl);
@@ -1257,12 +1242,8 @@ app.get('/api/test-link', requireAuth, async (req, res) => {
     }
 
     if (url && /^https?:\/\//i.test(url)) {
-        try {
-            const r = await fetchT(url, { method: 'HEAD', redirect: 'follow' });
-            return res.json({ ok: r.ok || r.status < 400, kind: 'url', url });
-        } catch (err) {
-            return res.json({ ok: false, error: 'URL injoignable' });
-        }
+        const p = await probeDirectLink(url);
+        return res.json({ ok: p.ok, kind: 'url', media: p.media, url, error: p.error });
     }
 
     res.status(400).json({ ok: false, error: 'YouTube ID ou URL requis' });
@@ -1522,42 +1503,6 @@ app.get('/api/aiom-stats', requireAuth, async (req, res) => {
 
 app.post('/api/aiom-stats/reset', requireAuth, async (req, res) => {
     res.json({ success: await resetAiomStats() });
-});
-
-// ---- Sources web (onglet « Sources web » du dashboard) ----
-app.get('/api/web-sources', requireAuth, async (req, res) => {
-    res.json({ sources: await listWebSources() });
-});
-
-app.post('/api/web-sources', requireAuth, async (req, res) => {
-    const r = await saveWebSource(req.body || {});
-    res.status(r.ok ? 200 : 400).json(r);
-});
-
-app.delete('/api/web-sources/:id', requireAuth, async (req, res) => {
-    res.json({ success: await deleteWebSource(req.params.id) });
-});
-
-// Test à blanc : exécute le vrai moteur pour un titre, SANS cache, et renvoie la trace étape par étape.
-// `adhoc` permet d'essayer un domaine / une URL de recherche avant de l'enregistrer.
-app.post('/api/web-sources/test', requireAuth, async (req, res) => {
-    const body = req.body || {};
-    const title = String(body.title || '').trim();
-    const year = parseInt(body.year, 10) || null;
-    if (!title) return res.status(400).json({ error: 'titre requis' });
-    let sources;
-    if (body.adhoc) {
-        const domain = require('../lib/web-sources').cleanDomain(body.adhoc.domain);
-        const searchUrl = String(body.adhoc.searchUrl || '').trim();
-        if (!domain && !searchUrl) return res.status(400).json({ error: 'domaine ou URL de recherche requis' });
-        sources = [{ id: 'adhoc', name: body.adhoc.name || domain || 'Test', domain, searchUrl, linkPattern: body.adhoc.linkPattern || '', requireVf: body.adhoc.requireVf === true, enabled: true }];
-    } else {
-        sources = (await listWebSources()).filter(s => !body.sourceId || s.id === body.sourceId).map(s => ({ ...s, enabled: true }));
-    }
-    const ref = buildRef({ tmdbId: null, year, allTitles: [title], allPosterPaths: [] });
-    const t0 = Date.now();
-    const { hit, trace } = await resolveWebSources({ title, year, ref, sources, budgetMs: 12000 });
-    res.json({ hit, trace, ms: Date.now() - t0, sources: sources.length });
 });
 
 app.get('/api/overrides', requireAuth, async (req, res) => {
