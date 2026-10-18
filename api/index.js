@@ -12,6 +12,7 @@ const fetch = require('node-fetch');
 const crypto = require('crypto');
 const bcrypt = require('bcryptjs');
 const { getAllocineTrailerStreams } = require('../lib/allocine');
+const { resolveWebSources, buildWebStream, getEnabledWebSources, listWebSources, saveWebSource, deleteWebSource } = require('../lib/web-sources');
 const { searchYoutubeTrailer, searchYoutubeRaw } = require('../lib/youtube-search');
 const { searchDailymotionTrailer, searchDailymotionRaw } = require('../lib/dailymotion-search');
 const { recordRequest, getStats, resetStats } = require('../lib/stats');
@@ -123,26 +124,7 @@ async function recordLoginAttempt(ip, success) {
 // sous-titrée, ou une des grandes langues de doublage YouTube). On préfère une liste trop
 // large (faux négatif -> repli Allociné/YouTube) qu'une liste trop courte (faux positif ->
 // un trailer anglais qui passe pour VF, bien pire pour l'utilisateur).
-const BASE_NON_VF_KEYWORDS = [
-    // Anglais / VO / sous-titres (génériques)
-    'vost', 'vostfr', 'vosta', ' vo ', '(vo)', '[vo]', ' vo)', ' vo]', 'v.o.',
-    'sub', 'subtitled', 'subbed', 'subtitles', 'original version', 'original trailer',
-    'english', 'anglais', 'eng dub', '(eng)', '[eng]', ' eng ',
-    // Autres langues de doublage courantes sur YouTube
-    'deutsch', 'german', 'allemand',
-    'italiano', 'italian', 'italien',
-    'español', 'espanol', 'spanish', 'espagnol', 'latino', 'castellano',
-    'legendado', 'legendas', 'dublado', 'português', 'portugues', 'portuguese',
-    'nederlands', 'dutch', 'néerlandais',
-    'русский', 'russian', 'russe',
-    '日本語', 'japanese', 'japonais',
-    '한국어', 'korean', 'coréen',
-    '中文', 'chinese', 'chinois', 'mandarin',
-    'türkçe', 'turkish', 'turc',
-    'polski', 'polish', 'polonais',
-    'arabic', 'arabe', 'العربية',
-    'hindi', 'हिन्दी',
-];
+const { hasNonVfSignal, hasVfSignal } = require('../lib/video-filters');
 // Types de vidéos TMDB considérés comme "bandes-annonces" au sens strict.
 // Les types "extras" (récaps, extraits, making-of...) sont proposés en plus
 // seulement quand includeExtras est activé (réglage admin + override par
@@ -498,23 +480,12 @@ async function getAlternativeTitles(mediaType, tmdbId, tmdbKey) {
 // le testeur admin (/api/test-resolve). Non fourni -> aucune instrumentation (0 surcoût).
 async function resolveViaApis(type, imdbId, season, behavior, tmdbKey, trace) {
     const rec = (step, ok, detail, ms) => { if (trace) trace.push({ step, ok: !!ok, detail: detail || '', ms: ms == null ? null : ms }); };
-    const nonVfKeywords = [...BASE_NON_VF_KEYWORDS, ...(behavior.extraVfKeywords || [])];
-    // Avant : on excluait juste les mots-clés VOST/sub/original (liste noire) -> un trailer
-    // nommé sobrement "Official Trailer" passait à travers alors qu'il n'est pas forcément VF.
-    // Maintenant : il faut en plus un signal explicite "VF"/"français"/"french" dans le nom
-    // (liste blanche), sinon on tombe sur Allociné puis YouTube comme repli.
-    const hasVfSignal = name =>
-        /\bvf\b/i.test(name) ||
-        /\bvfq\b/i.test(name) ||                // doublage québécois
-        /fran[çc]ais/i.test(name) ||
-        /\bfrench\b/i.test(name) ||
-        /qu[ée]b[ée]cois/i.test(name) ||
-        /qu[ée]bec/i.test(name) ||
-        /doublage/i.test(name);
-    // Strict : il faut un signal explicite VF/VFQ ET aucune trace d'une autre langue.
-    // Un trailer sans AUCUNE indication de langue (ex: "Official Trailer" tout court)
+    // Mots-clés "pas VF" ajoutés par l'admin (réglages) : cherchés tels quels dans le titre, comme avant.
+    const extraNonVf = (behavior.extraVfKeywords || []).map(k => String(k).toLowerCase()).filter(Boolean);
+    // Strict : il faut un signal explicite VF/VFQ ET aucune trace d'une autre langue (mots entiers, voir
+    // lib/video-filters.js). Un trailer sans AUCUNE indication de langue (ex: "Official Trailer" tout court)
     // est donc rejeté par défaut -> pas de VF, pas de faux "peut-être français".
-    const isLikelyVF = name => !nonVfKeywords.some(kw => name.toLowerCase().includes(kw)) && hasVfSignal(name);
+    const isLikelyVF = name => !hasNonVfSignal(name) && !extraNonVf.some(kw => name.toLowerCase().includes(kw)) && hasVfSignal(name);
 
     const tFind = Date.now();
     const findRes = await fetchT(`https://api.themoviedb.org/3/find/${imdbId}?api_key=${tmdbKey}&external_source=imdb_id`);
@@ -616,6 +587,7 @@ async function resolveViaApis(type, imdbId, season, behavior, tmdbKey, trace) {
         return p;
     };
     const query = `${officialTitle} bande annonce VF`;
+    const webSourcesP = getEnabledWebSources(); // lecture mémoire 20 s : la requête SQL (si besoin) tourne pendant les replis
     const pAllo = timed(getAllocineTrailerStreams(officialTitle, ref));
     const pYt = behavior.youtubeSearchFallback ? timed(searchYoutubeTrailer(query, ref)) : null;
     const pDm = pYt && behavior.dailymotionFallback ? timed(searchDailymotionTrailer(query, ref)) : null;
@@ -625,6 +597,22 @@ async function resolveViaApis(type, imdbId, season, behavior, tmdbKey, trace) {
     if (allocineStreams.length > 0) {
         const streams = allocineStreams.map(s => ({ title: formatStreamTitle('trailer', officialTitle, season), url: s.url }));
         return { streams, officialTitle, source: 'allocine' };
+    }
+
+    // Sources web ajoutées depuis le dashboard (onglet « Sources web ») : vidéo DIRECTE .mp4 / .m3u8 lue
+    // sur la page du film. Entre Allociné et YouTube : lecture inline vérifiée, plus fiable qu'une recherche.
+    const webSources = await webSourcesP;
+    if (webSources.length) {
+        const t0web = Date.now();
+        const { hit, trace } = await resolveWebSources({ title: officialTitle, year: officialYear, ref, sources: webSources });
+        rec('web-sources', !!hit, hit ? `${hit.kind.toUpperCase()} trouvé sur ${hit.source}` : `Aucune vidéo directe (${webSources.length} source(s) interrogée(s))`, Date.now() - t0web);
+        if (hit) {
+            return {
+                streams: [buildWebStream(hit, formatStreamTitle('trailer', officialTitle, season))],
+                officialTitle,
+                source: 'web',
+            };
+        }
     }
 
     // Dernier recours : recherche YouTube directe (scraping, pas d'API/clé/quota).
@@ -911,7 +899,7 @@ async function resolveStreamsCore(type, imdbId, season, config) {
         // TTL différencié par source : TMDB (catalogué, stable) > Allociné (HTML
         // scrapé, peut changer) > YouTube search (le moins fiable, re-vérifié souvent).
         let ttl;
-        if (result.source === 'allocine') ttl = (behavior.allocineCacheTtlHours || 2) * 3600;
+        if (result.source === 'allocine' || result.source === 'web') ttl = (behavior.allocineCacheTtlHours || 2) * 3600;
         else if (result.source === 'youtube_search') ttl = (behavior.youtubeSearchCacheTtlHours || 1) * 3600;
         else ttl = (behavior.cacheTtlHours || 6) * 3600;
         await setCached(cacheKey, result, ttl);
@@ -1534,6 +1522,42 @@ app.get('/api/aiom-stats', requireAuth, async (req, res) => {
 
 app.post('/api/aiom-stats/reset', requireAuth, async (req, res) => {
     res.json({ success: await resetAiomStats() });
+});
+
+// ---- Sources web (onglet « Sources web » du dashboard) ----
+app.get('/api/web-sources', requireAuth, async (req, res) => {
+    res.json({ sources: await listWebSources() });
+});
+
+app.post('/api/web-sources', requireAuth, async (req, res) => {
+    const r = await saveWebSource(req.body || {});
+    res.status(r.ok ? 200 : 400).json(r);
+});
+
+app.delete('/api/web-sources/:id', requireAuth, async (req, res) => {
+    res.json({ success: await deleteWebSource(req.params.id) });
+});
+
+// Test à blanc : exécute le vrai moteur pour un titre, SANS cache, et renvoie la trace étape par étape.
+// `adhoc` permet d'essayer un domaine / une URL de recherche avant de l'enregistrer.
+app.post('/api/web-sources/test', requireAuth, async (req, res) => {
+    const body = req.body || {};
+    const title = String(body.title || '').trim();
+    const year = parseInt(body.year, 10) || null;
+    if (!title) return res.status(400).json({ error: 'titre requis' });
+    let sources;
+    if (body.adhoc) {
+        const domain = require('../lib/web-sources').cleanDomain(body.adhoc.domain);
+        const searchUrl = String(body.adhoc.searchUrl || '').trim();
+        if (!domain && !searchUrl) return res.status(400).json({ error: 'domaine ou URL de recherche requis' });
+        sources = [{ id: 'adhoc', name: body.adhoc.name || domain || 'Test', domain, searchUrl, linkPattern: body.adhoc.linkPattern || '', requireVf: body.adhoc.requireVf === true, enabled: true }];
+    } else {
+        sources = (await listWebSources()).filter(s => !body.sourceId || s.id === body.sourceId).map(s => ({ ...s, enabled: true }));
+    }
+    const ref = buildRef({ tmdbId: null, year, allTitles: [title], allPosterPaths: [] });
+    const t0 = Date.now();
+    const { hit, trace } = await resolveWebSources({ title, year, ref, sources, budgetMs: 12000 });
+    res.json({ hit, trace, ms: Date.now() - t0, sources: sources.length });
 });
 
 app.get('/api/overrides', requireAuth, async (req, res) => {
