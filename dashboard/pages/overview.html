@@ -1,0 +1,57 @@
+        <!-- PAGE: OVERVIEW -->
+        <div class="page active" id="page-overview">
+          <div class="page-header">
+            <div><div class="page-title">Vue d'ensemble</div><div class="page-sub">Statistiques d'utilisation de l'addon</div></div>
+            <div class="header-actions">
+              <span class="ov-updated" id="ov-updated">—</span>
+              <label class="auto-refresh"><input type="checkbox" id="ov-auto" onchange="toggleOverviewAuto()"> Auto 30 s</label>
+              <button class="btn-outline-sm" onclick="loadOverview()">↻ Actualiser</button>
+              <button class="btn-add" onclick="resetStats()">🗑️ Vider les stats</button>
+            </div>
+          </div>
+
+          <div class="stats-grid">
+            <div class="stat-card c-red">
+              <div class="stat-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M22 12h-2.48a2 2 0 0 0-1.93 1.46l-2.35 8.36a.25.25 0 0 1-.48 0L9.24 2.18a.25.25 0 0 0-.48 0l-2.35 8.36A2 2 0 0 1 4.49 12H2"/></svg></div>
+              <div class="stat-label">Requêtes totales</div>
+              <div class="stat-value" id="stat-total">—</div>
+              <div class="stat-trend" id="trend-total"></div>
+            </div>
+            <div class="stat-card c-blue">
+              <div class="stat-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><rect width="18" height="18" x="3" y="3" rx="2"/><path d="M7 3v18"/><path d="M3 7.5h4"/><path d="M3 12h18"/><path d="M3 16.5h4"/><path d="M17 3v18"/><path d="M17 7.5h4"/><path d="M17 16.5h4"/></svg></div>
+              <div class="stat-label">Films</div>
+              <div class="stat-value" id="stat-movies">—</div>
+              <div class="stat-trend" id="trend-movies"></div>
+            </div>
+            <div class="stat-card c-purple">
+              <div class="stat-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><rect width="20" height="15" x="2" y="7" rx="2" ry="2"/><polyline points="17 2 12 7 7 2"/></svg></div>
+              <div class="stat-label">Séries</div>
+              <div class="stat-value" id="stat-series">—</div>
+              <div class="stat-trend" id="trend-series"></div>
+            </div>
+            <div class="stat-card c-green">
+              <div class="stat-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 2v4"/><path d="M16 2v4"/><rect width="18" height="18" x="3" y="4" rx="2"/><path d="M3 10h18"/></svg></div>
+              <div class="stat-label">Aujourd'hui</div>
+              <div class="stat-value" id="stat-today">—</div>
+              <div class="stat-trend" id="trend-today"></div>
+            </div>
+          </div>
+
+          <div class="ov-grid-2">
+            <div class="card">
+              <div class="card-head"><div class="card-title">Activité — 14 derniers jours</div></div>
+              <div class="card-body"><div class="ov-chart-wrap" id="chart-svg"></div></div>
+            </div>
+            <div class="card">
+              <div class="card-head"><div class="card-title">Répartition Film / Série</div></div>
+              <div class="card-body" id="split-body"></div>
+            </div>
+          </div>
+
+          <div class="card">
+            <div class="card-head"><div class="card-title">Titres les plus demandés</div></div>
+            <table><thead><tr><th>#</th><th>Titre</th><th>IMDB ID</th><th style="text-align:right">Demandes</th><th></th></tr></thead>
+            <tbody id="top-titles-body"><tr class="empty-row"><td colspan="5">Chargement...</td></tr></tbody></table>
+          </div>
+        </div>
+

@@ -1,0 +1,72 @@
+        <!-- PAGE: TEST FLUX -->
+        <div class="page" id="page-teststream">
+          <div class="page-header">
+            <div><div class="page-title">Test des flux</div><div class="page-sub">Simule une résolution avec les réglages actuels — ne touche ni au cache, ni aux stats, ni aux logs</div></div>
+          </div>
+
+          <div class="card">
+            <div class="card-head"><div class="ts-head-icon">🎬</div><div class="card-title">Tester un film ou une série</div></div>
+            <div class="card-body">
+              <div class="form-field">
+                <label>Chercher un titre <span class="hint">(recherche TMDB — remplit l'IMDB ID, le type et lance le test automatiquement)</span></label>
+                <div class="tmdb-search-wrap">
+                  <input type="text" id="test-tmdb-search" placeholder="Ex: Duel au soleil, The Bear..." autocomplete="off" oninput="onTestTmdbSearchInput()">
+                  <div class="tmdb-results" id="test-tmdb-results"></div>
+                </div>
+              </div>
+
+              <div class="form-grid">
+                <div class="form-field ts-imdb-field">
+                  <div class="ts-imdb-label-row">
+                    <label>IMDB ID <span class="hint">(ex: tt15239678, ou colle l'URL IMDB complète)</span></label>
+                    <span class="ts-override-badge" id="ts-override-badge" title="Un override existe pour ce titre — il sera utilisé sauf si tu coches « Ignorer l'override »">Override existant</span>
+                  </div>
+                  <input type="text" id="ts-imdb" placeholder="tt15239678 ou https://www.imdb.com/title/..."
+                         onblur="normalizeTsImdbField()" oninput="scheduleOverrideCheck()"
+                         onkeydown="if(event.key==='Enter'){event.preventDefault();runStreamTest();}">
+                </div>
+                <div class="form-field">
+                  <label>Type</label>
+                  <div class="ts-seg">
+                    <div class="ts-seg-btn active" id="ts-seg-movie" onclick="setTsType('movie')">🎬 Film</div>
+                    <div class="ts-seg-btn" id="ts-seg-series" onclick="setTsType('series')">📺 Série</div>
+                  </div>
+                  <select id="ts-type" style="display:none"><option value="movie">Film</option><option value="series">Série</option></select>
+                </div>
+                <div class="form-field ts-hidden" id="ts-season-field">
+                  <div>
+                    <label>Saison</label>
+                    <input type="number" id="ts-season" min="1" placeholder="ex: 2"
+                           onkeydown="if(event.key==='Enter'){event.preventDefault();runStreamTest();}">
+                  </div>
+                </div>
+              </div>
+              <div class="toggle-row" style="margin-top:6px">
+                <div><div class="label">Ignorer l'override</div><div class="desc">Tester la chaîne normale (TMDB → Allociné → YouTube) même si un override existe pour ce titre</div></div>
+                <label class="switch"><input type="checkbox" id="ts-ignore-override" onchange="scheduleOverrideCheck()"><span class="slider"></span></label>
+              </div>
+              <div class="toggle-row" style="margin-top:6px">
+                <div><div class="label">Simuler AIOMetadata</div><div class="desc">Montre ce que renvoie le mode « Compatible AIOMetadata » : un seul flux YouTube ou lien direct, sans lien externe ni « Proposer »</div></div>
+                <label class="switch"><input type="checkbox" id="ts-aiom"><span class="slider"></span></label>
+              </div>
+              <div class="form-actions">
+                <button class="btn-outline-sm" onclick="resetTsForm()">Effacer</button>
+                <button class="btn-save" id="ts-btn" onclick="runStreamTest()">🔬 Tester</button>
+              </div>
+              <div class="ts-kbd-hint">Astuce : <kbd>Entrée</kbd> dans un champ lance le test</div>
+              <div id="ts-result">
+                <div class="ts-result-empty" id="ts-result-empty">
+                  <div class="ico">🔬</div>
+                  <div class="t1">Aucun test lancé</div>
+                  <div class="t2">Cherche un titre ou colle un IMDB ID, puis clique sur Tester.</div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div class="ts-history" id="ts-history" style="display:none">
+            <div class="ts-history-label">Derniers tests de cette session</div>
+            <div class="ts-history-list" id="ts-history-list"></div>
+          </div>
+        </div>
+

@@ -1,0 +1,184 @@
+        <!-- PAGE: MAPPING -->
+        <div class="page" id="page-mapping">
+          <div class="page-header">
+            <div><div class="page-title">Mapping des liens</div><div class="page-sub">Force une bande-annonce précise pour un film/série, ou corrige un mauvais résultat</div></div>
+            <div class="header-actions">
+              <button class="btn-outline-sm" onclick="exportOverrides()">⬇️ Exporter</button>
+              <button class="btn-outline-sm" onclick="document.getElementById('import-file').click()">⬆️ Importer</button>
+              <input type="file" id="import-file" accept="application/json" style="display:none" onchange="importOverrides(event)">
+            </div>
+          </div>
+
+          <div class="stats-grid-mini">
+            <div class="mini-stat">
+              <div class="mini-stat-icon c-blue2">🎯</div>
+              <div class="mini-stat-body">
+                <div class="mini-stat-label">Overrides actifs</div>
+                <div class="mini-stat-value" id="map-stat-overrides">0</div>
+              </div>
+            </div>
+            <div class="mini-stat">
+              <div class="mini-stat-icon c-green2">✅</div>
+              <div class="mini-stat-body">
+                <div class="mini-stat-label">Résolutions (1h)</div>
+                <div class="mini-stat-value" id="map-stat-resolved">0</div>
+              </div>
+            </div>
+            <div class="mini-stat">
+              <div class="mini-stat-icon c-red2">⚠️</div>
+              <div class="mini-stat-body">
+                <div class="mini-stat-label">Échecs (50)</div>
+                <div class="mini-stat-value" id="map-stat-failed">0</div>
+              </div>
+            </div>
+            <div class="mini-stat">
+              <div class="mini-stat-icon c-orange">🚫</div>
+              <div class="mini-stat-body">
+                <div class="mini-stat-label">Masqués</div>
+                <div class="mini-stat-value" id="map-stat-hidden">0</div>
+              </div>
+            </div>
+          </div>
+
+          <div class="card">
+            <div class="card-head"><div class="card-title" id="mapping-form-title">🎯 Ajouter / modifier un override <span class="form-mode-badge" id="form-mode-badge">Nouveau</span></div></div>
+            <div class="card-body">
+              <div class="edit-banner" id="edit-banner">
+                <span id="edit-banner-text">Modification d'un override existant</span>
+                <button onclick="cancelEditOverride()">Annuler</button>
+              </div>
+
+              <div class="form-step">
+                <div class="form-step-head"><span class="step-num">1</span><div><div class="step-title">Identifier le titre</div><div class="step-desc">Le film ou la série concerné, et son IMDB ID</div></div></div>
+                <div class="form-field">
+                  <label>Chercher un titre <span class="hint">(recherche TMDB — remplit l'IMDB ID automatiquement)</span></label>
+                  <div class="tmdb-search-wrap">
+                    <input type="text" id="tmdb-search" placeholder="Ex: Duel au soleil, The Bear..." autocomplete="off" oninput="onTmdbSearchInput()">
+                    <div class="tmdb-results" id="tmdb-results"></div>
+                  </div>
+                </div>
+                <div class="form-grid">
+                  <div class="form-field">
+                    <label>IMDB ID <span class="hint">(ex: tt15239678, ou colle l'URL IMDB complète)</span></label>
+                    <input type="text" id="ov-imdb" placeholder="tt15239678 ou https://www.imdb.com/title/..." oninput="checkDuplicateOverride()" onblur="normalizeImdbField()">
+                  </div>
+                  <div class="form-field">
+                    <label>Saison <span class="hint">(séries uniquement, laisser vide sinon)</span></label>
+                    <input type="number" id="ov-season" placeholder="ex: 2" min="1" oninput="checkDuplicateOverride()">
+                  </div>
+                </div>
+                <div class="dup-warning" id="dup-warning" style="display:none; font-size:12px; padding:8px 12px; border-radius:8px; margin-top:-4px; background:rgba(229,62,62,0.08); border:1px solid rgba(229,62,62,0.25); color:#fc8181;"></div>
+              </div>
+
+              <div class="form-step">
+                <div class="form-step-head"><span class="step-num">2</span><div><div class="step-title">Choisir la bande-annonce</div><div class="step-desc">Cherche la vidéo VF, ou colle un lien directement</div></div></div>
+                <div class="form-field">
+                  <label>Chercher sur YouTube <span class="hint">(recherche la bande-annonce VF — remplit l'ID + le titre)</span></label>
+                  <div class="yt-search-wrap">
+                    <input type="text" id="yt-search" placeholder="Ex: bande-annonce VF + titre du film..." autocomplete="off" oninput="onYtSearchInput()">
+                    <div class="tmdb-results" id="yt-results"></div>
+                  </div>
+                </div>
+                <div class="form-grid">
+                  <div class="form-field">
+                    <label>Lien 1 — YouTube ID <span class="hint">(collé ou choisi ci-dessus)</span></label>
+                    <input type="text" id="ov-ytid" placeholder="dQw4w9WgXcQ ou https://youtube.com/watch?v=..." oninput="onOverrideLinkInput(0)" onblur="normalizeYoutubeField()">
+                    <div class="link-status" id="link-status-0"></div>
+                  </div>
+                  <div class="form-field">
+                    <label>Lien 1 — OU lien direct <span class="hint">(.mp4 ou .m3u8, si pas YouTube)</span></label>
+                    <input type="text" id="ov-url" placeholder="https://.../video.mp4 ou .../master.m3u8" oninput="onOverrideLinkInput(0)">
+                    <div class="link-status" id="link-status-url"></div>
+                  </div>
+                  <div class="form-field full" id="ov-fallbacks-wrap" style="display:none">
+                    <label>Liens de repli <span class="hint">(servis si le lien 1 devient indisponible, par ordre de priorité)</span></label>
+                    <div id="ov-fallbacks"></div>
+                    <button class="btn-save2" type="button" onclick="addFallbackLink()">➕ Ajouter un lien de repli</button>
+                  </div>
+                </div>
+                <div class="form-actions-inline">
+                  <button class="btn-test" type="button" onclick="testOverrideLink()">🧪 Tester le lien</button>
+                  <span class="link-test-result" id="link-test-result"></span>
+                </div>
+                <div class="form-preview" id="form-preview-wrap">
+                  <button class="form-preview-play" onclick="openPreviewFromForm()">▶️ Lire</button>
+                  <img class="form-preview-thumb" id="form-preview-thumb" alt="">
+                  <div class="form-preview-info">
+                    <div class="form-preview-title" id="form-preview-name">Aperçu de la bande-annonce</div>
+                    <div class="form-preview-meta" id="form-preview-meta"></div>
+                  </div>
+                </div>
+              </div>
+
+              <div class="form-step">
+                <div class="form-step-head"><span class="step-num">3</span><div><div class="step-title">Personnaliser <span class="hint">(optionnel)</span></div><div class="step-desc">Titre affiché dans Stremio, notes, masquage</div></div></div>
+                <div class="form-field full">
+                  <label>Titre affiché dans Stremio <span class="hint">(optionnel)</span></label>
+                  <input type="text" id="ov-title" placeholder="Bande-annonce VF - Officielle">
+                </div>
+                <div class="form-field full">
+                  <label>Notes internes <span class="hint">(raison de ce mapping — non affichées dans Stremio)</span></label>
+                  <textarea id="ov-notes" placeholder="Ex: trailer officiel en 720p, la source auto donnait une mauvaise vidéo"></textarea>
+                </div>
+                <input type="hidden" id="ov-mediatype">
+
+                <div class="toggle-row" style="border:1px solid var(--border); border-radius:9px; padding:12px 16px">
+                  <div>
+                    <div class="label">🚫 Masquer ce titre</div>
+                    <div class="desc">Aucune bande-annonce ne sera proposée dans Stremio pour cet IMDB ID (utile si aucune version VF correcte n'existe)</div>
+                  </div>
+                  <label class="switch"><input type="checkbox" id="ov-hidden" oninput="toggleHiddenMode()"><span class="slider"></span></label>
+                </div>
+              </div>
+
+              <div class="form-actions">
+                <button class="btn-save" id="ov-submit-btn" onclick="submitOverride()">Enregistrer l'override</button>
+              </div>
+            </div>
+          </div>
+
+          <div class="card">
+            <div class="card-head mapping-tabs-head">
+              <div class="mapping-tabs">
+                <button class="maptab active" data-tab="overrides" onclick="switchMappingTab('overrides')">🎯 Overrides actifs <span class="tab-count" id="tab-count-overrides">0</span></button>
+                <button class="maptab" data-tab="resolved" onclick="switchMappingTab('resolved')">✅ Résolutions récentes <span class="tab-count" id="tab-count-resolved">0</span></button>
+                <button class="maptab" data-tab="failed" onclick="switchMappingTab('failed')">⚠️ Échecs récents <span class="tab-count" id="tab-count-failed">0</span></button>
+              </div>
+              <button class="btn-outline-sm" id="mapping-clear-btn" style="display:none" onclick="clearActiveMappingLog()">Vider le journal</button>
+            </div>
+            <div class="card-desc" id="mapping-tab-desc" style="padding:0 20px 14px">Overrides que tu as configurés manuellement</div>
+            <div class="table-toolbar">
+              <input type="text" id="mapping-filter" placeholder="🔍 Filtrer par IMDB ID ou titre..." oninput="mappingPage=0;renderActiveMappingTab()">
+              <div class="mapping-sort" id="mapping-sort">
+                <span class="mapping-sort-label">Tri</span>
+                <button class="mapping-sort-opt active" data-sort="imdb" onclick="setMappingSort('imdb')">IMDB</button>
+                <button class="mapping-sort-opt" data-sort="title" onclick="setMappingSort('title')">Titre</button>
+                <button class="mapping-sort-opt" data-sort="uses" onclick="setMappingSort('uses')">Usages</button>
+                <button class="mapping-sort-opt" data-sort="hidden" onclick="setMappingSort('hidden')">Masqués</button>
+              </div>
+            </div>
+
+            <div id="mapping-tab-overrides" class="mapping-tab-panel">
+              <div class="table-toolbar bulk-bar" id="bulk-bar" style="display:none">
+                <span id="bulk-count">0 sélectionné(s)</span>
+                <button class="btn-outline-sm" onclick="bulkToggleHidden()">🚫 Masquer / ✅ Afficher</button>
+                <button class="btn-outline-sm danger" onclick="bulkDelete()">🗑️ Supprimer</button>
+                <button class="btn-outline-sm" onclick="clearSelection()">Annuler</button>
+              </div>
+              <table><thead><tr><th style="width:30px"><input type="checkbox" id="overrides-checkall" onchange="toggleCheckAll()"></th><th>Aperçu</th><th>IMDB ID</th><th>Saison</th><th>Titre</th><th>Source</th><th style="text-align:right">Usages</th><th></th></tr></thead>
+              <tbody id="overrides-body"><tr class="empty-row"><td colspan="8">Chargement...</td></tr></tbody></table>
+              <div class="mapping-pagination" id="mapping-pagination" style="display:none"></div>
+            </div>
+
+            <div id="mapping-tab-resolved" class="mapping-tab-panel" style="display:none">
+              <table><thead><tr><th>Aperçu</th><th>Titre</th><th>IMDB ID</th><th>Saison</th><th>Source</th><th></th></tr></thead>
+              <tbody id="resolved-body"><tr class="empty-row"><td colspan="6">Chargement...</td></tr></tbody></table>
+            </div>
+
+            <div id="mapping-tab-failed" class="mapping-tab-panel" style="display:none">
+              <table><thead><tr><th>Titre</th><th>IMDB ID</th><th>Type</th><th>Saison</th><th style="text-align:right">Échecs</th><th>Dernière fois</th><th></th></tr></thead>
+              <tbody id="failed-body"><tr class="empty-row"><td colspan="7">Chargement...</td></tr></tbody></table>
+            </div>
+          </div>
+        </div>
+

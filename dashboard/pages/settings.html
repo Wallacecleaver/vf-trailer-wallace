@@ -1,0 +1,121 @@
+        <!-- PAGE: SETTINGS -->
+        <div class="page" id="page-settings">
+          <div class="page-header">
+            <div><div class="page-title">Réglages</div><div class="page-sub">Comportement de résolution des bandes-annonces</div></div>
+            <div class="header-actions">
+              <span id="settings-save-state" class="save-state"></span>
+            </div>
+          </div>
+
+
+          <div class="card">
+            <div class="card-head">
+              <div>
+                <div class="card-title">🩺 Diagnostic</div>
+                <div class="card-desc" id="diag-desc">Vérification en cours...</div>
+              </div>
+              <button class="btn-outline-sm" onclick="loadDiagnostics(true)">🔄 Re-vérifier</button>
+            </div>
+            <div class="diagnostics-grid" id="diag-grid">
+              <div class="diag-item"><span class="diag-label">Redis</span><span class="diag-val diag-pending" data-diag="redis">…</span></div>
+              <div class="diag-item"><span class="diag-label">Clé TMDB serveur</span><span class="diag-val diag-pending" data-diag="tmdbkey">…</span></div>
+              <div class="diag-item"><span class="diag-label">TMDB</span><span class="diag-val diag-pending" data-diag="svc-tmdb">…</span></div>
+              <div class="diag-item"><span class="diag-label">YouTube</span><span class="diag-val diag-pending" data-diag="svc-youtube">…</span></div>
+              <div class="diag-item"><span class="diag-label">Allociné</span><span class="diag-val diag-pending" data-diag="svc-allocine">…</span></div>
+              <div class="diag-item"><span class="diag-label">Cache</span><span class="diag-val diag-pending" data-diag="cache">…</span></div>
+            </div>
+          </div>
+
+          <div class="card">
+            <div class="card-head"><div><div class="card-title">🔗 Sources de résolution</div><div class="card-desc">Ordre de repli : TMDB d'abord, puis Allociné, puis YouTube en dernier recours</div></div></div>
+            <div class="toggle-row">
+              <div><div class="label">Repli sur Allociné</div><div class="desc">Si TMDB n'a pas de bande-annonce (rien du tout, ou seulement un teaser), chercher sur Allociné (scraping)</div></div>
+              <label class="switch"><input type="checkbox" id="set-allocineFallback"><span class="slider"></span></label>
+            </div>
+            <div class="toggle-row">
+              <div><div class="label">Repli sur recherche YouTube</div><div class="desc">Si ni TMDB ni Allociné n'ont de bande-annonce, chercher directement sur YouTube (scraping, pas d'API/quota — source la moins fiable des deux, filtrée mais pas curatée). Nécessite que le repli Allociné soit activé</div></div>
+              <label class="switch"><input type="checkbox" id="set-youtubeSearchFallback"><span class="slider"></span></label>
+            </div>
+            <div class="toggle-row">
+              <div><div class="label">Ignorer les teasers</div><div class="desc">Ne renvoyer que les bandes-annonces (type "Trailer"), pas les "Teaser" — utile quand un teaser passe avant le vrai trailer</div></div>
+              <label class="switch"><input type="checkbox" id="set-ignoreTeasers"><span class="slider"></span></label>
+            </div>
+            <div class="toggle-row">
+              <div><div class="label">Inclure les extras</div><div class="desc">En plus des bandes-annonces et teasers, renvoyer les vidéos "extras" de TMDB : récaps de saison, extraits (clips), making-of, coulisses, bêtisiers, génériques. Surchargeable par utilisateur sur /configure (par défaut : ce réglage)</div></div>
+              <label class="switch"><input type="checkbox" id="set-includeExtras"><span class="slider"></span></label>
+            </div>
+            <div class="toggle-row">
+              <div><div class="label">Langue des vidéos TMDB</div><div class="desc">"Français puis autre" cherche d'abord les vidéos fr-FR puis la langue par défaut TMDB ; "Français uniquement" ne garde que les vidéos fr-FR</div></div>
+              <select id="set-trailerLanguage" class="logs-select">
+                <option value="fr-first">Français puis autre langue (recommandé)</option>
+                <option value="fr-only">Français uniquement</option>
+              </select>
+            </div>
+            <div class="toggle-row">
+              <div><div class="label">Nombre max de bandes-annonces</div><div class="desc">Combien de résultats renvoyer au maximum par titre (1 à 3)</div></div>
+              <div class="field-inline"><input type="number" id="set-maxTrailers" min="1" max="3"></div>
+            </div>
+          </div>
+
+          <div class="card">
+            <div class="card-head"><div><div class="card-title">🧩 AIOMetadata</div><div class="card-desc">Réglages du mode « Compatible AIOMetadata » (case à cocher sur /configure)</div></div></div>
+            <div class="toggle-row">
+              <div><div class="label">Délai maximum de réponse (secondes)</div><div class="desc">Au-delà, l'addon répond sans trailer et AIOMetadata garde celui de son fournisseur. La recherche continue en arrière-plan : le résultat sera dans le cache à la requête suivante. De 1 à 12 s, 5 par défaut</div></div>
+              <div class="field-inline"><input type="number" id="set-aiomTimeoutSeconds" min="1" max="12"></div>
+            </div>
+          </div>
+
+          <div class="card">
+            <div class="card-head"><div><div class="card-title">💾 Cache</div><div class="card-desc">Mémorise les résultats déjà résolus pour aller plus vite et économiser les appels TMDB</div></div></div>
+            <div class="toggle-row">
+              <div><div class="label">Cache Redis</div><div class="desc">Activer ou désactiver la mise en cache</div></div>
+              <label class="switch"><input type="checkbox" id="set-cacheEnabled"><span class="slider"></span></label>
+            </div>
+            <div class="toggle-row">
+              <div><div class="label">Durée du cache TMDB (heures)</div><div class="desc">Résultats trouvés via TMDB (catalogué, stable)</div></div>
+              <div class="field-inline"><input type="number" id="set-cacheTtlHours" min="1" max="72"></div>
+            </div>
+            <div class="toggle-row">
+              <div><div class="label">Durée du cache Allociné (heures)</div><div class="desc">Plus courte que TMDB : le HTML scrapé peut changer</div></div>
+              <div class="field-inline"><input type="number" id="set-allocineCacheTtlHours" min="1" max="72"></div>
+            </div>
+            <div class="toggle-row">
+              <div><div class="label">Durée du cache YouTube search (heures)</div><div class="desc">La plus courte : source la moins fiable, re-vérifiée souvent</div></div>
+              <div class="field-inline"><input type="number" id="set-youtubeSearchCacheTtlHours" min="1" max="72"></div>
+            </div>
+            <div class="toggle-row">
+              <div><div class="label">Mettre aussi en cache les échecs</div><div class="desc">Si rien n'est trouvé pour un titre, mémoriser cet échec aussi — évite de re-scraper Allociné/YouTube à chaque requête pour un titre qui échoue systématiquement</div></div>
+              <label class="switch"><input type="checkbox" id="set-cacheFailures"><span class="slider"></span></label>
+            </div>
+            <div class="toggle-row">
+              <div><div class="label">Durée du cache d'échec (minutes)</div><div class="desc">Volontairement plus courte que le cache de succès : un override ou une nouvelle vidéo peut corriger le problème entre-temps</div></div>
+              <div class="field-inline"><input type="number" id="set-failureCacheTtlMinutes" min="5" max="180"></div>
+            </div>
+            <div class="toggle-row">
+              <div><div class="label">Purger le cache</div><div class="desc" id="cache-stats-desc">Vérification en cours...</div></div>
+              <div class="field-inline">
+                <button class="btn-outline-sm" onclick="clearTrailerCache('failures')">🧹 Vider les échecs</button>
+                <button class="btn-outline-sm" onclick="clearTrailerCache()">🗑️ Tout vider</button>
+              </div>
+            </div>
+          </div>
+
+          <div class="card">
+            <div class="card-head"><div class="card-title">🔤 Mots-clés VOST supplémentaires</div></div>
+            <div class="card-body">
+              <div class="form-field full">
+                <label>Mots-clés à exclure, séparés par des virgules <span class="hint">(en plus de la liste de base : vost, vo, sub...)</span></label>
+                <textarea id="set-extraVfKeywords" placeholder="teaser non officiel, fan made"></textarea>
+              </div>
+              <div class="form-actions">
+                <button class="btn-add" onclick="resetBehaviorDefaults()">↺ Réinitialiser</button>
+                <button class="btn-save" onclick="saveBehaviorSettings()">Enregistrer les réglages</button>
+              </div>
+            </div>
+          </div>
+
+          <div class="info-box">
+            🔒 Le mot de passe du dashboard (<code>DASHBOARD_PASSWORD</code>) se change dans les variables d'environnement Vercel, pas ici — pour des raisons de sécurité.
+          </div>
+        </div>
+

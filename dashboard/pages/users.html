@@ -1,0 +1,59 @@
+        <!-- PAGE: USERS -->
+        <div class="page" id="page-users">
+          <div class="page-header">
+            <div><div class="page-title">Utilisateurs</div><div class="page-sub">Installations actives de l'addon — une install = une combinaison clé TMDB + pseudo</div></div>
+            <div class="header-actions">
+              <span class="ov-updated" id="install-updated">—</span>
+              <button class="btn-outline-sm" onclick="loadInstallStats()">↻ Actualiser</button>
+              <button class="btn-add" onclick="resetInstallStats()">🗑️ Vider les données</button>
+            </div>
+          </div>
+
+          <div class="stats-grid">
+            <div class="stat-card c-red">
+              <div class="stat-icon">📦</div>
+              <div class="stat-label">Installations actives</div>
+              <div class="stat-value" id="install-stat-total">—</div>
+              <div class="stat-trend" id="install-trend-total"></div>
+            </div>
+            <div class="stat-card c-green">
+              <div class="stat-icon">✅</div>
+              <div class="stat-label">Actives aujourd'hui</div>
+              <div class="stat-value" id="install-stat-today">—</div>
+              <div class="stat-trend" id="install-trend-today"></div>
+            </div>
+            <div class="stat-card c-blue">
+              <div class="stat-icon">👥</div>
+              <div class="stat-label">Utilisateurs suivis</div>
+              <div class="stat-value" id="install-stat-users">—</div>
+              <div class="stat-trend" id="install-trend-users"></div>
+            </div>
+            <div class="stat-card c-purple">
+              <div class="stat-icon">📊</div>
+              <div class="stat-label">Requêtes manifest</div>
+              <div class="stat-value" id="install-stat-req">—</div>
+              <div class="stat-trend" id="install-trend-req"></div>
+            </div>
+          </div>
+
+          <div class="ov-grid-2">
+            <div class="card">
+              <div class="card-head"><div class="card-title">Activité — 14 derniers jours</div></div>
+              <div class="card-body"><div class="ov-chart-wrap" id="install-chart-svg"></div></div>
+            </div>
+            <div class="card">
+              <div class="card-head"><div class="card-title">Pseudo renseigné ou anonyme</div></div>
+              <div class="card-body" id="user-split-body"></div>
+            </div>
+          </div>
+
+          <div class="card">
+            <div class="card-head"><div class="card-title">Liste des utilisateurs</div></div>
+            <div class="table-toolbar">
+              <input type="text" id="users-filter" placeholder="🔍 Filtrer par pseudo..." oninput="renderUsersTable()">
+            </div>
+            <table><thead><tr><th>Utilisateur</th><th>Première activité</th><th>Dernière activité</th><th style="text-align:right">Requêtes</th><th></th></tr></thead>
+            <tbody id="users-body"><tr class="empty-row"><td colspan="5">Chargement...</td></tr></tbody></table>
+          </div>
+        </div>
+

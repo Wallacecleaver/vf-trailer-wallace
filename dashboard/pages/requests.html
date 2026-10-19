@@ -1,0 +1,40 @@
+        <!-- PAGE: DEMANDES (propositions communautaires) -->
+        <div class="page" id="page-requests">
+          <div class="page-header">
+            <div><div class="page-title">Demandes</div><div class="page-sub">Propositions de liens envoyées par les visiteurs via la page publique — accepte pour remplacer le lien, ou refuse.</div></div>
+          </div>
+
+          <div class="card" style="margin-bottom:16px">
+            <div class="card-body" style="display:flex;align-items:center;justify-content:space-between;gap:14px;flex-wrap:wrap">
+              <div>
+                <div style="font-size:13px;font-weight:700;margin-bottom:3px">🔗 Page publique de proposition</div>
+                <div style="font-size:12px;color:var(--text2)">Partage ce lien : n'importe qui peut proposer un lien, sans accès au dashboard.</div>
+              </div>
+              <button class="btn-outline-sm" onclick="copyContributeLink()">⧉ Copier le lien /proposer</button>
+            </div>
+          </div>
+
+          <div class="card">
+            <div class="card-head mapping-tabs-head">
+              <div class="mapping-tabs">
+                <button class="maptab active" data-tab="pending" onclick="switchRequestsTab('pending')">🕓 En attente <span class="tab-count" id="tab-count-req-pending">0</span></button>
+                <button class="maptab" data-tab="accepted" onclick="switchRequestsTab('accepted')">✅ Acceptées <span class="tab-count" id="tab-count-req-accepted">0</span></button>
+                <button class="maptab" data-tab="rejected" onclick="switchRequestsTab('rejected')">🚫 Refusées <span class="tab-count" id="tab-count-req-rejected">0</span></button>
+              </div>
+            </div>
+
+            <div id="requests-tab-pending" class="mapping-tab-panel">
+              <table><thead><tr><th>Aperçu</th><th>Titre</th><th>Proposé par</th><th>Note</th><th>Date</th><th></th></tr></thead>
+              <tbody id="requests-pending-body"><tr class="empty-row"><td colspan="6">Chargement...</td></tr></tbody></table>
+            </div>
+            <div id="requests-tab-accepted" class="mapping-tab-panel" style="display:none">
+              <table><thead><tr><th>Aperçu</th><th>Titre</th><th>Proposé par</th><th>Date</th></tr></thead>
+              <tbody id="requests-accepted-body"><tr class="empty-row"><td colspan="4">Chargement...</td></tr></tbody></table>
+            </div>
+            <div id="requests-tab-rejected" class="mapping-tab-panel" style="display:none">
+              <table><thead><tr><th>Aperçu</th><th>Titre</th><th>Proposé par</th><th>Date</th></tr></thead>
+              <tbody id="requests-rejected-body"><tr class="empty-row"><td colspan="4">Chargement...</td></tr></tbody></table>
+            </div>
+          </div>
+        </div>
+

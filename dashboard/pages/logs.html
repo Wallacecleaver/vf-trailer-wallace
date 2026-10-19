@@ -1,0 +1,71 @@
+        <!-- PAGE: LOGS -->
+        <div class="page" id="page-logs">
+          <div class="page-header">
+            <div><div class="page-title">Logs</div><div class="page-sub">Journal en direct : connexions, réglages, overrides et vrais problèmes de mapping, requêtes AIOMetadata (500 derniers événements)</div></div>
+          </div>
+
+          <div class="card services-status-card">
+            <div class="card-head">
+              <div>
+                <div class="card-title">Statut des services</div>
+                <div class="card-desc" id="svc-status-desc">Vérification en cours...</div>
+              </div>
+              <button class="btn-outline-sm" onclick="loadServicesStatus(true)">🔄 Vérifier maintenant</button>
+            </div>
+            <div class="services-status-grid" id="svc-status-grid">
+              <div class="svc-pill svc-pending"><span class="svc-dot"></span>TMDB</div>
+              <div class="svc-pill svc-pending"><span class="svc-dot"></span>YouTube</div>
+              <div class="svc-pill svc-pending"><span class="svc-dot"></span>Allociné</div>
+            </div>
+          </div>
+
+          <div class="card">
+            <div class="card-head logs-toolbar">
+              <div class="logs-group">
+                <label>Contexte</label>
+                <select class="logs-select" id="logs-ctx" onchange="renderLogs()">
+                  <option value="">Tous</option>
+                  <option value="AUTH">🔐 Auth</option>
+                  <option value="INSTALL">📦 Install</option>
+                  <option value="STREAM">🎬 Stream</option>
+                  <option value="OVERRIDE">🎯 Override</option>
+                  <option value="SETTINGS">⚙️ Réglages</option>
+                  <option value="META">ℹ️ Meta</option>
+                  <option value="AIOM">🧩 AIOMetadata</option>
+                  <option value="SYSTEM">🚀 Système</option>
+                </select>
+              </div>
+              <div class="logs-group">
+                <label>Niveau</label>
+                <select class="logs-select" id="logs-level" onchange="renderLogs()">
+                  <option value="">Tous</option>
+                  <option value="info">Info+</option>
+                  <option value="warn">Warning+</option>
+                  <option value="error">Erreur</option>
+                </select>
+              </div>
+              <div class="logs-group logs-search">
+                <input type="text" id="logs-search" placeholder="Rechercher..." oninput="renderLogs()">
+              </div>
+              <div class="logs-group">
+                <label>Rafraîchissement</label>
+                <select class="logs-select" id="logs-interval" onchange="restartLogPolling()">
+                  <option value="2000">2s</option>
+                  <option value="5000" selected>5s</option>
+                  <option value="10000">10s</option>
+                  <option value="0">Off</option>
+                </select>
+              </div>
+              <button class="logs-pausebtn" id="logs-pausebtn" onclick="toggleLogPause()">⏸️ Pause</button>
+              <button class="btn-outline-sm" onclick="exportLogs()">⬇️ Exporter</button>
+              <button class="btn-outline-sm" onclick="clearLogs()">🗑️ Vider</button>
+              <div class="logs-status" style="margin-left:auto">
+                <div class="logs-dot" id="logs-dot"></div>
+                <span id="logs-statustext">Live</span>
+              </div>
+            </div>
+            <div class="logs-term" id="logs-term">
+              <div class="logs-empty"><div class="icon">📋</div><p>En attente de logs...</p></div>
+            </div>
+          </div>
+        </div>

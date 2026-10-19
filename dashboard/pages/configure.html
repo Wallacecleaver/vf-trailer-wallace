@@ -1,0 +1,90 @@
+        <!-- PAGE: CONFIGURE -->
+        <div class="page" id="page-configure">
+          <div class="page-header">
+            <div><div class="page-title">Page Configure</div><div class="page-sub">Textes et apparence de la page publique /configure (installation de l'addon)</div></div>
+            <div class="header-actions">
+              <a href="/configure" target="_blank" class="btn-outline-sm">👁️ Voir en direct ↗</a>
+              <button class="btn-add" onclick="resetConfigureDefaults()">↺ Réinitialiser</button>
+            </div>
+          </div>
+
+          <div class="config-preview-card">
+            <div class="card-head"><div class="card-title">👁️ Aperçu en direct</div></div>
+            <div class="card-body">
+              <iframe id="cfg-preview" class="config-preview-frame" title="Aperçu /configure" sandbox="allow-scripts" loading="lazy"></iframe>
+            </div>
+          </div>
+
+          <div class="card">
+            <div class="card-head"><div class="card-title">Navigation</div></div>
+            <div class="card-body">
+              <div class="form-grid">
+                <div class="form-field"><label>Nom affiché en haut à gauche</label><input type="text" id="cfg-brandName" placeholder="ex: Wallace"></div>
+                <div class="form-field"></div>
+                <div class="form-field"><label>Texte du lien en haut à droite</label><input type="text" id="cfg-navLinkText" placeholder="ex: Discord"></div>
+                <div class="form-field"><label>URL du lien</label><input type="text" id="cfg-navLinkUrl" placeholder="https://discord.gg/..."></div>
+              </div>
+              <div class="hint" style="margin-top:-4px;margin-bottom:14px">Laisse l'URL vide pour masquer complètement ce lien.</div>
+            </div>
+          </div>
+
+          <div class="card">
+            <div class="card-head"><div class="card-title">En-tête</div></div>
+            <div class="card-body">
+              <div class="hint" style="margin-top:-4px;margin-bottom:14px">Le badge "test" a été remplacé par un vrai check en direct de TMDB/YouTube/Allociné (point vert/rouge), non éditable ici.</div>
+              <div class="form-grid">
+                <div class="form-field"><label>Titre principal (blanc)</label><input type="text" id="cfg-heroTitleWhite"></div>
+                <div class="form-field"><label>Titre principal (rouge)</label><input type="text" id="cfg-heroTitleRed"></div>
+              </div>
+              <div class="form-field full"><label>Sous-titre <span class="hint">(laisser vide pour masquer)</span></label><textarea id="cfg-heroSubtitle"></textarea></div>
+            </div>
+          </div>
+
+          <div class="card">
+            <div class="card-head"><div class="card-title">🎨 Apparence</div></div>
+            <div class="card-body">
+              <div class="form-grid">
+                <div class="form-field"><label>Couleur de marque <span class="hint">(boutons, titre, accents de la page)</span></label>
+                  <div class="color-pick-row">
+                    <input type="color" id="cfg-accentColor" value="#e53e3e">
+                    <input type="text" id="cfg-accentColorText" placeholder="#e53e3e" maxlength="7">
+                  </div>
+                </div>
+                <div class="form-field"></div>
+              </div>
+            </div>
+          </div>
+
+          <div class="card">
+            <div class="card-head"><div class="card-title">Textes des sections</div></div>
+            <div class="card-body">
+              <div class="form-grid">
+                <div class="form-field"><label>Section « Configuration »</label><input type="text" id="cfg-sectionConfigLabel"></div>
+                <div class="form-field"><label>Section « Profil »</label><input type="text" id="cfg-sectionProfileLabel"></div>
+                <div class="form-field"><label>Section « Affichage des liens »</label><input type="text" id="cfg-sectionLinksLabel"></div>
+              </div>
+              <div class="form-field full"><label>Indice clé TMDB</label><textarea id="cfg-tmdbKeyHint"></textarea></div>
+              <div class="form-field full"><label>Indice pseudo Discord</label><textarea id="cfg-pseudoHint"></textarea></div>
+            </div>
+          </div>
+
+          <div class="card">
+            <div class="card-head"><div class="card-title">Textes du formulaire & barre d'installation</div></div>
+            <div class="card-body">
+              <div class="form-grid">
+                <div class="form-field"><label>Titre du toggle « liens externes »</label><input type="text" id="cfg-externalToggleTitle"></div>
+                <div class="form-field"><label>Description du toggle</label><input type="text" id="cfg-externalToggleDesc"></div>
+                <div class="form-field"><label>Label « nombre max de liens »</label><input type="text" id="cfg-maxLinksLabel"></div>
+                <div class="form-field"><label>Indice « nombre max de liens »</label><input type="text" id="cfg-maxLinksHint"></div>
+                <div class="form-field"><label>Label « extras »</label><input type="text" id="cfg-extrasSelectLabel"></div>
+                <div class="form-field"><label>Indice « extras »</label><input type="text" id="cfg-extrasSelectHint"></div>
+                <div class="form-field"><label>Bouton « Installer dans Stremio »</label><input type="text" id="cfg-installAppLabel"></div>
+                <div class="form-field"><label>Bouton « Web »</label><input type="text" id="cfg-installWebLabel"></div>
+                <div class="form-field"><label>Bouton « Copier le lien »</label><input type="text" id="cfg-installCopyLabel"></div>
+              </div>
+              <div class="form-actions"><button class="btn-save" onclick="saveConfigureSettings()">💾 Enregistrer les modifications</button></div>
+            </div>
+          </div>
+
+        </div>
+
