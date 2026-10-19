@@ -14,7 +14,6 @@ const bcrypt = require('bcryptjs');
 const { getAllocineTrailerStreams } = require('../lib/allocine');
 const { probeDirectLink } = require('../lib/media-link');
 const { searchYoutubeTrailer, searchYoutubeRaw } = require('../lib/youtube-search');
-const { searchDailymotionTrailer, searchDailymotionRaw } = require('../lib/dailymotion-search');
 const { recordRequest, getStats, resetStats } = require('../lib/stats');
 const { recordInstallActivity, getInstallStats, resetInstalls, removeInstall } = require('../lib/install-stats');
 const { recordRecoveryClick, getRecoveryStats, resetRecoveryStats } = require('../lib/recovery-stats');
@@ -199,24 +198,6 @@ function buildExternalYoutubeStream(ytId, title) {
         title: `${title || 'Bande-annonce VF'}\n(ouvrir dans YouTube)`,
         externalUrl: `https://www.youtube.com/watch?v=${ytId}`,
         __external: true, // marqueur interne (retiré avant envoi) -- voir applyUserStreamPrefs
-    };
-}
-
-// Dailymotion n'est pas nativement résolu par le lecteur intégré de Stremio (contrairement
-// à YouTube via `ytId`) : contrairement à un override en URL directe (qui pointe vers un
-// vrai fichier vidéo), une page dailymotion.com/video/xxx est une page HTML, pas un flux
-// brut -- tenter de la jouer inline échouerait. On la propose donc uniquement en "ouvrir en
-// externe", comme le jumeau YouTube ci-dessus, jamais comme flux jouable direct.
-function formatDailymotionStreamName() {
-    return '🎬 VF\n▶️ Dailymotion';
-}
-
-function buildDailymotionStream(videoId, title) {
-    return {
-        name: formatDailymotionStreamName(),
-        title: `${title || 'Bande-annonce VF'}\n(ouvrir dans Dailymotion)`,
-        externalUrl: `https://www.dailymotion.com/video/${videoId}`,
-        __external: true,
     };
 }
 
@@ -574,10 +555,10 @@ async function resolveViaApis(type, imdbId, season, behavior, tmdbKey, trace) {
         rec('allocine', false, !officialTitle ? 'Titre officiel inconnu — repli Allociné impossible' : 'Repli Allociné désactivé dans les réglages');
         return { streams: [], officialTitle, source: null };
     }
-    // Les trois replis sont LANCÉS EN MÊME TEMPS, puis lus dans l'ordre de priorité habituel
-    // (Allociné > YouTube > Dailymotion) : le résultat est identique à l'ancienne chaîne, mais un
+    // Les replis sont LANCÉS EN MÊME TEMPS, puis lus dans l'ordre de priorité habituel
+    // (Allociné > YouTube) : le résultat est identique à l'ancienne chaîne, mais un
     // titre sans bande-annonce VF coûte la durée du repli le plus lent au lieu de la SOMME des trois.
-    // (Contrepartie : YouTube/Dailymotion sont aussi interrogés quand Allociné aurait suffi.)
+    // (Contrepartie : YouTube est aussi interrogé quand Allociné aurait suffi.)
     // La logique "un repli désactivé coupe la suite de la chaîne" est conservée telle quelle.
     const timed = promise => {
         const t = Date.now();
@@ -588,7 +569,6 @@ async function resolveViaApis(type, imdbId, season, behavior, tmdbKey, trace) {
     const query = `${officialTitle} bande annonce VF`;
     const pAllo = timed(getAllocineTrailerStreams(officialTitle, ref));
     const pYt = behavior.youtubeSearchFallback ? timed(searchYoutubeTrailer(query, ref)) : null;
-    const pDm = pYt && behavior.dailymotionFallback ? timed(searchDailymotionTrailer(query, ref)) : null;
 
     const { v: allocineStreams, ms: msAllo } = await pAllo;
     rec('allocine', allocineStreams.length > 0, allocineStreams.length > 0 ? `${allocineStreams.length} bande-annonce(s) trouvée(s)` : 'Aucune bande-annonce trouvée sur Allociné', msAllo);
@@ -598,7 +578,7 @@ async function resolveViaApis(type, imdbId, season, behavior, tmdbKey, trace) {
     }
 
     // Dernier recours : recherche YouTube directe (scraping, pas d'API/clé/quota).
-    // Le moins fiable des trois -> toujours en dernière position de la chaîne.
+    // Le moins fiable des sources -> toujours en dernière position de la chaîne.
     if (!pYt) {
         rec('youtube-search', false, 'Repli recherche YouTube désactivé dans les réglages');
         return { streams: [], officialTitle, source: null };
@@ -612,22 +592,7 @@ async function resolveViaApis(type, imdbId, season, behavior, tmdbKey, trace) {
             source: 'youtube_search',
         };
     }
-
-    // Tout dernier recours : Dailymotion (API publique, voir lib/dailymotion-search.js).
-    // Contrairement aux flux YouTube/Allociné/TMDB, un résultat Dailymotion n'est proposé
-    // qu'en "ouvrir en externe" (pas de lecture inline) -- voir buildDailymotionStream.
-    if (!pDm) {
-        rec('dailymotion-search', false, 'Repli Dailymotion désactivé dans les réglages');
-        return { streams: [], officialTitle, source: null };
-    }
-    const { v: foundDm, ms: msDm } = await pDm;
-    rec('dailymotion-search', !!foundDm, foundDm ? `Trouvé: v=${foundDm.videoId}` : `Rien de pertinent pour "${query}"`, msDm);
-    if (!foundDm) return { streams: [], officialTitle, source: null };
-    return {
-        streams: [buildDailymotionStream(foundDm.videoId, formatStreamTitle('trailer', officialTitle, season))],
-        officialTitle,
-        source: 'dailymotion_search',
-    };
+    return { streams: [], officialTitle, source: null };
 }
 
 // Dédup : on ne veut logger qu'une seule fois qu'une personne donnée (pseudo) a
