@@ -234,7 +234,9 @@ function applyUserStreamPrefs(streams, config) {
 // exploitable, ytId en priorité ; liste vide sinon -> AIOMetadata garde le trailer de son fournisseur.
 function toAiomStreams(streams) {
     const usable = (streams || []).filter(s => s && (s.ytId || s.url));
-    usable.sort((a, b) => (b.ytId ? 1 : 0) - (a.ytId ? 1 : 0));
+    // ytId d'abord, puis une bande-annonce plutôt qu'un teaser (le teaser passe en premier dans la liste Stremio).
+    const isTeaser = s => /^Teaser\b/.test(s.title || '');
+    usable.sort((a, b) => ((b.ytId ? 1 : 0) - (a.ytId ? 1 : 0)) || ((isTeaser(a) ? 1 : 0) - (isTeaser(b) ? 1 : 0)));
     return usable.slice(0, 1).map(s => {
         const { __external, ...rest } = s; // marqueur interne, jamais envoyé
         return rest;
@@ -396,29 +398,30 @@ function decodeConfig(str) {
 // international ("28 Days Later" pour "28 Jours plus tard").
 
 function pickBestTrailers(videos, maxTrailers) {
-    // Ordre de préférence : Trailer > Teaser > extras (Clip, Récap, Making-of...).
-    // Les "vraies" bandes-annonces passent toujours avant les extras quand un titre
-    // a les deux -- un utilisateur qui active les extras veut un bonus, pas un remplaçant.
-    const typeRank = t => {
-        if (t.type === 'Trailer') return 0;
-        if (t.type === 'Teaser') return 1;
-        return 2;
-    };
-    const sorted = [...videos].sort((a, b) => {
-        const rankDiff = typeRank(a) - typeRank(b);
-        if (rankDiff !== 0) return rankDiff;
+    // Affichage dans Stremio : le meilleur Teaser (s'il y en a un) PUIS la bande-annonce, puis les
+    // éventuels extras (Clip, Récap, Making-of...) s'ils sont activés. Un teaser disponible est donc
+    // toujours proposé en plus de la bande-annonce, même avec maxTrailers = 1 (on passe alors à 2).
+    const byFreshness = (a, b) => {
         if (a.official !== b.official) return a.official ? -1 : 1;
         return new Date(b.published_at || 0) - new Date(a.published_at || 0);
-    });
+    };
+    const ofType = t => videos.filter(v => v.type === t).sort(byFreshness);
+    const teasers = ofType('Teaser');
+    const trailers = ofType('Trailer');
+    const extras = videos.filter(v => v.type !== 'Trailer' && v.type !== 'Teaser').sort(byFreshness);
+
+    const limit = teasers.length ? Math.max(maxTrailers, 2) : maxTrailers;
     const seenNames = new Set();
     const picked = [];
-    for (const v of sorted) {
+    const add = v => {
         const key = v.name.trim().toLowerCase();
-        if (seenNames.has(key)) continue;
+        if (seenNames.has(key) || picked.length >= limit) return;
         seenNames.add(key);
         picked.push(v);
-        if (picked.length >= maxTrailers) break;
-    }
+    };
+    if (teasers.length) add(teasers[0]);
+    for (const v of trailers) add(v);
+    for (const v of extras) add(v);
     return picked;
 }
 
