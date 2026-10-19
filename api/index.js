@@ -544,6 +544,52 @@ async function resolveViaApis(type, imdbId, season, behavior, tmdbKey, trace) {
     if (!trailers.length) trailers = await fetchVideos(vGlobalFr, 'Vidéos globales (fr-FR)');
     if (!trailers.length && behavior.trailerLanguage !== 'fr-only') trailers = await fetchVideos(vGlobalDef, 'Vidéos globales (langue par défaut)');
 
+    // Replis Allociné > YouTube (voir ci-dessous). Renvoie { streams, source } ou null si rien trouvé /
+    // repli désactivé. Utilisé quand TMDB n'a rien, ET pour compléter quand TMDB n'a qu'un teaser
+    // (ou des extras) sans vraie bande-annonce.
+    async function runFallbacks() {
+        if (!officialTitle || !behavior.allocineFallback) {
+            rec('allocine', false, !officialTitle ? 'Titre officiel inconnu — repli Allociné impossible' : 'Repli Allociné désactivé dans les réglages');
+            return null;
+        }
+        // Les replis sont LANCÉS EN MÊME TEMPS, puis lus dans l'ordre de priorité habituel
+        // (Allociné > YouTube) : un titre sans bande-annonce VF coûte la durée du repli le plus lent
+        // au lieu de la SOMME des deux. La logique "un repli désactivé coupe la suite de la chaîne"
+        // est conservée telle quelle.
+        const timed = promise => {
+            const t = Date.now();
+            const p = promise.then(v => ({ v, ms: Date.now() - t }));
+            p.catch(() => {});
+            return p;
+        };
+        const query = `${officialTitle} bande annonce VF`;
+        const pAllo = timed(getAllocineTrailerStreams(officialTitle, ref));
+        const pYt = behavior.youtubeSearchFallback ? timed(searchYoutubeTrailer(query, ref)) : null;
+
+        const { v: allocineStreams, ms: msAllo } = await pAllo;
+        rec('allocine', allocineStreams.length > 0, allocineStreams.length > 0 ? `${allocineStreams.length} bande-annonce(s) trouvée(s)` : 'Aucune bande-annonce trouvée sur Allociné', msAllo);
+        if (allocineStreams.length > 0) {
+            return {
+                streams: allocineStreams.map(s => ({ title: formatStreamTitle('trailer', officialTitle, season), url: s.url })),
+                source: 'allocine',
+            };
+        }
+
+        // Dernier recours : recherche YouTube directe (scraping, pas d'API/clé/quota).
+        // Le moins fiable des sources -> toujours en dernière position de la chaîne.
+        if (!pYt) {
+            rec('youtube-search', false, 'Repli recherche YouTube désactivé dans les réglages');
+            return null;
+        }
+        const { v: found, ms: msYt } = await pYt;
+        rec('youtube-search', !!found, found ? `Trouvé: v=${found.videoId}` : `Rien de pertinent pour "${query}"`, msYt);
+        if (!found) return null;
+        return {
+            streams: [{ title: formatStreamTitle('trailer', officialTitle, season), ytId: found.videoId }],
+            source: 'youtube_search',
+        };
+    }
+
     if (trailers.length > 0) {
         const best = pickBestTrailers(trailers, behavior.maxTrailers || 2);
         rec('tmdb-pick', true, `${best.length} trailer(s) sélectionné(s) sur ${trailers.length} (max ${behavior.maxTrailers || 2})`);
@@ -551,51 +597,17 @@ async function resolveViaApis(type, imdbId, season, behavior, tmdbKey, trace) {
             title: formatStreamTitle(t.type, officialTitle, season),
             ytId: t.key,
         }));
-        return { streams, officialTitle, source: 'tmdb' };
+        // TMDB a une vraie bande-annonce : on s'arrête là.
+        if (best.some(t => t.type === 'Trailer')) return { streams, officialTitle, source: 'tmdb' };
+        // Sinon (juste un teaser / des extras), on cherche la bande-annonce ailleurs et on l'ajoute APRÈS.
+        rec('tmdb-complement', true, 'Pas de bande-annonce TMDB (teaser/extras seulement) — recherche Allociné / YouTube');
+        const extra = await runFallbacks();
+        return { streams: extra ? [...streams, ...extra.streams] : streams, officialTitle, source: 'tmdb' };
     }
 
-    if (!officialTitle || !behavior.allocineFallback) {
-        rec('allocine', false, !officialTitle ? 'Titre officiel inconnu — repli Allociné impossible' : 'Repli Allociné désactivé dans les réglages');
-        return { streams: [], officialTitle, source: null };
-    }
-    // Les replis sont LANCÉS EN MÊME TEMPS, puis lus dans l'ordre de priorité habituel
-    // (Allociné > YouTube) : le résultat est identique à l'ancienne chaîne, mais un
-    // titre sans bande-annonce VF coûte la durée du repli le plus lent au lieu de la SOMME des trois.
-    // (Contrepartie : YouTube est aussi interrogé quand Allociné aurait suffi.)
-    // La logique "un repli désactivé coupe la suite de la chaîne" est conservée telle quelle.
-    const timed = promise => {
-        const t = Date.now();
-        const p = promise.then(v => ({ v, ms: Date.now() - t }));
-        p.catch(() => {});
-        return p;
-    };
-    const query = `${officialTitle} bande annonce VF`;
-    const pAllo = timed(getAllocineTrailerStreams(officialTitle, ref));
-    const pYt = behavior.youtubeSearchFallback ? timed(searchYoutubeTrailer(query, ref)) : null;
-
-    const { v: allocineStreams, ms: msAllo } = await pAllo;
-    rec('allocine', allocineStreams.length > 0, allocineStreams.length > 0 ? `${allocineStreams.length} bande-annonce(s) trouvée(s)` : 'Aucune bande-annonce trouvée sur Allociné', msAllo);
-    if (allocineStreams.length > 0) {
-        const streams = allocineStreams.map(s => ({ title: formatStreamTitle('trailer', officialTitle, season), url: s.url }));
-        return { streams, officialTitle, source: 'allocine' };
-    }
-
-    // Dernier recours : recherche YouTube directe (scraping, pas d'API/clé/quota).
-    // Le moins fiable des sources -> toujours en dernière position de la chaîne.
-    if (!pYt) {
-        rec('youtube-search', false, 'Repli recherche YouTube désactivé dans les réglages');
-        return { streams: [], officialTitle, source: null };
-    }
-    const { v: found, ms: msYt } = await pYt;
-    rec('youtube-search', !!found, found ? `Trouvé: v=${found.videoId}` : `Rien de pertinent pour "${query}"`, msYt);
-    if (found) {
-        return {
-            streams: [{ title: formatStreamTitle('trailer', officialTitle, season), ytId: found.videoId }],
-            officialTitle,
-            source: 'youtube_search',
-        };
-    }
-    return { streams: [], officialTitle, source: null };
+    const fb = await runFallbacks();
+    if (!fb) return { streams: [], officialTitle, source: null };
+    return { streams: fb.streams, officialTitle, source: fb.source };
 }
 
 // Dédup : on ne veut logger qu'une seule fois qu'une personne donnée (pseudo) a
