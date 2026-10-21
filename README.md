@@ -21,23 +21,26 @@ Tout tourne chez toi : l'addon + sa base Postgres, dans deux conteneurs. Aucun c
 - Une clé API TMDB gratuite : <https://www.themoviedb.org/settings/api>.
 - Pour Stremio **hors de chez toi**, un nom de domaine en HTTPS (Stremio refuse les addons HTTP distants). Un sous-domaine gratuit DuckDNS fait très bien l'affaire.
 
-### Installation en 4 étapes
+### Installation en une commande
 
 ```bash
-# 1. Récupérer le code
 git clone https://github.com/Wallacecleaver/vf-trailer-wallace.git
 cd vf-trailer-wallace
+./install.sh
+```
 
-# 2. Créer ta configuration
+Le script te pose 2 questions (nom de domaine HTTPS et clé TMDB, toutes deux facultatives), **génère les mots de passe tout seul**, crée le fichier `.env`, démarre l'addon + la base, puis t'affiche les adresses et le mot de passe du dashboard. Relançable sans risque : il garde ton `.env` existant.
+
+<details>
+<summary>Installation manuelle (sans le script)</summary>
+
+```bash
 cp .env.example .env
 nano .env        # remplis au minimum DASHBOARD_PASSWORD, POSTGRES_PASSWORD, APP_BASE_URL
-
-# 3. Démarrer (la base et ses tables sont créées automatiquement)
 docker compose up -d --build
-
-# 4. Vérifier
 docker compose logs -f app     # doit afficher « Addon démarré sur http://0.0.0.0:3000 »
 ```
+</details>
 
 L'addon répond alors sur `http://IP_DU_SERVEUR:3000` :
 
@@ -83,6 +86,26 @@ Ouvre `APP_BASE_URL` dans ton navigateur, renseigne ta clé TMDB, puis clique su
 | `DB_DRIVER` | non | Force le driver : `pg` (Postgres classique) ou `neon` (Neon hébergé). Détecté automatiquement sinon. |
 | `UPSTASH_REDIS_REST_URL` / `_TOKEN` | non | Redis facultatif : dédoublonnage des recherches dans les logs et cache du statut des services. Tout fonctionne sans. |
 | `DASHBOARD_NO_CACHE` | non | `1` pour désactiver le cache de rendu du dashboard pendant que tu le modifies. |
+
+### Ressources utilisées (très légères)
+
+Mesures réelles sur la version actuelle :
+
+| | Au repos | Sous charge (≈ 110 requêtes/s, écritures en base) |
+|---|---|---|
+| **Addon (Node.js)** | ≈ 85 Mo de RAM, ≈ 0,7 % d'un cœur | ≈ 110 Mo de RAM |
+| **Postgres (réglé léger)** | ≈ 10 à 20 Mo de RAM | quelques dizaines de Mo |
+
+Un usage Stremio normal est de l'ordre de quelques requêtes par minute : le CPU reste quasi à zéro. Ce qui est déjà en place pour que ça reste ainsi :
+
+- Postgres est réglé pour les petites machines (`shared_buffers=24MB`, 25 connexions max, pas de parallélisme) au lieu de la config par défaut, bien plus gourmande.
+- Plafonds Docker : **256 Mo** pour l'addon, **192 Mo** pour Postgres, **0,5 cœur** chacun. Tourne sans souci sur un Raspberry Pi ou le plus petit VPS.
+- Mémoire Node plafonnée (`--max-old-space-size=128`) et pool de connexions limité à 5.
+- Les journaux Docker sont limités à 3 × 10 Mo par conteneur (le disque ne se remplit pas).
+- Les journaux de l'appli (500 lignes), les échecs (50 titres) et les résolutions (1 h) sont bornés ; les entrées de cache expirées sont purgées toutes les 6 h.
+- Aucun processus en tâche de fond : l'addon ne fait rien tant que personne ne lui demande une bande-annonce.
+
+Si tu veux changer les plafonds, modifie `mem_limit` et `cpus` dans `docker-compose.yml`.
 
 ### Maintenance
 
@@ -170,7 +193,7 @@ lib/                Modules : db, cache, matching des titres, Allociné, YouTube
 dashboard/          Dashboard découpé en vrais fichiers HTML / CSS / JS (voir dashboard/README.md)
 public/             Fichiers statiques (logo)
 test/               Tests unitaires
-Dockerfile, docker-compose.yml, Caddyfile, .env.example   Self-host
+install.sh, Dockerfile, docker-compose.yml, Caddyfile, .env.example   Self-host
 ```
 
 `lib/db.js` choisit automatiquement le driver : Neon (HTTP) si l'URL contient `neon.tech`, Postgres classique (`pg`) sinon.

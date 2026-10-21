@@ -10,6 +10,29 @@ services:
   db:
     image: postgres:16-alpine
     restart: unless-stopped
+    # Postgres allégé (~40 Mo de RAM au lieu de ~150 Mo avec la config par défaut) : largement
+    # suffisant pour cet addon, qui n'écrit que des petites lignes.
+    command: >
+      postgres
+      -c shared_buffers=24MB
+      -c effective_cache_size=96MB
+      -c work_mem=2MB
+      -c maintenance_work_mem=16MB
+      -c max_connections=25
+      -c wal_buffers=1MB
+      -c max_wal_size=128MB
+      -c checkpoint_timeout=15min
+      -c autovacuum_max_workers=2
+      -c max_worker_processes=4
+      -c max_parallel_workers=0
+      -c max_parallel_workers_per_gather=0
+    mem_limit: 192m
+    cpus: 0.5
+    logging: &logs
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
     environment:
       POSTGRES_USER: vf
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Définis POSTGRES_PASSWORD dans .env}
@@ -29,6 +52,9 @@ services:
       db:
         condition: service_healthy
     env_file: .env
+    mem_limit: 256m
+    cpus: 0.5
+    logging: *logs
     environment:
       DATABASE_URL: postgres://vf:${POSTGRES_PASSWORD}@db:5432/vf
       PORT: "3000"

@@ -32,6 +32,16 @@ async function main() {
         }
     }
 
+    // Purge des entrées de cache expirées (une entrée expirée est ignorée à la lecture mais reste en base).
+    // En serverless on s'en passe ; en self-host, un petit DELETE toutes les 6 h garde la base légère.
+    const sql = require('./lib/db');
+    const purge = () => sql`DELETE FROM kv_cache WHERE expires_at < now()`
+        .catch(err => console.error('Purge du cache expiré impossible :', err.message));
+    if (sql) {
+        purge();
+        setInterval(purge, 6 * 60 * 60 * 1000).unref();
+    }
+
     const server = app.listen(PORT, HOST, () => {
         console.log(`Addon démarré sur http://${HOST}:${PORT}`);
         if (!process.env.DASHBOARD_PASSWORD) console.warn('⚠️  DASHBOARD_PASSWORD non défini : le dashboard sera inaccessible.');

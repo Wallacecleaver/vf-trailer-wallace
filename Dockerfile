@@ -1,6 +1,8 @@
 FROM node:22-alpine
 
 ENV NODE_ENV=production
+# Plafonne le tas V8 : le ramasse-miettes travaille plus tôt, la RAM reste basse (~100 Mo).
+ENV NODE_OPTIONS="--max-old-space-size=128"
 WORKDIR /app
 
 # Dépendances d'abord (meilleur cache Docker)
