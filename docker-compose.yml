@@ -1,0 +1,58 @@
+# Self-host : addon + Postgres (+ HTTPS automatique optionnel avec Caddy).
+#
+#   cp .env.example .env     # puis remplis-le
+#   docker compose up -d --build
+#
+# Avec HTTPS automatique (Caddy, nécessite un nom de domaine qui pointe vers ton serveur) :
+#   docker compose --profile https up -d --build
+
+services:
+  db:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: vf
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Définis POSTGRES_PASSWORD dans .env}
+      POSTGRES_DB: vf
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U vf -d vf"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  app:
+    build: .
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+    env_file: .env
+    environment:
+      DATABASE_URL: postgres://vf:${POSTGRES_PASSWORD}@db:5432/vf
+      PORT: "3000"
+    ports:
+      # BIND_ADDRESS=127.0.0.1 si tu mets Caddy / Nginx devant (le port n'est alors pas exposé à Internet).
+      - "${BIND_ADDRESS:-0.0.0.0}:${HOST_PORT:-3000}:3000"
+
+  caddy:
+    profiles: ["https"]
+    image: caddy:2-alpine
+    restart: unless-stopped
+    depends_on:
+      - app
+    environment:
+      DOMAIN: ${DOMAIN:?Définis DOMAIN dans .env pour utiliser le profil https}
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+
+volumes:
+  pgdata:
+  caddy_data:
+  caddy_config:

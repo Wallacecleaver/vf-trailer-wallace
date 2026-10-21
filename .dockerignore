@@ -1,0 +1,11 @@
+node_modules
+.git
+.gitignore
+.env
+.env.*
+!.env.example
+.vercel
+test
+*.md
+docker-compose.yml
+Caddyfile

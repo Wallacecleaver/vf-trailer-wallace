@@ -1,6 +1,6 @@
 // ============================================================
 // ADDON STREMIO — Bandes-Annonces VF
-// Tourne ENTIÈREMENT sur Vercel (serverless), aucun serveur externe.
+// Tourne sur Vercel (serverless, via ce fichier) OU en self-host (Docker / VPS, via server.js).
 //
 // Configuration par utilisateur (clé TMDB perso + qualité) encodée en
 // base64url dans l'URL, comme les gros addons Stremio : /<config>/manifest.json
