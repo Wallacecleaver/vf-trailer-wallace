@@ -5,7 +5,7 @@ Addon [Stremio](https://www.stremio.com/) qui affiche la **bande-annonce officie
 - **Sources** : TMDB → Allociné → recherche YouTube (en repli), avec détection VF par liste blanche.
 - **Stremio** : teaser (si dispo) puis bande-annonce. Compatible avec l'option « A trailer addon » d'**AIOMetadata** (mode `aiom` : un seul lien `ytId`/`url`, avec délai maximum réglable).
 - **Dashboard d'administration** : stats, utilisateurs, mapping manuel des liens, journal des échecs, test des flux, logs, réglages, cache…
-- **Pages publiques** : configuration de l'addon (`/`), proposition de liens par la communauté (`/proposer`), récupération de config (`/recuperation`).
+- **Pages publiques** : configuration de l'addon (`/`), proposition de liens par la communauté (`/proposer`).
 
 Deux façons de l'héberger : **[self-host avec Docker](#-self-host-docker-recommandé)** (tout sur ton serveur) ou **[Vercel + Neon](#-variante--vercel--neon)**.
 
@@ -46,7 +46,6 @@ L'addon répond alors sur `http://IP_DU_SERVEUR:3000` :
 | `/` | Page de configuration (chaque utilisateur y met sa clé TMDB et obtient son lien d'installation) |
 | `/dashboard` | Dashboard admin (mot de passe = `DASHBOARD_PASSWORD`) |
 | `/proposer` | Proposition de liens par la communauté |
-| `/recuperation` | Récupération de configuration |
 
 ### HTTPS automatique avec Caddy (inclus)
 
@@ -137,7 +136,7 @@ docker compose exec -T db psql -U vf vf < donnees.sql
 
 Si l'import signale des doublons sur les lignes de réglages (`id = 1`), c'est sans gravité : vide d'abord ces deux tables avec
 `TRUNCATE configure_settings, behavior_settings, request_stats_global;` avant d'importer.
-Pense ensuite à mettre à jour `APP_BASE_URL` et, côté utilisateurs, à réinstaller l'addon avec la nouvelle adresse (la page `/recuperation` est faite pour ça).
+Pense ensuite à mettre à jour `APP_BASE_URL` et, côté utilisateurs, à réinstaller l'addon avec la nouvelle adresse.
 
 ### Dépannage
 

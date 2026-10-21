@@ -16,7 +16,6 @@ Le dashboard est une page unique générée par `lib/dashboard-view.js`, qui **c
 |---------------------|-------------------------|--------------------------------------------------------------------|
 | Vue d'ensemble      | `pages/overview.html`   | `js/02-overview.js`                                                |
 | Utilisateurs        | `pages/users.html`      | `js/03-users.js`                                                   |
-| Récupération        | `pages/recovery.html`   | `js/04-recovery.js`                                                |
 | Mapping des liens   | `pages/mapping.html`    | `js/05-mapping.js`, `js/07-mapping-form.js`, `js/09-mapping-io.js` |
 | Demandes            | `pages/requests.html`   | `js/06-requests.js`                                                |
 | Test des flux       | `pages/test-flux.html`  | `js/08-test-flux.js`                                               |

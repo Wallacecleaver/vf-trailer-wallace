@@ -50,7 +50,7 @@
   }
 
   let ovInterval = null;
-  const DASHBOARD_PAGES = ['overview', 'users', 'recovery', 'mapping', 'requests', 'teststream', 'configure', 'settings', 'logs'];
+  const DASHBOARD_PAGES = ['overview', 'users', 'mapping', 'requests', 'teststream', 'configure', 'settings', 'logs'];
 
   function showPage(name) {
     if (location.hash.slice(1) !== name) history.pushState(null, '', '#' + name);
@@ -61,11 +61,9 @@
     if (name !== 'overview' && ovInterval) { clearInterval(ovInterval); ovInterval = null; const ao = document.getElementById('ov-auto'); if (ao) ao.checked = false; }
     if (name === 'overview') loadOverview();
     if (name === 'users') loadInstallStats();
-    if (name === 'recovery') loadRecoveryStats();
     if (name === 'mapping') loadMapping();
     if (name === 'requests') loadRequests();
     if (name === 'configure') loadConfigureSettings();
-    if (name === 'recovery') loadRecoveryStats();
     if (name === 'settings') loadBehaviorSettings();
     if (name === 'logs') initLogsPage();
     else if (logsInterval) { clearInterval(logsInterval); logsInterval = null; } // pas de polling hors de la page logs

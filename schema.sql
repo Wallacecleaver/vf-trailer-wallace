@@ -119,13 +119,7 @@ CREATE TABLE IF NOT EXISTS request_stats_top_titles (
     PRIMARY KEY (title, imdb_id)
 );
 
--- Suivi de la page /recuperation et des requêtes AIOMetadata
-CREATE TABLE IF NOT EXISTS recovery_events (
-    install_id  text PRIMARY KEY,
-    first_click timestamptz NOT NULL DEFAULT now(),
-    last_click  timestamptz NOT NULL DEFAULT now(),
-    click_count integer NOT NULL DEFAULT 1
-);
+-- Suivi des requêtes AIOMetadata
 CREATE TABLE IF NOT EXISTS aiom_stats (
     day        date NOT NULL,
     outcome    text NOT NULL,

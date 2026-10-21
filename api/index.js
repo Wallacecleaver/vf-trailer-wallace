@@ -16,7 +16,6 @@ const { probeDirectLink } = require('../lib/media-link');
 const { searchYoutubeTrailer, searchYoutubeRaw } = require('../lib/youtube-search');
 const { recordRequest, getStats, resetStats } = require('../lib/stats');
 const { recordInstallActivity, getInstallStats, resetInstalls, removeInstall } = require('../lib/install-stats');
-const { recordRecoveryClick, getRecoveryStats, resetRecoveryStats } = require('../lib/recovery-stats');
 const { recordAiomStat, getAiomStats, resetAiomStats } = require('../lib/aiom-stats');
 const { logEvent, getLogs, clearLogs } = require('../lib/logs');
 const redis = require('../lib/redis');
@@ -31,7 +30,6 @@ const {
     getContributions, addContribution, updateContributionStatus, deleteContribution,
 } = require('../lib/contributions');
 const { renderContributeHtml } = require('../lib/contribute-view');
-const { renderRecoveryHtml } = require('../lib/recovery-view');
 const {
     getConfigureSettings, setConfigureSettings, resetConfigureSettings,
     getBehaviorSettings, setBehaviorSettings, resetBehaviorSettings,
@@ -1462,16 +1460,6 @@ app.delete('/api/install-stats/:id', requireAuth, async (req, res) => {
     res.json({ success: await removeInstall(req.params.id) });
 });
 
-// ---- Récupération (gens qui refont leur config via /recuperation) ----
-app.get('/api/recovery-stats', requireAuth, async (req, res) => {
-    const stats = await getRecoveryStats();
-    res.json(stats ? { configured: true, ...stats } : { configured: false });
-});
-
-app.post('/api/recovery-stats/reset', requireAuth, async (req, res) => {
-    res.json({ success: await resetRecoveryStats() });
-});
-
 // ---- AIOMetadata (onglet dédié du dashboard) ----
 app.get('/api/aiom-stats', requireAuth, async (req, res) => {
     const stats = await getAiomStats();
@@ -1536,27 +1524,6 @@ app.get('/proposer', async (req, res) => {
     const settings = await getConfigureSettings();
     res.set('Content-Type', 'text/html; charset=utf-8');
     res.send(renderContributeHtml(settings));
-});
-
-// Page publique /recuperation : migration d'une ancienne URL d'addon vers le domaine
-// courant. La config est déjà dans le segment base64url de l'URL -> tout se fait côté
-// navigateur, rien n'est lu en base ni envoyé au serveur (la clé TMDB reste chez l'utilisateur).
-app.get('/recuperation', async (req, res) => {
-    const settings = await getConfigureSettings();
-    res.set('Content-Type', 'text/html; charset=utf-8');
-    res.send(renderRecoveryHtml(settings));
-});
-
-// Public : la page /recuperation envoie ici le HASH (16 hex) de la config, jamais la config
-// ni la clé TMDB. Réponse toujours 204 : le suivi ne doit jamais gêner l'utilisateur.
-app.post(['/api/recovery/step', '/api/recovery/click'], async (req, res) => {
-    const r = await recordRecoveryClick(req.body && req.body.id);
-    // Une ligne dans Logs la première fois qu'une personne arrive : permet de vérifier d'un coup d'œil
-    // que le suivi fonctionne, sans ouvrir l'onglet Récupération.
-    if (r && r.isNew) {
-        await logEvent({ level: 'info', context: 'RECOVERY', event: 'recovery_started', message: 'Quelqu\'un a lancé la récupération vers la nouvelle adresse', meta: { id: req.body.id } });
-    }
-    res.status(204).end();
 });
 
 // Variantes PUBLIQUES (sans requireAuth) des helpers TMDB/YouTube déjà utilisés par le
