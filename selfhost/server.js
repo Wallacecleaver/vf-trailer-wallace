@@ -44,7 +44,7 @@ async function main() {
     const server = app.listen(PORT, HOST, () => {
         console.log(`Addon démarré sur http://${HOST}:${PORT}`);
         if (!process.env.DASHBOARD_PASSWORD) console.warn('⚠️  DASHBOARD_PASSWORD non défini : le dashboard sera inaccessible.');
-        if (!process.env.APP_BASE_URL) console.warn('⚠️  APP_BASE_URL non défini : les liens/logo pointeront vers le domaine par défaut.');
+        if (!process.env.APP_BASE_URL) console.warn('⚠️  APP_BASE_URL non défini : les liens/logo pointeront vers http://localhost.');
     });
 
     const stop = () => server.close(() => process.exit(0));

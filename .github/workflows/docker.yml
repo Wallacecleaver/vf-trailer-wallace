@@ -1,6 +1,9 @@
-# Construit l'image Docker et la publie sur GitHub Container Registry (GHCR) :
-#   ghcr.io/wallacecleaver/vf-trailer-wallace:latest
-# À chaque push sur main (et pour chaque tag vX.Y.Z). Aucun secret à configurer.
+# Construit l'image Docker et la publie sur un registre à chaque push sur main (et pour chaque tag vX.Y.Z).
+#
+# Registre :
+#   • par défaut     -> GitHub Container Registry (ghcr.io/<propriétaire>/<dépôt>), aucun secret requis
+#   • Docker Hub     -> définir la variable de dépôt IMAGE_NAME (ex. monnom/vf-trailers)
+#                       et les secrets DOCKERHUB_USERNAME + DOCKERHUB_TOKEN
 name: Image Docker
 
 on:
@@ -19,38 +22,55 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Tests
-        uses: actions/setup-node@v4
+      - uses: actions/setup-node@v4
         with:
           node-version: 22
           cache: npm
       - run: npm ci
       - run: npm test
 
+      - name: Nom de l'image
+        run: |
+          IMAGE="${{ vars.IMAGE_NAME || format('ghcr.io/{0}', github.repository) }}"
+          echo "IMAGE=$(echo "$IMAGE" | tr 'A-Z' 'a-z')" >> "$GITHUB_ENV"
+
       - uses: docker/setup-qemu-action@v3      # pour construire aussi l'image arm64 (Raspberry Pi, VPS ARM)
       - uses: docker/setup-buildx-action@v3
 
-      - uses: docker/login-action@v3
+      - name: Connexion à GHCR
+        if: startsWith(env.IMAGE, 'ghcr.io/')
+        uses: docker/login-action@v3
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
+      - name: Connexion à Docker Hub
+        if: ${{ !startsWith(env.IMAGE, 'ghcr.io/') }}
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+
       - id: meta
         uses: docker/metadata-action@v5
         with:
-          images: ghcr.io/wallacecleaver/vf-trailer-wallace
+          images: ${{ env.IMAGE }}
           tags: |
             type=raw,value=latest,enable={{is_default_branch}}
             type=semver,pattern={{version}}
             type=sha,format=short
 
+      # Pas de « labels » ni d'attestation de provenance : ils embarqueraient l'adresse du dépôt GitHub dans l'image.
       - uses: docker/build-push-action@v6
         with:
           context: .
           platforms: linux/amd64,linux/arm64
           push: true
           tags: ${{ steps.meta.outputs.tags }}
-          labels: ${{ steps.meta.outputs.labels }}
+          build-args: |
+            IMAGE_REF=${{ env.IMAGE }}:latest
+          provenance: false
+          sbom: false
           cache-from: type=gha
           cache-to: type=gha,mode=max

@@ -21,51 +21,43 @@ Tout tourne chez toi : l'addon + sa base Postgres, dans deux conteneurs. Aucun c
 - Une clé API TMDB gratuite : <https://www.themoviedb.org/settings/api>.
 - Pour Stremio **hors de chez toi**, un nom de domaine en HTTPS (Stremio refuse les addons HTTP distants). Un sous-domaine gratuit DuckDNS fait très bien l'affaire.
 
-### Installation en une commande (rien à cloner)
+### Installation (100 % Docker, rien à cloner ni à télécharger)
+
+Tout est dans l'image Docker, **installeur compris**. Dans un dossier vide :
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/Wallacecleaver/vf-trailer-wallace/main/install.sh | bash
+mkdir vf-trailers && cd vf-trailers
+docker run --rm -it --user "$(id -u):$(id -g)" -v "$PWD":/data <IMAGE> install
+docker compose up -d
 ```
 
-Le script télécharge l'image Docker toute faite (`ghcr.io/wallacecleaver/vf-trailer-wallace`, compatible amd64 et arm64) et te pose quelques questions :
+`<IMAGE>` est le nom de l'image publiée (par exemple `monnom/vf-trailers:latest`). La première commande lance l'installeur, qui pose quelques questions puis écrit `docker-compose.yml`, `Caddyfile` et `.env` dans le dossier ; la seconde démarre l'addon et sa base.
+
+L'installeur demande :
 
 1. **Ton nom de domaine** pour le HTTPS automatique (facultatif).
 2. **Ta clé TMDB** (facultatif).
-3. **Ton mot de passe du dashboard** : tu le choisis (8 caractères minimum, saisi masqué et confirmé), ou tu appuies sur Entrée pour en générer un.
-4. **Le port** d'écoute (sans domaine seulement, `3000` par défaut).
+3. **Ton mot de passe du dashboard** : tu le choisis (8 caractères minimum, saisi masqué et confirmé), ou Entrée pour en générer un.
+4. **L'adresse du serveur et le port** (sans domaine seulement : `localhost` et `3000` par défaut).
 
-Le mot de passe de la base Postgres, lui, est généré automatiquement : il reste interne à Docker, tu n'as jamais à le connaître.
+Le mot de passe de la base Postgres est généré automatiquement : il reste interne à Docker, tu n'as jamais à le connaître. Avec un domaine, le HTTPS est activé tout seul (`COMPOSE_PROFILES=https` dans le `.env`). Si un `.env` existe déjà, l'installeur n'y touche pas (supprime-le pour refaire la configuration).
 
-Il crée le dossier `vf-trailers/` (avec `docker-compose.yml`, `Caddyfile` et `.env`), démarre l'addon + la base, puis t'affiche les adresses. **Relançable sans risque** : un `.env` existant est conservé (supprime-le pour refaire la configuration).
-
-Pour une installation sans aucune question, passe les réponses en variables :
-
-```bash
-DOMAIN=trailers.mondomaine.fr TMDB_API_KEY=xxxx DASHBOARD_PASSWORD='mon-mot-de-passe' \
-  bash <(curl -fsSL https://raw.githubusercontent.com/Wallacecleaver/vf-trailer-wallace/main/install.sh)
-```
+Installation sans question (scripts) : passe les réponses en variables, `-e DOMAIN=... -e TMDB_API_KEY=... -e DASHBOARD_PASSWORD='...'` après `docker run`.
 
 <details>
-<summary>Installation manuelle (sans le script)</summary>
+<summary>Installation à la main (sans l'installeur)</summary>
 
-Dans un dossier vide, récupère `docker-compose.yml`, `Caddyfile` et `.env.example` depuis le dépôt, puis :
-
-```bash
-cp .env.example .env
-nano .env        # remplis au minimum DASHBOARD_PASSWORD, POSTGRES_PASSWORD, APP_BASE_URL
-docker compose up -d
-docker compose logs -f app     # doit afficher « Addon démarré sur http://0.0.0.0:3000 »
-```
+Écris toi-même un `docker-compose.yml` à partir de `selfhost/deploy/compose.template.yml` (remplace `__IMAGE__` par le nom de l'image) et un `.env` d'après `.env.example`, puis `docker compose up -d`.
 </details>
 
 <details>
 <summary>Construire l'image toi-même (développement)</summary>
 
 ```bash
-git clone https://github.com/Wallacecleaver/vf-trailer-wallace.git
-cd vf-trailer-wallace
-./install.sh                      # construit l'image localement au lieu de la télécharger
-# ou, à la main :  docker compose up -d --build
+docker build -t vf-trailers:local .
+mkdir test-install && cd test-install
+docker run --rm -it --user "$(id -u):$(id -g)" -v "$PWD":/data vf-trailers:local install
+docker compose up -d
 ```
 </details>
 
@@ -110,7 +102,7 @@ Ouvre `APP_BASE_URL` dans ton navigateur, renseigne ta clé TMDB, puis clique su
 | `HOST_PORT` | non | Port exposé sur la machine (défaut `3000`). |
 | `DATABASE_URL` | non | Postgres externe à la place de celui du compose. |
 | `DATABASE_SSL` | non | `true` si ton Postgres externe impose le SSL. |
-| `TRUST_PROXY` | non | `0` si l'addon est exposé directement sur Internet (ignore `X-Forwarded-For`). `install.sh` le règle selon ton choix. |
+| `TRUST_PROXY` | non | `0` si l'addon est exposé directement sur Internet (ignore `X-Forwarded-For`). L'installeur le règle selon ton choix. |
 | `DASHBOARD_NO_CACHE` | non | `1` pour désactiver le cache de rendu du dashboard pendant que tu le modifies. |
 
 ### Ressources utilisées (très légères)
@@ -196,7 +188,7 @@ Pense ensuite à mettre à jour `APP_BASE_URL` et à réinstaller l'addon dans S
 | `Postgres pas encore prêt` dans les logs | Normal au tout premier démarrage (quelques secondes) ; l'addon réessaie tout seul. |
 | Le dashboard refuse le mot de passe / « non configuré » | `DASHBOARD_PASSWORD` absent de `.env`. Après modification : `docker compose up -d`. |
 | Stremio refuse d'installer l'addon | Stremio exige du **HTTPS** pour les addons distants : utilise le profil `https` ou un reverse proxy. |
-| `pull access denied` / image introuvable au téléchargement | L'image n'est pas encore publique ou pas encore construite : vérifie l'onglet *Actions* du dépôt, puis que le paquet GHCR est en visibilité **Public**. En attendant, clone le dépôt et lance `./install.sh` (construction locale). |
+| `pull access denied` / image introuvable au téléchargement | L'image n'est pas encore construite ou pas publique : vérifie la CI, puis la visibilité **Public** du dépôt d'images. |
 | Le logo ou les liens pointent vers un mauvais domaine | `APP_BASE_URL` mal renseignée. |
 | `password authentication failed` | `POSTGRES_PASSWORD` modifié après la création du volume : remets l'ancienne valeur, ou change le mot de passe dans Postgres (`ALTER USER vf PASSWORD '...'`), ou repars de zéro avec `docker compose down -v` (⚠️ efface les données). |
 
@@ -212,8 +204,9 @@ lib/                Modules : db, cache, matching des titres, Allociné, YouTube
 dashboard/          Dashboard découpé en vrais fichiers HTML / CSS / JS (voir dashboard/README.md)
 public/             Fichiers statiques (logo)
 test/               Tests unitaires
-install.sh, Dockerfile, docker-compose.yml, Caddyfile, .env.example   Installation / Docker
-.github/workflows/docker.yml   Publication automatique de l'image sur GHCR
+Dockerfile, .env.example   Image Docker (l'installeur est dans selfhost/install.js)
+selfhost/deploy/    Modèles du docker-compose.yml et du Caddyfile écrits par l'installeur
+.github/workflows/docker.yml   Publication automatique de l'image
 ```
 
 Toute la persistance (cache, réglages, stats, logs, mapping) est dans Postgres.
@@ -233,9 +226,10 @@ npm test
 
 ## 📦 Publication de l'image (mainteneur)
 
-Chaque push sur `main` déclenche `.github/workflows/docker.yml` : tests, puis construction (amd64 + arm64) et publication sur `ghcr.io/wallacecleaver/vf-trailer-wallace` (tags `latest`, numéro de version `vX.Y.Z` et `sha`). Aucun secret à ajouter.
+Chaque push sur `main` déclenche `.github/workflows/docker.yml` : tests, puis construction (amd64 + arm64) et publication de l'image (tags `latest`, `vX.Y.Z` et `sha`). L'image embarque l'installeur et ne contient ni l'adresse du dépôt ni aucune étiquette qui y renvoie (pas de labels, pas d'attestation de provenance).
 
-**Une seule fois**, après le premier build : GitHub → ton profil → *Packages* → `vf-trailer-wallace` → *Package settings* → *Change visibility* → **Public**, pour que tout le monde puisse télécharger l'image sans se connecter.
+- **Docker Hub (recommandé pour rester discret)** : crée un compte / une organisation Docker Hub au nom de ton choix, puis dans le dépôt : variable `IMAGE_NAME` = `nom/vf-trailers`, secrets `DOCKERHUB_USERNAME` et `DOCKERHUB_TOKEN` (jeton d'accès en lecture/écriture). Le dépôt d'images Docker Hub est public par défaut.
+- **GHCR (par défaut)** : sans configuration, l'image est publiée sur `ghcr.io/<propriétaire>/<dépôt>`. Le nom de l'image contient alors ton identifiant GitHub, et le paquet doit être passé en *Public* à la main (une seule fois).
 
 ## Sources de données
 

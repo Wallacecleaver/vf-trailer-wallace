@@ -1,8 +1,10 @@
 FROM node:22-alpine
 
-# Relie l'image GHCR à ce dépôt GitHub (affichage + permissions du paquet).
-LABEL org.opencontainers.image.source="https://github.com/Wallacecleaver/vf-trailer-wallace"
 LABEL org.opencontainers.image.description="Addon Stremio Bandes-Annonces VF"
+
+# Nom complet de cette image (renseigné par la CI) : l'installeur l'écrit dans le docker-compose.yml généré.
+ARG IMAGE_REF=vf-trailers:local
+ENV VF_IMAGE=$IMAGE_REF
 
 ENV NODE_ENV=production
 # Plafonne le tas V8 : le ramasse-miettes travaille plus tôt, la RAM reste basse (~100 Mo).
@@ -21,4 +23,5 @@ EXPOSE 3000
 HEALTHCHECK --interval=30s --timeout=5s --start-period=20s --retries=3 \
   CMD wget -q -O /dev/null http://127.0.0.1:3000/ || exit 1
 
-CMD ["node", "selfhost/server.js"]
+ENTRYPOINT ["sh", "/app/selfhost/entrypoint.sh"]
+CMD ["server"]
