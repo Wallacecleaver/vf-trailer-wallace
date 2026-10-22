@@ -1727,15 +1727,6 @@ app.get('/api/settings/behavior', requireAuth, async (req, res) => {
 app.post('/api/settings/behavior', requireAuth, async (req, res) => {
     const ok = await setBehaviorSettings(req.body || {});
     if (ok) await logEvent({ level: 'info', context: 'SETTINGS', event: 'settings_behavior_updated', message: 'Réglages de comportement mis à jour' });
-    // Le délai AIOM vit dans une colonne ajoutée après coup : si elle n'existe pas encore, la valeur
-    // n'est pas gardée (le reste l'est). On relit pour le signaler dans les Logs plutôt qu'en silence.
-    if (ok && req.body && req.body.aiomTimeoutSeconds !== undefined) {
-        const saved = await getBehaviorSettings();
-        const wanted = Math.min(12, Math.max(1, Math.round(Number(req.body.aiomTimeoutSeconds)) || 5));
-        if (saved.aiomTimeoutSeconds !== wanted) {
-            await logEvent({ level: 'warn', context: 'SETTINGS', event: 'aiom_timeout_not_saved', message: 'Délai AIOMetadata non enregistré — colonne aiom_timeout_seconds absente ? Lance la migration SQL (ALTER TABLE behavior_settings ADD COLUMN IF NOT EXISTS aiom_timeout_seconds integer DEFAULT 5;)' });
-        }
-    }
     res.json({ success: ok });
 });
 
