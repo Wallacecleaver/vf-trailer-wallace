@@ -21,24 +21,51 @@ Tout tourne chez toi : l'addon + sa base Postgres, dans deux conteneurs. Aucun c
 - Une clé API TMDB gratuite : <https://www.themoviedb.org/settings/api>.
 - Pour Stremio **hors de chez toi**, un nom de domaine en HTTPS (Stremio refuse les addons HTTP distants). Un sous-domaine gratuit DuckDNS fait très bien l'affaire.
 
-### Installation en une commande
+### Installation en une commande (rien à cloner)
 
 ```bash
-git clone https://github.com/Wallacecleaver/vf-trailer-wallace.git
-cd vf-trailer-wallace
-./install.sh
+curl -fsSL https://raw.githubusercontent.com/Wallacecleaver/vf-trailer-wallace/main/install.sh | bash
 ```
 
-Le script te pose 2 questions (nom de domaine HTTPS et clé TMDB, toutes deux facultatives), **génère les mots de passe tout seul**, crée le fichier `.env`, démarre l'addon + la base, puis t'affiche les adresses et le mot de passe du dashboard. Relançable sans risque : il garde ton `.env` existant.
+Le script télécharge l'image Docker toute faite (`ghcr.io/wallacecleaver/vf-trailer-wallace`, compatible amd64 et arm64) et te pose quelques questions :
+
+1. **Ton nom de domaine** pour le HTTPS automatique (facultatif).
+2. **Ta clé TMDB** (facultatif).
+3. **Ton mot de passe du dashboard** : tu le choisis (8 caractères minimum, saisi masqué et confirmé), ou tu appuies sur Entrée pour en générer un.
+4. **Le port** d'écoute (sans domaine seulement, `3000` par défaut).
+
+Le mot de passe de la base Postgres, lui, est généré automatiquement : il reste interne à Docker, tu n'as jamais à le connaître.
+
+Il crée le dossier `vf-trailers/` (avec `docker-compose.yml`, `Caddyfile` et `.env`), démarre l'addon + la base, puis t'affiche les adresses. **Relançable sans risque** : un `.env` existant est conservé (supprime-le pour refaire la configuration).
+
+Pour une installation sans aucune question, passe les réponses en variables :
+
+```bash
+DOMAIN=trailers.mondomaine.fr TMDB_API_KEY=xxxx DASHBOARD_PASSWORD='mon-mot-de-passe' \
+  bash <(curl -fsSL https://raw.githubusercontent.com/Wallacecleaver/vf-trailer-wallace/main/install.sh)
+```
 
 <details>
 <summary>Installation manuelle (sans le script)</summary>
 
+Dans un dossier vide, récupère `docker-compose.yml`, `Caddyfile` et `.env.example` depuis le dépôt, puis :
+
 ```bash
 cp .env.example .env
 nano .env        # remplis au minimum DASHBOARD_PASSWORD, POSTGRES_PASSWORD, APP_BASE_URL
-docker compose up -d --build
+docker compose up -d
 docker compose logs -f app     # doit afficher « Addon démarré sur http://0.0.0.0:3000 »
+```
+</details>
+
+<details>
+<summary>Construire l'image toi-même (développement)</summary>
+
+```bash
+git clone https://github.com/Wallacecleaver/vf-trailer-wallace.git
+cd vf-trailer-wallace
+./install.sh                      # construit l'image localement au lieu de la télécharger
+# ou, à la main :  docker compose up -d --build
 ```
 </details>
 
@@ -61,7 +88,7 @@ L'addon répond alors sur `http://IP_DU_SERVEUR:3000` :
    ```
 3. Démarre avec le profil `https` :
    ```bash
-   docker compose --profile https up -d --build
+   docker compose --profile https up -d
    ```
 
 Caddy obtient et renouvelle tout seul le certificat Let's Encrypt. Si tu as déjà un reverse proxy (Nginx, Traefik, Nginx Proxy Manager…), n'utilise pas ce profil : fais simplement pointer ton proxy vers `127.0.0.1:3000` (et garde `BIND_ADDRESS=127.0.0.1`).
@@ -109,9 +136,9 @@ Si tu veux changer les plafonds, modifie `mem_limit` et `cpus` dans `docker-comp
 ### Maintenance
 
 ```bash
-# Mettre à jour
-git pull
-docker compose up -d --build        # (ajoute --profile https si tu utilises Caddy)
+# Mettre à jour (télécharge la dernière image publiée)
+docker compose pull
+docker compose up -d                # (ajoute --profile https avant « pull » et « up » si tu utilises Caddy)
 
 # Voir les logs
 docker compose logs -f app
@@ -169,6 +196,7 @@ Pense ensuite à mettre à jour `APP_BASE_URL` et à réinstaller l'addon dans S
 | `Postgres pas encore prêt` dans les logs | Normal au tout premier démarrage (quelques secondes) ; l'addon réessaie tout seul. |
 | Le dashboard refuse le mot de passe / « non configuré » | `DASHBOARD_PASSWORD` absent de `.env`. Après modification : `docker compose up -d`. |
 | Stremio refuse d'installer l'addon | Stremio exige du **HTTPS** pour les addons distants : utilise le profil `https` ou un reverse proxy. |
+| `pull access denied` / image introuvable au téléchargement | L'image n'est pas encore publique ou pas encore construite : vérifie l'onglet *Actions* du dépôt, puis que le paquet GHCR est en visibilité **Public**. En attendant, clone le dépôt et lance `./install.sh` (construction locale). |
 | Le logo ou les liens pointent vers un mauvais domaine | `APP_BASE_URL` mal renseignée. |
 | `password authentication failed` | `POSTGRES_PASSWORD` modifié après la création du volume : remets l'ancienne valeur, ou change le mot de passe dans Postgres (`ALTER USER vf PASSWORD '...'`), ou repars de zéro avec `docker compose down -v` (⚠️ efface les données). |
 
@@ -184,7 +212,8 @@ lib/                Modules : db, cache, matching des titres, Allociné, YouTube
 dashboard/          Dashboard découpé en vrais fichiers HTML / CSS / JS (voir dashboard/README.md)
 public/             Fichiers statiques (logo)
 test/               Tests unitaires
-install.sh, Dockerfile, docker-compose.yml, Caddyfile, .env.example   Self-host
+install.sh, Dockerfile, docker-compose.yml, Caddyfile, .env.example   Installation / Docker
+.github/workflows/docker.yml   Publication automatique de l'image sur GHCR
 ```
 
 Toute la persistance (cache, réglages, stats, logs, mapping) est dans Postgres.
@@ -201,6 +230,12 @@ npm test
 ```
 
 ---
+
+## 📦 Publication de l'image (mainteneur)
+
+Chaque push sur `main` déclenche `.github/workflows/docker.yml` : tests, puis construction (amd64 + arm64) et publication sur `ghcr.io/wallacecleaver/vf-trailer-wallace` (tags `latest`, numéro de version `vX.Y.Z` et `sha`). Aucun secret à ajouter.
+
+**Une seule fois**, après le premier build : GitHub → ton profil → *Packages* → `vf-trailer-wallace` → *Package settings* → *Change visibility* → **Public**, pour que tout le monde puisse télécharger l'image sans se connecter.
 
 ## Sources de données
 

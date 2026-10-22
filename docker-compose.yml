@@ -1,10 +1,12 @@
-# Self-host : addon + Postgres (+ HTTPS automatique optionnel avec Caddy).
+# Addon + Postgres (+ HTTPS automatique optionnel avec Caddy).
 #
-#   cp .env.example .env     # puis remplis-le
-#   docker compose up -d --build
+# Le plus simple : l'installeur guidé (télécharge l'image publiée, écrit le .env) :
+#   curl -fsSL https://raw.githubusercontent.com/Wallacecleaver/vf-trailer-wallace/main/install.sh | bash
 #
-# Avec HTTPS automatique (Caddy, nécessite un nom de domaine qui pointe vers ton serveur) :
-#   docker compose --profile https up -d --build
+# À la main (avec un .env à côté, voir .env.example) :
+#   docker compose up -d                  # télécharge l'image ghcr.io/wallacecleaver/vf-trailer-wallace
+#   docker compose --profile https up -d  # idem + HTTPS automatique (domaine requis)
+#   docker compose up -d --build          # construit l'image depuis le code source (développement)
 
 services:
   db:
@@ -46,6 +48,7 @@ services:
       retries: 10
 
   app:
+    image: ghcr.io/wallacecleaver/vf-trailer-wallace:latest
     build: .
     restart: unless-stopped
     depends_on:
