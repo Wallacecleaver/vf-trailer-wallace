@@ -2,7 +2,7 @@
   "name": "vf-trailers-addon",
   "version": "3.5.0",
   "scripts": {
-    "start": "node server.js",
+    "start": "node selfhost/server.js",
     "test": "node --test"
   },
   "dependencies": {

@@ -1,0 +1,9 @@
+# Fichiers self-host : inutiles sur Vercel
+selfhost
+Dockerfile
+.dockerignore
+docker-compose.yml
+Caddyfile
+install.sh
+schema.sql
+.env.example

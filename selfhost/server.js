@@ -4,13 +4,13 @@
 
 const path = require('path');
 const express = require('express');
-const addon = require('./api/index');
-const { ensureSchema } = require('./lib/migrate');
+const addon = require('../api/index');
+const { ensureSchema } = require('../lib/migrate');
 
 // Sur Vercel, le dossier public/ est servi automatiquement ; ici, on le sert nous-mêmes (logo...).
 const app = express();
 app.disable('x-powered-by');
-app.use(express.static(path.join(__dirname, 'public'), { maxAge: '1d' }));
+app.use(express.static(path.join(__dirname, '..', 'public'), { maxAge: '1d' }));
 app.use(addon);
 
 const PORT = Number(process.env.PORT) || 3000;
@@ -34,7 +34,7 @@ async function main() {
 
     // Purge des entrées de cache expirées (une entrée expirée est ignorée à la lecture mais reste en base).
     // En serverless on s'en passe ; en self-host, un petit DELETE toutes les 6 h garde la base légère.
-    const sql = require('./lib/db');
+    const sql = require('../lib/db');
     const purge = () => sql`DELETE FROM kv_cache WHERE expires_at < now()`
         .catch(err => console.error('Purge du cache expiré impossible :', err.message));
     if (sql) {

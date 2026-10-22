@@ -31,6 +31,7 @@ else
   else
     IP="$(hostname -I 2>/dev/null | awk '{print $1}')"
     sed -i "s|^APP_BASE_URL=.*|APP_BASE_URL=http://${IP:-localhost}:3000|" .env
+    sed -i "s|^# TRUST_PROXY=.*|TRUST_PROXY=0|" .env   # exposé directement : on ne fait pas confiance à X-Forwarded-For
   fi
   echo
   echo "🔑 Mot de passe du dashboard : ${DASH_PASS}   (noté dans .env)"

@@ -85,6 +85,7 @@ Ouvre `APP_BASE_URL` dans ton navigateur, renseigne ta clé TMDB, puis clique su
 | `DATABASE_SSL` | non | `true` si ton Postgres externe impose le SSL. |
 | `DB_DRIVER` | non | Force le driver : `pg` (Postgres classique) ou `neon` (Neon hébergé). Détecté automatiquement sinon. |
 | `UPSTASH_REDIS_REST_URL` / `_TOKEN` | non | Redis facultatif : dédoublonnage des recherches dans les logs et cache du statut des services. Tout fonctionne sans. |
+| `TRUST_PROXY` | non | `0` si l'addon est exposé directement sur Internet (ignore `X-Forwarded-For`). `install.sh` le règle selon ton choix. |
 | `DASHBOARD_NO_CACHE` | non | `1` pour désactiver le cache de rendu du dashboard pendant que tu le modifies. |
 
 ### Ressources utilisées (très légères)
@@ -142,10 +143,10 @@ export DATABASE_URL=postgres://utilisateur:motdepasse@localhost:5432/base
 export DASHBOARD_PASSWORD=...
 export APP_BASE_URL=http://localhost:3000
 export TMDB_API_KEY=...
-npm start          # crée les tables au premier lancement
+npm start          # (= node selfhost/server.js) crée les tables au premier lancement
 ```
 
-Pour le garder en service, utilise par exemple `systemd` ou `pm2 start server.js --name vf-trailers`.
+Pour le garder en service, utilise par exemple `systemd` ou `pm2 start selfhost/server.js --name vf-trailers`.
 
 ### Migrer depuis Vercel + Neon
 
@@ -177,7 +178,7 @@ Pense ensuite à mettre à jour `APP_BASE_URL` et, côté utilisateurs, à réin
 
 1. Crée un projet [Neon](https://neon.tech) gratuit, copie sa `DATABASE_URL`, puis colle le contenu de [`schema.sql`](schema.sql) dans l'éditeur SQL de Neon (une seule fois).
 2. Importe le repo dans [Vercel](https://vercel.com) et ajoute les variables d'environnement : `DATABASE_URL`, `DASHBOARD_PASSWORD`, `TMDB_API_KEY`, `APP_BASE_URL` (et éventuellement `UPSTASH_REDIS_REST_URL` / `UPSTASH_REDIS_REST_TOKEN`).
-3. Déploie. Vercel utilise `api/index.js` (voir `vercel.json`) ; `server.js` n'est pas utilisé.
+3. Déploie. Vercel utilise `api/index.js` (voir `vercel.json`) ; `selfhost/` n'est pas utilisé.
 
 Pour tester en local avec la CLI Vercel : copie `.env.local.example` en `.env.local`, puis `vercel dev`.
 
@@ -187,7 +188,7 @@ Pour tester en local avec la CLI Vercel : copie `.env.local.example` en `.env.lo
 
 ```
 api/index.js        Application Express (routes Stremio, API, pages) — partagée Vercel / self-host
-server.js           Point d'entrée self-host (écoute un port, applique schema.sql, sert public/)
+selfhost/server.js  Point d'entrée self-host (écoute un port, applique schema.sql, sert public/)
 schema.sql          Schéma Postgres complet (idempotent)
 lib/                Modules : db, cache, matching des titres, Allociné, YouTube, stats, réglages…
 dashboard/          Dashboard découpé en vrais fichiers HTML / CSS / JS (voir dashboard/README.md)

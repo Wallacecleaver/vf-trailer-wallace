@@ -97,6 +97,9 @@ function verifyToken(token) {
 }
 
 function getClientIp(req) {
+    // TRUST_PROXY=0 : addon exposé directement (sans Caddy/Nginx devant) -> on ignore X-Forwarded-For,
+    // qu'un attaquant pourrait falsifier pour contourner le verrouillage anti brute-force.
+    if (process.env.TRUST_PROXY === '0') return req.socket.remoteAddress || 'unknown';
     return (req.headers['x-forwarded-for'] || '').split(',')[0].trim() || req.socket.remoteAddress || 'unknown';
 }
 
@@ -332,7 +335,7 @@ async function logAiomRequest({ type, imdbId, season, config, result, ms, timeou
 // Logo servi comme fichier statique (public/logo_transparent_check.png) plutôt qu'en
 // base64 dans le manifest : Stremio limite la taille du descriptor, et l'ancien base64
 // (~40 Ko) le faisait dépasser -> erreur "Max descriptor size reached".
-const APP_BASE_URL = process.env.APP_BASE_URL || 'https://vfwallace.duckdns.org';
+const APP_BASE_URL = (process.env.APP_BASE_URL || 'https://vfwallace.duckdns.org').replace(/\/+$/, '');
 const LOGO_URL = `${APP_BASE_URL}/logo_transparent_check.png`;
 // Surchageable via env var si un domaine perso est ajouté un jour -- voir note sur LOGO_URL,
 // même logique : une valeur fixe raisonnable par défaut plutôt qu'une détection dynamique

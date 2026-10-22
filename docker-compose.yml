@@ -69,7 +69,7 @@ services:
     depends_on:
       - app
     environment:
-      DOMAIN: ${DOMAIN:?Définis DOMAIN dans .env pour utiliser le profil https}
+      DOMAIN: ${DOMAIN:-localhost}  # défini dans .env quand tu utilises le profil https
     ports:
       - "80:80"
       - "443:443"
