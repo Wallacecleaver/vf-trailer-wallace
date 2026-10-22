@@ -10,7 +10,7 @@
       if (!data.configured) {
         ['install-stat-total', 'install-stat-today', 'install-stat-users', 'install-stat-req'].forEach(id => document.getElementById(id).textContent = '⚠️');
         document.getElementById('users-body').innerHTML =
-          '<tr class="empty-row"><td colspan="5">Redis non configuré — ajoute UPSTASH_REDIS_REST_URL / TOKEN sur Vercel</td></tr>';
+          '<tr class="empty-row"><td colspan="5">Base de données non configurée — vérifie DATABASE_URL</td></tr>';
         document.getElementById('install-chart-svg').innerHTML = '';
         document.getElementById('user-split-body').innerHTML = '';
         return;

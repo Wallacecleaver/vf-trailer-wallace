@@ -42,6 +42,6 @@ Divers : `js/00-core.js` (login, navigation entre pages), `js/01-youtube-player.
 ## En local
 
 `DASHBOARD_NO_CACHE=1 node ...` relit les fichiers à chaque requête : on modifie, on rafraîchit, sans redémarrer.
-Sans cette variable, la page est assemblée une fois au démarrage (cas de Vercel).
+Sans cette variable, la page est assemblée une fois au démarrage (cas normal en production).
 
 `npm test` vérifie que la page s'assemble, que le JS est valide, et qu'aucun fichier n'a été oublié.

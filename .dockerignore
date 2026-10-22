@@ -4,7 +4,6 @@ node_modules
 .env
 .env.*
 !.env.example
-.vercel
 test
 *.md
 docker-compose.yml

@@ -1,13 +1,12 @@
-// Point d'entrée « serveur classique » (self-host : Docker, VPS, Raspberry...).
-// Sur Vercel, c'est api/index.js qui est utilisé directement (voir vercel.json) :
-// ce fichier-ci n'est jamais chargé là-bas.
+// Point d'entrée de l'addon (Docker, VPS, Raspberry...) : applique schema.sql,
+// puis écoute sur PORT.
 
 const path = require('path');
 const express = require('express');
 const addon = require('../api/index');
 const { ensureSchema } = require('../lib/migrate');
 
-// Sur Vercel, le dossier public/ est servi automatiquement ; ici, on le sert nous-mêmes (logo...).
+// Sert le dossier public/ (logo...).
 const app = express();
 app.disable('x-powered-by');
 app.use(express.static(path.join(__dirname, '..', 'public'), { maxAge: '1d' }));
@@ -32,8 +31,8 @@ async function main() {
         }
     }
 
-    // Purge des entrées de cache expirées (une entrée expirée est ignorée à la lecture mais reste en base).
-    // En serverless on s'en passe ; en self-host, un petit DELETE toutes les 6 h garde la base légère.
+    // Purge des entrées de cache expirées (une entrée expirée est ignorée à la lecture mais reste en base) :
+    // un petit DELETE toutes les 6 h garde la base légère.
     const sql = require('../lib/db');
     const purge = () => sql`DELETE FROM kv_cache WHERE expires_at < now()`
         .catch(err => console.error('Purge du cache expiré impossible :', err.message));

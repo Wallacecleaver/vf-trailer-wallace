@@ -7,11 +7,11 @@ Addon [Stremio](https://www.stremio.com/) qui affiche la **bande-annonce officie
 - **Dashboard d'administration** : stats, utilisateurs, mapping manuel des liens, journal des échecs, test des flux, logs, réglages, cache…
 - **Pages publiques** : configuration de l'addon (`/`), proposition de liens par la communauté (`/proposer`).
 
-Deux façons de l'héberger : **[self-host avec Docker](#-self-host-docker-recommandé)** (tout sur ton serveur) ou **[Vercel + Neon](#-variante--vercel--neon)**.
+Tout tourne sur ton serveur (VPS, Raspberry Pi, NAS…), avec Docker.
 
 ---
 
-## 🏠 Self-host (Docker, recommandé)
+## 🏠 Installation (Docker)
 
 Tout tourne chez toi : l'addon + sa base Postgres, dans deux conteneurs. Aucun compte externe requis.
 
@@ -83,8 +83,6 @@ Ouvre `APP_BASE_URL` dans ton navigateur, renseigne ta clé TMDB, puis clique su
 | `HOST_PORT` | non | Port exposé sur la machine (défaut `3000`). |
 | `DATABASE_URL` | non | Postgres externe à la place de celui du compose. |
 | `DATABASE_SSL` | non | `true` si ton Postgres externe impose le SSL. |
-| `DB_DRIVER` | non | Force le driver : `pg` (Postgres classique) ou `neon` (Neon hébergé). Détecté automatiquement sinon. |
-| `UPSTASH_REDIS_REST_URL` / `_TOKEN` | non | Redis facultatif : dédoublonnage des recherches dans les logs et cache du statut des services. Tout fonctionne sans. |
 | `TRUST_PROXY` | non | `0` si l'addon est exposé directement sur Internet (ignore `X-Forwarded-For`). `install.sh` le règle selon ton choix. |
 | `DASHBOARD_NO_CACHE` | non | `1` pour désactiver le cache de rendu du dashboard pendant que tu le modifies. |
 
@@ -148,19 +146,21 @@ npm start          # (= node selfhost/server.js) crée les tables au premier lan
 
 Pour le garder en service, utilise par exemple `systemd` ou `pm2 start selfhost/server.js --name vf-trailers`.
 
-### Migrer depuis Vercel + Neon
+### Importer des données depuis un autre Postgres
+
+Si tu as déjà des données (mapping, réglages, stats) sur une autre base Postgres :
 
 ```bash
-# Export depuis Neon (remplace par ta DATABASE_URL Neon)
-pg_dump --data-only --no-owner "postgres://...neon.tech/neondb?sslmode=require" > donnees.sql
+# Export depuis l'ancienne base (remplace l'URL)
+pg_dump --data-only --no-owner "postgres://utilisateur:motdepasse@ancien-hote/base" > donnees.sql
 
-# Démarre d'abord la stack self-host (crée les tables), puis importe
+# Démarre d'abord la stack (elle crée les tables), puis importe
 docker compose exec -T db psql -U vf vf < donnees.sql
 ```
 
-Si l'import signale des doublons sur les lignes de réglages (`id = 1`), c'est sans gravité : vide d'abord ces deux tables avec
+Si l'import signale des doublons sur les lignes de réglages (`id = 1`), c'est sans gravité : vide d'abord ces tables avec
 `TRUNCATE configure_settings, behavior_settings, request_stats_global;` avant d'importer.
-Pense ensuite à mettre à jour `APP_BASE_URL` et, côté utilisateurs, à réinstaller l'addon avec la nouvelle adresse.
+Pense ensuite à mettre à jour `APP_BASE_URL` et à réinstaller l'addon dans Stremio avec la nouvelle adresse.
 
 ### Dépannage
 
@@ -174,20 +174,10 @@ Pense ensuite à mettre à jour `APP_BASE_URL` et, côté utilisateurs, à réin
 
 ---
 
-## ☁️ Variante : Vercel + Neon
-
-1. Crée un projet [Neon](https://neon.tech) gratuit, copie sa `DATABASE_URL`, puis colle le contenu de [`schema.sql`](schema.sql) dans l'éditeur SQL de Neon (une seule fois).
-2. Importe le repo dans [Vercel](https://vercel.com) et ajoute les variables d'environnement : `DATABASE_URL`, `DASHBOARD_PASSWORD`, `TMDB_API_KEY`, `APP_BASE_URL` (et éventuellement `UPSTASH_REDIS_REST_URL` / `UPSTASH_REDIS_REST_TOKEN`).
-3. Déploie. Vercel utilise `api/index.js` (voir `vercel.json`) ; `selfhost/` n'est pas utilisé.
-
-Pour tester en local avec la CLI Vercel : copie `.env.local.example` en `.env.local`, puis `vercel dev`.
-
----
-
 ## 🧱 Structure du projet
 
 ```
-api/index.js        Application Express (routes Stremio, API, pages) — partagée Vercel / self-host
+api/index.js        Application Express (routes Stremio, API, pages)
 selfhost/server.js  Point d'entrée self-host (écoute un port, applique schema.sql, sert public/)
 schema.sql          Schéma Postgres complet (idempotent)
 lib/                Modules : db, cache, matching des titres, Allociné, YouTube, stats, réglages…
@@ -197,7 +187,7 @@ test/               Tests unitaires
 install.sh, Dockerfile, docker-compose.yml, Caddyfile, .env.example   Self-host
 ```
 
-`lib/db.js` choisit automatiquement le driver : Neon (HTTP) si l'URL contient `neon.tech`, Postgres classique (`pg`) sinon.
+Toute la persistance (cache, réglages, stats, logs, mapping) est dans Postgres.
 
 ### Modifier le dashboard
 

@@ -2,8 +2,7 @@
 -- Schéma Postgres de l'addon Bandes-Annonces VF
 -- Idempotent : peut être relancé sans risque (IF NOT EXISTS partout).
 --
---   • Self-host (Docker) : appliqué automatiquement au démarrage.
---   • Neon / Vercel      : colle ce fichier une fois dans l'éditeur SQL de Neon.
+-- Appliqué automatiquement à chaque démarrage de l'addon (selfhost/server.js).
 -- ============================================================
 
 -- Cache clé/valeur avec expiration (résultats TMDB / Allociné / YouTube)

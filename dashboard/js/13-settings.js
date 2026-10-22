@@ -129,10 +129,10 @@
       el.innerHTML = escapeHtml(label) + (sub ? '<span class="diag-sub">' + escapeHtml(sub) + '</span>' : '');
     };
     try {
-      if (force) { desc.textContent = 'Vérification en cours...'; setVal('redis', '…', null); setVal('tmdbkey', '…', null); setVal('svc-tmdb', '…', null); setVal('svc-youtube', '…', null); setVal('svc-allocine', '…', null); setVal('cache', '…', null); }
+      if (force) { desc.textContent = 'Vérification en cours...'; setVal('db', '…', null); setVal('tmdbkey', '…', null); setVal('svc-tmdb', '…', null); setVal('svc-youtube', '…', null); setVal('svc-allocine', '…', null); setVal('cache', '…', null); }
       const res = await fetch('/api/diagnostics', { headers: authHeaders() });
       const d = await res.json();
-      setVal('redis', d.redis ? '✓ Connecté' : '✗ Indisponible', d.redis, d.redis ? 'Redis opérationnel' : 'Vérifie UPSTASH_REDIS_REST_URL / TOKEN');
+      setVal('db', d.db ? '✓ Connectée' : '✗ Indisponible', d.db, d.db ? 'Postgres opérationnel' : 'Vérifie DATABASE_URL et que le conteneur db tourne');
       if (d.tmdbKey && d.tmdbKey.present) {
         setVal('tmdbkey', d.tmdbKey.valid === true ? '✓ Valide' : '✗ Invalide', d.tmdbKey.valid === true, 'Clé …' + (d.tmdbKey.last4 || ''));
       } else {
@@ -142,7 +142,7 @@
       setVal('svc-youtube', d.services && d.services.youtube ? '✓ Joignable' : '✗ Down', !!(d.services && d.services.youtube), 'youtube.com');
       setVal('svc-allocine', d.services && d.services.allocine ? '✓ Joignable' : '✗ Down', !!(d.services && d.services.allocine), 'allocine.fr');
       setVal('cache', d.cache && d.cache.count ? (d.cache.count + ' entrée' + (d.cache.count > 1 ? 's' : '')) : 'Vide', true, (d.cache && d.cache.success ? d.cache.success + ' succès · ' : '') + (d.cache && d.cache.failures ? d.cache.failures + ' échecs' : '0 échec'));
-      desc.textContent = d.redis ? 'Tout est opérationnel' : '⚠️ Redis indisponible — le cache et les stats ne fonctionneront pas';
+      desc.textContent = d.db ? 'Tout est opérationnel' : '⚠️ Base de données indisponible — le cache et les stats ne fonctionneront pas';
     } catch (e) {
       desc.textContent = 'Impossible de récupérer le diagnostic';
     }

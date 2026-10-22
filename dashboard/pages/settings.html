@@ -17,7 +17,7 @@
               <button class="btn-outline-sm" onclick="loadDiagnostics(true)">🔄 Re-vérifier</button>
             </div>
             <div class="diagnostics-grid" id="diag-grid">
-              <div class="diag-item"><span class="diag-label">Redis</span><span class="diag-val diag-pending" data-diag="redis">…</span></div>
+              <div class="diag-item"><span class="diag-label">Base de données</span><span class="diag-val diag-pending" data-diag="db">…</span></div>
               <div class="diag-item"><span class="diag-label">Clé TMDB serveur</span><span class="diag-val diag-pending" data-diag="tmdbkey">…</span></div>
               <div class="diag-item"><span class="diag-label">TMDB</span><span class="diag-val diag-pending" data-diag="svc-tmdb">…</span></div>
               <div class="diag-item"><span class="diag-label">YouTube</span><span class="diag-val diag-pending" data-diag="svc-youtube">…</span></div>
@@ -68,7 +68,7 @@
           <div class="card">
             <div class="card-head"><div><div class="card-title">💾 Cache</div><div class="card-desc">Mémorise les résultats déjà résolus pour aller plus vite et économiser les appels TMDB</div></div></div>
             <div class="toggle-row">
-              <div><div class="label">Cache Redis</div><div class="desc">Activer ou désactiver la mise en cache</div></div>
+              <div><div class="label">Cache</div><div class="desc">Activer ou désactiver la mise en cache</div></div>
               <label class="switch"><input type="checkbox" id="set-cacheEnabled"><span class="slider"></span></label>
             </div>
             <div class="toggle-row">
@@ -115,7 +115,7 @@
           </div>
 
           <div class="info-box">
-            🔒 Le mot de passe du dashboard (<code>DASHBOARD_PASSWORD</code>) se change dans les variables d'environnement Vercel, pas ici — pour des raisons de sécurité.
+            🔒 Le mot de passe du dashboard (<code>DASHBOARD_PASSWORD</code>) se change dans le fichier <code>.env</code> du serveur (puis <code>docker compose up -d</code>), pas ici — pour des raisons de sécurité.
           </div>
         </div>
 

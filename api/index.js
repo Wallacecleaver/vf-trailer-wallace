@@ -1,6 +1,6 @@
 // ============================================================
 // ADDON STREMIO — Bandes-Annonces VF
-// Tourne sur Vercel (serverless, via ce fichier) OU en self-host (Docker / VPS, via server.js).
+// Application Express (routes Stremio, API dashboard, pages). Lancée par selfhost/server.js.
 //
 // Configuration par utilisateur (clé TMDB perso + qualité) encodée en
 // base64url dans l'URL, comme les gros addons Stremio : /<config>/manifest.json
@@ -18,7 +18,7 @@ const { recordRequest, getStats, resetStats } = require('../lib/stats');
 const { recordInstallActivity, getInstallStats, resetInstalls, removeInstall } = require('../lib/install-stats');
 const { recordAiomStat, getAiomStats, resetAiomStats } = require('../lib/aiom-stats');
 const { logEvent, getLogs, clearLogs } = require('../lib/logs');
-const redis = require('../lib/redis');
+const sql = require('../lib/db');
 const { renderDashboardShell } = require('../lib/dashboard-view');
 const { renderConfigureHtml } = require('../lib/configure-view');
 const {
@@ -42,9 +42,7 @@ const DASHBOARD_PASSWORD = process.env.DASHBOARD_PASSWORD;
 
 // ---- Fetch réseau avec timeout ----
 // Tous les appels externes (TMDB, YouTube, Allociné, oEmbed...) passent par ici :
-// sur Vercel la fonction est plafonnée à maxDuration=15s (vercel.json), un service
-// qui ne répond pas ne doit pas faire expirer toute la requête. AbortSignal.timeout
-// est disponible en Node 18+ (Vercel tourne en Node 20).
+// un service qui ne répond pas ne doit pas bloquer toute la requête.
 const NETWORK_TIMEOUT_MS = 8000;
 async function fetchT(url, opts = {}, timeoutMs = NETWORK_TIMEOUT_MS) {
     const controller = new AbortController();
@@ -57,10 +55,8 @@ async function fetchT(url, opts = {}, timeoutMs = NETWORK_TIMEOUT_MS) {
 }
 
 // ---- Auth dashboard : token signé (HMAC, façon JWT maison) + bcrypt + anti brute-force ----
-// Clé de signature dérivée de DASHBOARD_PASSWORD (pas de secret aléatoire) : sur Vercel,
-// plusieurs instances serverless tournent en parallèle, un secret généré en mémoire serait
-// différent sur chacune -> des tokens valides seraient rejetés au hasard selon l'instance
-// qui répond. Dériver du mot de passe donne la même clé partout sans variable en plus.
+// Clé de signature dérivée de DASHBOARD_PASSWORD (pas de secret aléatoire à gérer) : les sessions
+// survivent à un redémarrage de l'addon, sans variable d'environnement en plus.
 const SESSION_DURATION_MS = 24 * 60 * 60 * 1000; // 24h
 const MAX_LOGIN_ATTEMPTS = 5;
 const LOCKOUT_SECONDS = 15 * 60;
@@ -103,10 +99,8 @@ function getClientIp(req) {
     return (req.headers['x-forwarded-for'] || '').split(',')[0].trim() || req.socket.remoteAddress || 'unknown';
 }
 
-// Compteur de tentatives dans Redis (via lib/cache, déjà utilisé ailleurs dans ce fichier)
-// plutôt qu'une Map en mémoire : une Map ne serait ni persistante ni partagée entre les
-// instances serverless de Vercel, un attaquant pourrait la contourner en retombant sur
-// d'autres instances à chaque tentative.
+// Compteur de tentatives stocké en base (via lib/cache) plutôt qu'en mémoire : le verrouillage
+// survit à un redémarrage de l'addon.
 async function isLockedOut(ip) {
     const attempts = await getCached(`loginattempts:${ip}`);
     return !!(attempts && attempts.count >= MAX_LOGIN_ATTEMPTS);
@@ -247,7 +241,7 @@ function toAiomStreams(streams) {
 // AIOMetadata attend la réponse pendant qu'il construit la fiche : au-delà de ce délai on répond
 // vide (il retombe sur son propre trailer). La résolution continue en arrière-plan et remplit le
 // cache pour la requête suivante. Réglable dans le dashboard (Réglages > AIOMetadata), 1 à 12 s
-// (la fonction Vercel expire à 15 s) ; 5 s par défaut.
+// ; 5 s par défaut.
 function aiomTimeoutMs(behavior) {
     const secs = Number(behavior && behavior.aiomTimeoutSeconds);
     return (Number.isFinite(secs) && secs > 0 ? Math.min(12, Math.max(1, secs)) : 5) * 1000;
@@ -285,7 +279,7 @@ function resolveStreamsSingleFlight(type, imdbId, season, config) {
 // Journal dashboard (page Logs, contexte AIOM) : une ligne par requête AIOMetadata, SANS toucher
 // aux stats globales (AIOMetadata peut interroger l'addon pour beaucoup de titres d'un coup : ça
 // gonflerait "Requêtes totales" et noierait les vraies demandes des utilisateurs Stremio).
-// Dédoublonnage en mémoire (5 min, par instance serverless) : un même titre redemandé en boucle
+// Dédoublonnage en mémoire (5 min) : un même titre redemandé en boucle
 // ne remplit pas le journal, mais un changement de résultat (ex. timeout puis succès) est loggé.
 const AIOM_LOG_DEDUPE_MS = 5 * 60 * 1000;
 const _aiomSeen = new Map();
@@ -612,14 +606,15 @@ async function resolveViaApis(type, imdbId, season, behavior, tmdbKey, trace) {
 }
 
 // Dédup : on ne veut logger qu'une seule fois qu'une personne donnée (pseudo) a
-// cherché un titre donné. SADD retourne 1 si le membre est nouveau, 0 s'il existait
-// déjà -> ça nous dit directement si c'est la 1ère fois ou une redemande.
-// Best-effort comme le reste : sans Redis, impossible de dédupliquer -> on logue à chaque fois.
+// cherché un titre donné. Mémorisé en base (kv_cache, 30 jours) : survit aux redémarrages.
+// Best-effort : si la base est indisponible, on logue à chaque fois.
+const SEEN_SEARCH_TTL_SECONDS = 30 * 24 * 60 * 60;
 async function isNewSearch(pseudoKey, imdbId, type) {
-    if (!redis) return true;
     try {
-        const added = await redis.sadd('seen:searches', `${pseudoKey}|${imdbId}|${type}`);
-        return added === 1;
+        const key = `seen:${pseudoKey}|${imdbId}|${type}`;
+        if (await getCached(key)) return false;
+        await setCached(key, 1, SEEN_SEARCH_TTL_SECONDS);
+        return true;
     } catch (err) {
         console.error('Erreur dédup recherche:', err.message);
         return true;
@@ -726,20 +721,20 @@ async function resolveOverrideLinks(links, overrideTitle, overrideKey, contribut
 
 // Flux YouTube servi tel quel via `ytId` (lecteur intégré Stremio officiel), sans tentative
 // d'extraction d'une URL directe -- ancien comportement retiré : le scraping ytdl-core était
-// quasi-systématiquement bloqué par la protection anti-bot de YouTube sur les IP datacenter
-// Vercel (voir historique), pour un gain quasi nul et beaucoup de latence/bruit dans les logs.
+// quasi-systématiquement bloqué par la protection anti-bot de YouTube sur les IP de datacenter
+// (voir historique), pour un gain quasi nul et beaucoup de latence/bruit dans les logs.
 function buildYoutubeStreams(ytId, title) {
     const stream = { name: formatStreamName(), title, ytId, __external: false };
     return [stream, buildExternalYoutubeStream(ytId, title)];
 }
 
-// Cache mémoire (durée de vie du process serverless, ~30s) pour getBehaviorSettings() :
+// Cache mémoire (~30s) pour getBehaviorSettings() :
 // ce réglage est lu à CHAQUE requête /stream mais ne change quasiment jamais -- inutile de
-// taper Redis à chaque fois. Utilisé uniquement sur le chemin chaud (résolution réelle) ;
+// interroger la base à chaque fois. Utilisé uniquement sur le chemin chaud (résolution réelle) ;
 // les routes /api/settings/behavior (dashboard) continuent d'appeler getBehaviorSettings()
 // directement pour toujours refléter l'état exact. Contrepartie : jusqu'à ~30s avant qu'un
 // changement de réglage admin soit pris en compte par les visiteurs -- largement acceptable
-// pour ce type de réglage, et ça réduit d'autant les commandes Redis consommées.
+// pour ce type de réglage, et ça réduit d'autant les requêtes en base.
 let _behaviorCache = null;
 let _behaviorCacheAt = 0;
 const BEHAVIOR_CACHE_TTL_MS = 30000;
@@ -1012,7 +1007,7 @@ app.use((req, res, next) => {
     next();
 });
 
-// Favicon embarqué en base64 (pas de dossier /public en serverless) -> évite les 404
+// Favicon embarqué en base64 -> évite les 404
 // répétés que les navigateurs génèrent automatiquement en demandant /favicon.ico.
 const FAVICON_BUFFER = Buffer.from('AAABAAEAEBAAAAAAIABCAwAAFgAAAIlQTkcNChoKAAAADUlIRFIAAAAQAAAAEAgGAAAAH/P/YQAAAwlJREFUeJwt0r1rnXUUwPHvOc/Lfe5b0mtMMqR0uIJm0aVEhDoIxloMYqtdXKSBdAxk6KC7Ujchq6tEK8WioFYJviSRtNRCW6cKaZNKjCSNuUnuW+5zf+c41C98/oOvAIyOjpZ7ve5HZrwr7k8HXLruEtwBiETIRDxCzEX+jqLo093d3Q9FBBkaGqrmIf9GXF4Rd5pmVFWpJwk1VRxomPGgn3MYjIoqLqAqC5OTp9+TWm1w3oxZ3PO2W3wqK8p4krDd77NnhuPUNGIkjvkzz1npdrwkGhBi1egDGRio7iky0HSTs6WypCIstlt0DFQEAYIbRRUmS2V6wNetppdEHWFHFTnWNNOXs6KkIlw9OCRCGVClJEJRhAGNiFCuHhyQAqeyorTMVNxHNeBUVRlPEhZbbYYLKWaBIBAsPCGOWWC4UGCx1WY8SahGSgCPu+68kKbsAjutJp9cvswzzz3L2bPnuHbtK9K0wNTUFF9eucI/m5vMXrrE42qFepxwr3ckGhxqUcS/5mDG+vpDJk+/Tv34GCcnXuTkxAT1sTFeO3OGRxsbmBkNM2qREhxi/s+CUUhSfltaotvtMj1zkVs3byAIF2ZmCCGwsvQrhTjBzNAni6CRwF4I1FRIs4xH6+v8tbHB7Nwcv6+usrq8zOzcHFubmzxcWyPNChwToWFGJKCZKA/ynJE4ohzHHLTa3Lx9G6tUuL60xPeLi1CtcuvOHRoHh5STmJEoYi3PyUSJI+DQjPt5j1ezjM+yjOvz8wz//Avn+4YeP85PF6b59t5d2lmBc1mR+3nOoTsVEWKDZkW1tNLpyDuVWN48VmO6e8TU6AhvnX8byhVYWKCQ53QGawSc5U7HSyLuQjtW1c/d/WIRza81m8nzacqPR0dU7twl3WsQtrfpP97hh17OVt7jj7xHNUn6UaRJv59/ISdOnKjtH+x/h/MS7nTcCe6kZgyFgMQxuyIcuROpkgFpoUCSJDe2trbeEIB6vT7YaDQ+NgvncX9KHDUR+gI4xO6oCO5uqOwBVxuN/feBxn+BdHdInbz8WwAAAABJRU5ErkJggg==', 'base64');
 app.get('/favicon.ico', (req, res) => {
@@ -1276,28 +1271,25 @@ app.get('/api/health', async (req, res) => {
     const current = { tmdb, youtube, allocine };
 
     // On ne log QUE les changements d'état (pas chaque check, sinon spam à chaque
-    // visite de /configure). Best-effort : si Redis absent, on skip juste le log.
-    if (redis) {
-        try {
-            const prevRaw = await redis.get('system:health:last');
-            const prev = prevRaw ? (typeof prevRaw === 'string' ? JSON.parse(prevRaw) : prevRaw) : null;
-            if (prev) {
-                for (const svc of ['tmdb', 'youtube', 'allocine']) {
-                    if (prev[svc] !== current[svc]) {
-                        await logEvent({
-                            level: current[svc] ? 'info' : 'warn',
-                            context: 'SYSTEM',
-                            event: current[svc] ? 'service_up' : 'service_down',
-                            message: `${svc.toUpperCase()} est ${current[svc] ? 'de nouveau joignable' : 'devenu injoignable'}`,
-                            meta: { service: svc },
-                        });
-                    }
+    // visite de /configure). Best-effort : si la base est indisponible, on skip juste le log.
+    try {
+        const prev = await getCached('system:health:last');
+        if (prev) {
+            for (const svc of ['tmdb', 'youtube', 'allocine']) {
+                if (prev[svc] !== current[svc]) {
+                    await logEvent({
+                        level: current[svc] ? 'info' : 'warn',
+                        context: 'SYSTEM',
+                        event: current[svc] ? 'service_up' : 'service_down',
+                        message: `${svc.toUpperCase()} est ${current[svc] ? 'de nouveau joignable' : 'devenu injoignable'}`,
+                        meta: { service: svc },
+                    });
                 }
             }
-            await redis.set('system:health:last', JSON.stringify(current));
-        } catch (err) {
-            console.error('Erreur suivi santé services:', err.message);
         }
+        await setCached('system:health:last', current, 30 * 24 * 60 * 60);
+    } catch (err) {
+        console.error('Erreur suivi santé services:', err.message);
     }
 
     res.json({
@@ -1310,19 +1302,16 @@ app.get('/api/health', async (req, res) => {
 
 // ---- Statut des services (dashboard, page Logs) ----
 // Contrairement à /api/health (public, live, pour le badge de /configure), celui-ci est
-// authentifié et volontairement mis en cache 6h dans Redis : pas besoin de re-pinguer TMDB/
+// authentifié et volontairement mis en cache 6h en base : pas besoin de re-pinguer TMDB/
 // YouTube/Allociné à chaque ouverture de la page Logs, un statut par demi-journée suffit.
 const SERVICES_STATUS_CACHE_KEY = 'system:services-status';
 const SERVICES_STATUS_TTL_MS = 6 * 60 * 60 * 1000; // 6h
 
 app.get('/api/services-status', requireAuth, async (req, res) => {
     try {
-        if (redis) {
-            const cachedRaw = await redis.get(SERVICES_STATUS_CACHE_KEY);
-            const cached = cachedRaw ? (typeof cachedRaw === 'string' ? JSON.parse(cachedRaw) : cachedRaw) : null;
-            if (cached && Date.now() - new Date(cached.checkedAt).getTime() < SERVICES_STATUS_TTL_MS) {
-                return res.json({ ...cached, nextCheckAt: new Date(new Date(cached.checkedAt).getTime() + SERVICES_STATUS_TTL_MS).toISOString() });
-            }
+        const cached = await getCached(SERVICES_STATUS_CACHE_KEY);
+        if (cached && Date.now() - new Date(cached.checkedAt).getTime() < SERVICES_STATUS_TTL_MS) {
+            return res.json({ ...cached, nextCheckAt: new Date(new Date(cached.checkedAt).getTime() + SERVICES_STATUS_TTL_MS).toISOString() });
         }
 
         const [tmdb, youtube, allocine] = await Promise.all([
@@ -1337,10 +1326,8 @@ app.get('/api/services-status', requireAuth, async (req, res) => {
             checkedAt: new Date().toISOString(),
         };
 
-        if (redis) {
-            try { await redis.set(SERVICES_STATUS_CACHE_KEY, JSON.stringify(result)); }
-            catch (err) { console.error('Erreur cache statut services:', err.message); }
-        }
+        try { await setCached(SERVICES_STATUS_CACHE_KEY, result, SERVICES_STATUS_TTL_MS / 1000); }
+        catch (err) { console.error('Erreur cache statut services:', err.message); }
 
         res.json({ ...result, nextCheckAt: new Date(Date.now() + SERVICES_STATUS_TTL_MS).toISOString() });
     } catch (err) {
@@ -1392,9 +1379,8 @@ app.get('/:config?/stream/:type/:idWithExt', async (req, res) => {
 
         const { streams, officialTitle, hidden } = await resolveStreams(type, imdbId, season, config);
 
-        // IMPORTANT : sur Vercel, la fonction peut être "gelée" juste après l'envoi de la réponse.
-        // Un appel Redis "fire-and-forget" (sans await) risque alors d'être coupé avant d'avoir
-        // atteint Upstash -> on attend ces écritures (en parallèle) avant de répondre.
+        // On attend ces écritures (en parallèle) avant de répondre : les stats sont ainsi
+        // toujours à jour au moment où la réponse part.
         await Promise.all([
             recordRequest({ type, imdbId, title: officialTitle }),
             streams.length === 0 && !hidden ? logFailure({ imdbId, type, season, title: officialTitle }) : Promise.resolve(),
@@ -1771,33 +1757,26 @@ app.delete('/api/cache', requireAuth, async (req, res) => {
     res.json({ success: ok });
 });
 
-// État système : Redis réellement joignable (pas juste "configuré") + clé TMDB de secours présente.
-// Utile car tout le reste de l'app est best-effort silencieux si Redis est down -> sans ça,
+// Joignabilité réelle de la base Postgres (pas juste « configurée »).
+async function dbOk() {
+    if (!sql) return false;
+    try { await sql`SELECT 1`; return true; } catch (err) { return false; }
+}
+
+// État système : base joignable + clé TMDB de secours présente.
+// Utile car tout le reste de l'app est best-effort silencieux si la base est down -> sans ça,
 // aucun moyen de savoir que quelque chose déconne avant de constater des stats vides.
 app.get('/api/system-status', requireAuth, async (req, res) => {
-    let redisOk = false;
-    if (redis) {
-        try {
-            await redis.set('system:ping', Date.now());
-            redisOk = true;
-        } catch (err) {
-            redisOk = false;
-        }
-    }
-    res.json({ redis: redisOk, tmdbFallback: !!FALLBACK_TMDB_KEY });
+    res.json({ db: await dbOk(), tmdbFallback: !!FALLBACK_TMDB_KEY });
 });
 
 // ---- Diagnostic complet (page Réglages du dashboard) ----
-// Regroupe en un appel tout ce qu'un admin veut savoir en arrivant sur la page : Redis
+// Regroupe en un appel tout ce qu'un admin veut savoir en arrivant sur la page : base
 // joignable, clé TMDB serveur présente + valide (testée), services externes joignables,
 // et état du cache. Le test de clé TMDB est volontairement fait côté serveur : on ne
 // renvoie jamais la clé elle-même, juste sa présence + les 4 derniers caractères + validité.
 app.get('/api/diagnostics', requireAuth, async (req, res) => {
-    let redisOk = false;
-    if (redis) {
-        try { await redis.set('system:ping', Date.now()); redisOk = true; }
-        catch (err) { redisOk = false; }
-    }
+    const dbReachable = await dbOk();
 
     const tmdbKeyLast4 = FALLBACK_TMDB_KEY ? String(FALLBACK_TMDB_KEY).slice(-4) : null;
     let tmdbKeyValid = null; // null = pas de clé, true/false sinon
@@ -1819,7 +1798,7 @@ app.get('/api/diagnostics', requireAuth, async (req, res) => {
     const cache = await getCacheStats();
 
     res.json({
-        redis: redisOk,
+        db: dbReachable,
         tmdbKey: { present: !!FALLBACK_TMDB_KEY, last4: tmdbKeyLast4, valid: tmdbKeyValid },
         services: { tmdb, youtube, allocine },
         cache,
