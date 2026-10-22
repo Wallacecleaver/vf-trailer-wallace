@@ -1,6 +1,6 @@
 # Généré par l'installeur de l'image. Démarrer :  docker compose up -d
 # Mettre à jour :                                  docker compose pull && docker compose up -d
-# (le HTTPS automatique est activé par COMPOSE_PROFILES=https dans le fichier .env)
+# Le HTTPS est géré par ton propre reverse proxy : fais-le pointer vers le port de l'addon (3000 par défaut).
 
 services:
   db:
@@ -55,26 +55,8 @@ services:
       DATABASE_URL: postgres://vf:${POSTGRES_PASSWORD}@db:5432/vf
       PORT: "3000"
     ports:
-      # BIND_ADDRESS=127.0.0.1 si tu mets Caddy / Nginx devant (le port n'est alors pas exposé à Internet).
+      # BIND_ADDRESS=127.0.0.1 si ton reverse proxy tourne sur cette même machine (le port n'est alors pas exposé à Internet).
       - "${BIND_ADDRESS:-0.0.0.0}:${HOST_PORT:-3000}:3000"
-
-  caddy:
-    profiles: ["https"]
-    image: caddy:2-alpine
-    restart: unless-stopped
-    depends_on:
-      - app
-    environment:
-      DOMAIN: ${DOMAIN:-localhost}  # défini dans .env quand tu utilises le profil https
-    ports:
-      - "80:80"
-      - "443:443"
-    volumes:
-      - ./Caddyfile:/etc/caddy/Caddyfile:ro
-      - caddy_data:/data
-      - caddy_config:/config
 
 volumes:
   pgdata:
-  caddy_data:
-  caddy_config:

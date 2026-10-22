@@ -93,7 +93,7 @@ function verifyToken(token) {
 }
 
 function getClientIp(req) {
-    // TRUST_PROXY=0 : addon exposé directement (sans Caddy/Nginx devant) -> on ignore X-Forwarded-For,
+    // TRUST_PROXY=0 : addon exposé directement (sans reverse proxy devant) -> on ignore X-Forwarded-For,
     // qu'un attaquant pourrait falsifier pour contourner le verrouillage anti brute-force.
     if (process.env.TRUST_PROXY === '0') return req.socket.remoteAddress || 'unknown';
     return (req.headers['x-forwarded-for'] || '').split(',')[0].trim() || req.socket.remoteAddress || 'unknown';

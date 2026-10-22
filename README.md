@@ -19,7 +19,7 @@ Tout tourne chez toi : l'addon + sa base Postgres, dans deux conteneurs. Aucun c
 
 - Un serveur / VPS / Raspberry Pi 64 bits avec [Docker](https://docs.docker.com/engine/install/) et le plugin Compose (`docker compose version`).
 - Une clé API TMDB gratuite : <https://www.themoviedb.org/settings/api>.
-- Pour Stremio **hors de chez toi**, un nom de domaine en HTTPS (Stremio refuse les addons HTTP distants). Un sous-domaine gratuit DuckDNS fait très bien l'affaire.
+- Pour installer l'addon dans Stremio **depuis un autre appareil**, un nom de domaine en HTTPS servi par ton reverse proxy (Stremio refuse les addons HTTP distants).
 
 ### Installation (100 % Docker, rien à cloner ni à télécharger)
 
@@ -31,16 +31,16 @@ docker run --rm -it --user "$(id -u):$(id -g)" -v "$PWD":/data <IMAGE> install
 docker compose up -d
 ```
 
-`<IMAGE>` est le nom de l'image publiée (par exemple `monnom/vf-trailers:latest`). La première commande lance l'installeur, qui pose quelques questions puis écrit `docker-compose.yml`, `Caddyfile` et `.env` dans le dossier ; la seconde démarre l'addon et sa base.
+`<IMAGE>` est le nom de l'image publiée (par exemple `monnom/vf-trailers:latest`). La première commande lance l'installeur, qui pose quelques questions puis écrit `docker-compose.yml` et `.env` dans le dossier ; la seconde démarre l'addon et sa base.
 
 L'installeur demande :
 
-1. **Ton nom de domaine** pour le HTTPS automatique (facultatif).
+1. **Ton nom de domaine** (facultatif), si ton reverse proxy HTTPS le sert déjà. Il sert à écrire l'adresse publique de l'addon (`APP_BASE_URL`).
 2. **Ta clé TMDB** (facultatif).
 3. **Ton mot de passe du dashboard** : tu le choisis (8 caractères minimum, saisi masqué et confirmé), ou Entrée pour en générer un.
-4. **L'adresse du serveur et le port** (sans domaine seulement : `localhost` et `3000` par défaut).
+4. **Le port d'écoute** (`3000` par défaut) et, sans domaine, l'adresse du serveur (`localhost` par défaut).
 
-Le mot de passe de la base Postgres est généré automatiquement : il reste interne à Docker, tu n'as jamais à le connaître. Avec un domaine, le HTTPS est activé tout seul (`COMPOSE_PROFILES=https` dans le `.env`). Si un `.env` existe déjà, l'installeur n'y touche pas (supprime-le pour refaire la configuration).
+Le mot de passe de la base Postgres est généré automatiquement : il reste interne à Docker, tu n'as jamais à le connaître. Si un `.env` existe déjà, l'installeur n'y touche pas (supprime-le pour refaire la configuration).
 
 Installation sans question (scripts) : passe les réponses en variables, `-e DOMAIN=... -e TMDB_API_KEY=... -e DASHBOARD_PASSWORD='...'` après `docker run`.
 
@@ -69,21 +69,9 @@ L'addon répond alors sur `http://IP_DU_SERVEUR:3000` :
 | `/dashboard` | Dashboard admin (mot de passe = `DASHBOARD_PASSWORD`) |
 | `/proposer` | Proposition de liens par la communauté |
 
-### HTTPS automatique avec Caddy (inclus)
+### HTTPS
 
-1. Fais pointer ton domaine (enregistrement DNS `A`) vers l'IP de ton serveur et ouvre les ports **80** et **443**.
-2. Dans `.env` :
-   ```env
-   DOMAIN=trailers.mondomaine.fr
-   APP_BASE_URL=https://trailers.mondomaine.fr
-   BIND_ADDRESS=127.0.0.1
-   ```
-3. Démarre avec le profil `https` :
-   ```bash
-   docker compose --profile https up -d
-   ```
-
-Caddy obtient et renouvelle tout seul le certificat Let's Encrypt. Si tu as déjà un reverse proxy (Nginx, Traefik, Nginx Proxy Manager…), n'utilise pas ce profil : fais simplement pointer ton proxy vers `127.0.0.1:3000` (et garde `BIND_ADDRESS=127.0.0.1`).
+L'addon écoute en HTTP sur le port choisi (`3000` par défaut) : mets-y ton reverse proxy habituel (Nginx, Traefik, Nginx Proxy Manager, Caddy…) pour le HTTPS. Si le proxy tourne sur la même machine, ajoute `BIND_ADDRESS=127.0.0.1` dans le `.env` pour ne pas exposer le port directement.
 
 ### Installer dans Stremio
 
@@ -97,7 +85,6 @@ Ouvre `APP_BASE_URL` dans ton navigateur, renseigne ta clé TMDB, puis clique su
 | `POSTGRES_PASSWORD` | ✅ | Mot de passe de la base (lettres et chiffres uniquement). |
 | `APP_BASE_URL` | ✅ | URL publique de l'addon, sans slash final (logo, liens `/proposer`…). |
 | `TMDB_API_KEY` | conseillé | Clé TMDB du testeur de flux du dashboard. |
-| `DOMAIN` | pour HTTPS | Domaine utilisé par Caddy (profil `https`). |
 | `BIND_ADDRESS` | non | `127.0.0.1` pour ne pas exposer le port 3000 sur Internet (défaut `0.0.0.0`). |
 | `HOST_PORT` | non | Port exposé sur la machine (défaut `3000`). |
 | `DATABASE_URL` | non | Postgres externe à la place de celui du compose. |
@@ -130,7 +117,7 @@ Si tu veux changer les plafonds, modifie `mem_limit` et `cpus` dans `docker-comp
 ```bash
 # Mettre à jour (télécharge la dernière image publiée)
 docker compose pull
-docker compose up -d                # (ajoute --profile https avant « pull » et « up » si tu utilises Caddy)
+docker compose up -d
 
 # Voir les logs
 docker compose logs -f app
@@ -187,7 +174,7 @@ Pense ensuite à mettre à jour `APP_BASE_URL` et à réinstaller l'addon dans S
 |---|---|
 | `Postgres pas encore prêt` dans les logs | Normal au tout premier démarrage (quelques secondes) ; l'addon réessaie tout seul. |
 | Le dashboard refuse le mot de passe / « non configuré » | `DASHBOARD_PASSWORD` absent de `.env`. Après modification : `docker compose up -d`. |
-| Stremio refuse d'installer l'addon | Stremio exige du **HTTPS** pour les addons distants : utilise le profil `https` ou un reverse proxy. |
+| Stremio refuse d'installer l'addon | Stremio exige du **HTTPS** pour les addons distants : mets un reverse proxy HTTPS devant le port de l'addon. |
 | `pull access denied` / image introuvable au téléchargement | L'image n'est pas encore construite ou pas publique : vérifie la CI, puis la visibilité **Public** du dépôt d'images. |
 | Le logo ou les liens pointent vers un mauvais domaine | `APP_BASE_URL` mal renseignée. |
 | `password authentication failed` | `POSTGRES_PASSWORD` modifié après la création du volume : remets l'ancienne valeur, ou change le mot de passe dans Postgres (`ALTER USER vf PASSWORD '...'`), ou repars de zéro avec `docker compose down -v` (⚠️ efface les données). |
@@ -205,7 +192,7 @@ dashboard/          Dashboard découpé en vrais fichiers HTML / CSS / JS (voir 
 public/             Fichiers statiques (logo)
 test/               Tests unitaires
 Dockerfile, .env.example   Image Docker (l'installeur est dans selfhost/install.js)
-selfhost/deploy/    Modèles du docker-compose.yml et du Caddyfile écrits par l'installeur
+selfhost/deploy/    Modèle du docker-compose.yml écrit par l'installeur
 .github/workflows/docker.yml   Publication automatique de l'image
 ```
 

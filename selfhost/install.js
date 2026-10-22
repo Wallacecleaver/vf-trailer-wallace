@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 // Installeur interactif embarqué dans l'image Docker. Il n'installe rien lui-même : il pose
-// quelques questions puis écrit docker-compose.yml, Caddyfile et .env dans le dossier monté sur /data.
+// quelques questions puis écrit docker-compose.yml et .env dans le dossier monté sur /data.
 //
 //   mkdir vf-trailers && cd vf-trailers
 //   docker run --rm -it --user "$(id -u):$(id -g)" -v "$PWD":/data IMAGE install
@@ -78,15 +78,14 @@ async function main() {
     say('\nBandes-Annonces VF — installation\n');
     say('Quelques questions (Entrée pour passer / valeur par défaut) :\n');
 
-    // ① Domaine
+    // ① Domaine (facultatif) : celui que ton reverse proxy HTTPS sert déjà
     let domain = process.env.DOMAIN || '';
     if (!domain && INTERACTIVE) {
-        say('① Nom de domaine pour l\'accès HTTPS (ex. trailers.mondomaine.fr).');
-        say('   Nécessaire pour installer l\'addon dans Stremio depuis un autre appareil.');
-        say('   Il doit déjà pointer vers l\'IP de ce serveur, ports 80 et 443 ouverts.');
+        say('① Nom de domaine de ton addon (ex. trailers.mondomaine.fr), si ton reverse proxy HTTPS le sert déjà.');
+        say('   Stremio exige du HTTPS pour installer l\'addon depuis un autre appareil.');
     }
     for (;;) {
-        if (!domain && INTERACTIVE) domain = await ask('   Domaine : ');
+        if (!domain && INTERACTIVE) domain = await ask('   Domaine (Entrée pour ignorer) : ');
         domain = cleanDomain(domain);
         if (!domain || DOMAIN_RE.test(domain)) break;
         if (!INTERACTIVE) die(`DOMAIN invalide : ${domain}`);
@@ -125,19 +124,17 @@ async function main() {
         generated = true;
     }
 
-    // ④ Sans domaine : adresse du serveur + port
+    // ④ Port d'écoute (ton reverse proxy doit pointer dessus) et, sans domaine, adresse du serveur
     let host = process.env.HOST || '';
     let port = process.env.HOST_PORT || '';
+    say('');
+    if (!port && INTERACTIVE) port = await ask(`④ Port d'écoute de l'addon${domain ? ' (ton reverse proxy doit pointer dessus)' : ''} [3000] : `);
+    port = port || '3000';
+    if (!/^\d{2,5}$/.test(port)) die(`Port invalide : ${port}`);
     if (!domain) {
-        if (!host && INTERACTIVE) {
-            say('\n④ Adresse de ton serveur (IP ou nom), utilisée dans les liens de l\'addon.');
-            host = await ask('   Adresse [localhost] : ');
-        }
-        if (!port && INTERACTIVE) port = await ask('   Port d\'écoute [3000] : ');
+        if (!host && INTERACTIVE) host = await ask('   Adresse de ton serveur (IP ou nom), utilisée dans les liens [localhost] : ');
         host = host || 'localhost';
-        port = port || '3000';
         if (!/^[A-Za-z0-9.:\[\]-]+$/.test(host)) die(`Adresse invalide : ${host}`);
-        if (!/^\d{2,5}$/.test(port)) die(`Port invalide : ${port}`);
     }
 
     // ---- Écriture ----
@@ -149,23 +146,20 @@ async function main() {
         `APP_BASE_URL=${baseUrl}`,
     ];
     if (tmdb) env.push(`TMDB_API_KEY=${tmdb}`);
-    if (domain) {
-        env.push(`DOMAIN=${domain}`, 'BIND_ADDRESS=127.0.0.1', 'COMPOSE_PROFILES=https');
-    } else {
-        env.push('TRUST_PROXY=0');
-        if (port !== '3000') env.push(`HOST_PORT=${port}`);
-    }
+    // Sans domaine, l'addon est joint directement : on ignore X-Forwarded-For (falsifiable).
+    if (!domain) env.push('TRUST_PROXY=0');
+    if (port !== '3000') env.push(`HOST_PORT=${port}`);
     fs.writeFileSync(envPath, env.join('\n') + '\n', { mode: 0o600 });
 
     const compose = fs.readFileSync(path.join(TEMPLATES, 'compose.template.yml'), 'utf8').replace(/__IMAGE__/g, IMAGE);
     fs.writeFileSync(path.join(OUT, 'docker-compose.yml'), compose);
-    fs.copyFileSync(path.join(TEMPLATES, 'Caddyfile.template'), path.join(OUT, 'Caddyfile'));
 
-    say('\n✅ Configuration écrite dans ce dossier : docker-compose.yml, Caddyfile, .env');
+    say('\n✅ Configuration écrite dans ce dossier : docker-compose.yml, .env');
     if (generated) say(`\n🔑 Mot de passe du dashboard généré : ${password}   (conservé dans .env)`);
     say('\n👉 Démarre maintenant avec :  docker compose up -d');
-    say(`\n   Installation dans Stremio : ${baseUrl}`);
-    say(`   Dashboard                 : ${baseUrl}/dashboard`);
+    say(`\n   Adresse de l'addon : ${baseUrl}   (installation dans Stremio)`);
+    say(`   Dashboard          : ${baseUrl}/dashboard`);
+    if (domain) say(`   → ton reverse proxy doit envoyer ${domain} vers le port ${port} de ce serveur.`);
     say('\n   Mise à jour plus tard     : docker compose pull && docker compose up -d');
     say('   Logs                      : docker compose logs -f app\n');
     if (rl) rl.close();

@@ -1,6 +1,0 @@
-# Reverse proxy HTTPS automatique (certificat Let's Encrypt géré par Caddy).
-# Le domaine vient de la variable DOMAIN du fichier .env.
-{$DOMAIN} {
-	encode gzip
-	reverse_proxy app:3000
-}
