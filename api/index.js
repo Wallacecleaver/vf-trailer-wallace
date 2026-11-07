@@ -13,6 +13,7 @@ const crypto = require('crypto');
 const bcrypt = require('bcryptjs');
 const { getAllocineTrailerStreams } = require('../lib/allocine');
 const { probeDirectLink } = require('../lib/media-link');
+const { resolveNetflixTrailer, relayTrailer, netflixUrlToRelay } = require('../lib/netflix-trailer');
 const { searchYoutubeTrailer, searchYoutubeRaw } = require('../lib/youtube-search');
 const { recordRequest, getStats, resetStats } = require('../lib/stats');
 const { recordInstallActivity, getInstallStats, resetInstalls, removeInstall } = require('../lib/install-stats');
@@ -542,7 +543,7 @@ async function resolveViaApis(type, imdbId, season, behavior, tmdbKey, trace) {
     // Replis Allociné > YouTube (voir ci-dessous). Renvoie { streams, source } ou null si rien trouvé /
     // repli désactivé. Utilisé quand TMDB n'a rien, ET pour compléter quand TMDB n'a qu'un teaser
     // (ou des extras) sans vraie bande-annonce.
-    async function runFallbacks() {
+    async function runWebFallbacks() {
         if (!officialTitle || !behavior.allocineFallback) {
             rec('allocine', false, !officialTitle ? 'Titre officiel inconnu — repli Allociné impossible' : 'Repli Allociné désactivé dans les réglages');
             return null;
@@ -585,6 +586,31 @@ async function resolveViaApis(type, imdbId, season, behavior, tmdbKey, trace) {
         };
     }
 
+    // Replis complets : Allociné > recherche YouTube (runWebFallbacks), puis EN TOUT DERNIER la page titre
+    // Netflix. Netflix n'est donc interrogé que si aucune autre source n'a rien trouvé (jamais quand YouTube
+    // a une bande-annonce). Coupé par le réglage « Repli sur la page Netflix ».
+    async function runFallbacks() {
+        const web = await runWebFallbacks();
+        if (web) return web;
+        if (!behavior.netflixFallback) {
+            rec('netflix', false, 'Repli Netflix désactivé dans les réglages');
+            return null;
+        }
+        const tNf = Date.now();
+        let nf;
+        try {
+            nf = await resolveNetflixTrailer(imdbId);
+        } catch (err) {
+            nf = { found: false, reason: `Erreur Netflix : ${err.message}` };
+        }
+        rec('netflix', nf.found, nf.found ? `Page Netflix ${nf.nid} : bande-annonce relayée par l'addon` : nf.reason, Date.now() - tNf);
+        if (!nf.found) return null;
+        return {
+            streams: [{ title: formatStreamTitle('trailer', officialTitle, season), url: nf.url }],
+            source: 'netflix',
+        };
+    }
+
     if (trailers.length > 0) {
         const best = pickBestTrailers(trailers, behavior.maxTrailers || 2);
         rec('tmdb-pick', true, `${best.length} trailer(s) sélectionné(s) sur ${trailers.length} (max ${behavior.maxTrailers || 2})`);
@@ -624,7 +650,7 @@ async function isNewSearch(pseudoKey, imdbId, type) {
 // Construit la liste prioritaire de liens d'un override (rétrocompat avec ytId/url seuls).
 function buildOverrideLinks(override) {
     // Une URL YouTube enregistrée dans le champ "URL directe" (anciens overrides) est servie comme un vrai lien YouTube.
-    const fromUrl = u => { const id = youtubeIdFromUrl(u); return id ? { ytId: id } : { url: u }; };
+    const fromUrl = u => { const id = youtubeIdFromUrl(u); return id ? { ytId: id } : { url: netflixUrlToRelay(u) }; };
     const links = Array.isArray(override.links)
         ? override.links
             .filter(l => l && (typeof l.ytId === 'string' && l.ytId.trim() || typeof l.url === 'string' && l.url.trim()))
@@ -1016,6 +1042,11 @@ app.get('/favicon.ico', (req, res) => {
     res.send(FAVICON_BUFFER);
 });
 
+// Relais de la bande-annonce de la page Netflix (source de dernier recours, voir lib/netflix-trailer.js).
+// Stremio / AIOMetadata reçoivent cette URL stable ; le lien vidéo Netflix, lui, expire : il est renouvelé ici.
+app.get('/nf/:nid.mp4', (req, res) => relayTrailer(req, res, req.params.nid));
+app.head('/nf/:nid.mp4', (req, res) => relayTrailer(req, res, req.params.nid));
+
 // Manifest et stream acceptent un segment de config optionnel en tête d'URL.
 app.get('/:config?/manifest.json', async (req, res) => {
     let hasValidConfig = false;
@@ -1218,8 +1249,9 @@ app.get('/api/test-link', requireAuth, async (req, res) => {
     }
 
     if (url && /^https?:\/\//i.test(url)) {
-        const p = await probeDirectLink(url);
-        return res.json({ ok: p.ok, kind: 'url', media: p.media, url, error: p.error });
+        const probed = netflixUrlToRelay(url); // page titre Netflix collée -> on teste notre relais /nf/
+        const p = await probeDirectLink(probed);
+        return res.json({ ok: p.ok, kind: 'url', media: p.media, url: probed, error: p.error });
     }
 
     res.status(400).json({ ok: false, error: 'YouTube ID ou URL requis' });

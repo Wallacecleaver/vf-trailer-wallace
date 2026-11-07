@@ -2,6 +2,7 @@
   const SETTING_FIELDS = [
     { id: 'set-allocineFallback', get: el => el.checked },
     { id: 'set-youtubeSearchFallback', get: el => el.checked },
+    { id: 'set-netflixFallback', get: el => el.checked },
     { id: 'set-ignoreTeasers', get: el => el.checked },
     { id: 'set-includeExtras', get: el => el.checked },
     { id: 'set-trailerLanguage', get: el => el.value },
@@ -16,7 +17,7 @@
     { id: 'set-aiomTimeoutSeconds', get: el => Math.min(12, Math.max(1, Number(el.value) || 5)) },
   ];
   const SETTING_NAMES = {
-    allocineFallback: 'set-allocineFallback', youtubeSearchFallback: 'set-youtubeSearchFallback',
+    allocineFallback: 'set-allocineFallback', youtubeSearchFallback: 'set-youtubeSearchFallback', netflixFallback: 'set-netflixFallback',
     ignoreTeasers: 'set-ignoreTeasers', includeExtras: 'set-includeExtras',
     trailerLanguage: 'set-trailerLanguage', maxTrailers: 'set-maxTrailers',
     cacheEnabled: 'set-cacheEnabled', cacheTtlHours: 'set-cacheTtlHours',

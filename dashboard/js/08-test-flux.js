@@ -3,6 +3,7 @@
     tmdb: 'TMDB',
     allocine: 'Allociné',
     youtube_search: 'YouTube (recherche)',
+    netflix: 'Netflix',
     override: 'Override manuel',
   };
   const TRACE_STEP_LABELS = {
@@ -14,6 +15,7 @@
     'tmdb-complement': 'Complément (pas de bande-annonce TMDB)',
     allocine: 'Allociné',
     'youtube-search': 'YouTube (recherche)',
+    netflix: 'Netflix (page titre)',
   };
   let tsLast = null; // dernier résultat de test : { imdbId, season, type, streams }
 

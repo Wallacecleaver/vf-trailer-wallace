@@ -178,4 +178,7 @@ CREATE TABLE IF NOT EXISTS behavior_settings (
     aiom_timeout_seconds           integer NOT NULL DEFAULT 5,
     updated_at                     timestamptz NOT NULL DEFAULT now()
 );
+-- Repli sur la page titre Netflix (dernier recours) : colonne ajoutée après coup, donc ALTER idempotent
+-- pour que les bases déjà installées la reçoivent au prochain démarrage.
+ALTER TABLE behavior_settings ADD COLUMN IF NOT EXISTS netflix_fallback boolean NOT NULL DEFAULT true;
 INSERT INTO behavior_settings (id) VALUES (1) ON CONFLICT (id) DO NOTHING;
