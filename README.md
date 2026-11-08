@@ -94,7 +94,7 @@ Ouvre `APP_BASE_URL` dans ton navigateur, renseigne ta clé TMDB, puis clique su
 | Variable | Obligatoire | Description |
 |---|:--:|---|
 | `DASHBOARD_PASSWORD` | ✅ | Mot de passe du dashboard. Sans lui, le dashboard est inaccessible. |
-| `POSTGRES_PASSWORD` | ✅ | Mot de passe de la base (lettres et chiffres uniquement). |
+| `POSTGRES_PASSWORD` | non | Uniquement avec l'installeur / le compose à deux conteneurs (app + Postgres). Inutile avec la base embarquée (WDock, `docker compose` racine). |
 | `APP_BASE_URL` | ✅ | URL publique de l'addon, sans slash final (logo, liens `/proposer`…). |
 | `TMDB_API_KEY` | conseillé | Clé TMDB du testeur de flux du dashboard. |
 | `BIND_ADDRESS` | non | `127.0.0.1` pour ne pas exposer le port 3000 sur Internet (défaut `0.0.0.0`). |
