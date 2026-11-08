@@ -73,6 +73,18 @@ L'addon répond alors sur `http://IP_DU_SERVEUR:3000` :
 
 L'addon écoute en HTTP sur le port choisi (`3000` par défaut) : mets-y ton reverse proxy habituel (Nginx, Traefik, Nginx Proxy Manager, Caddy…) pour le HTTPS. Si le proxy tourne sur la même machine, ajoute `BIND_ADDRESS=127.0.0.1` dans le `.env` pour ne pas exposer le port directement.
 
+### Déploiement WDock / « git pull » sur VPS (sans Postgres à gérer)
+
+Sans `DATABASE_URL`, l'addon utilise une **base Postgres embarquée** (PGlite) stockée dans `/data/pgdata` : un seul conteneur, rien d'autre à installer, même SQL que Postgres. Tout ce que tu sauvegardes dans le dashboard (réglages, page de config, mapping, stats, logs) est écrit dans cette base.
+
+Pour que ça survive aux redéploiements, **`/data` doit être un volume persistant** :
+
+- **WDock** : crée le projet depuis le repo GitHub (port `3000`), ajoute les variables `DASHBOARD_PASSWORD`, `APP_BASE_URL` (l'adresse publique, avec `https://`) et `TMDB_API_KEY`, et monte un volume persistant sur `/data` si WDock le permet.
+- **VPS en direct** : `cp .env.example .env`, remplis-le, puis `docker compose up -d --build`. Mise à jour : `git pull && docker compose up -d --build` (le volume `data` n'est jamais touché).
+- Si tu ne peux pas monter de volume, pointe `DATABASE_URL` vers un Postgres externe : la persistance ne dépend alors plus du conteneur.
+
+Sauvegarde : copie le dossier du volume `data` (arrête l'addon avant pour une copie propre).
+
 ### Installer dans Stremio
 
 Ouvre `APP_BASE_URL` dans ton navigateur, renseigne ta clé TMDB, puis clique sur **Installer dans Stremio** (ou copie le lien).
@@ -87,7 +99,8 @@ Ouvre `APP_BASE_URL` dans ton navigateur, renseigne ta clé TMDB, puis clique su
 | `TMDB_API_KEY` | conseillé | Clé TMDB du testeur de flux du dashboard. |
 | `BIND_ADDRESS` | non | `127.0.0.1` pour ne pas exposer le port 3000 sur Internet (défaut `0.0.0.0`). |
 | `HOST_PORT` | non | Port exposé sur la machine (défaut `3000`). |
-| `DATABASE_URL` | non | Postgres externe à la place de celui du compose. |
+| `DATABASE_URL` | non | Postgres externe. Sans elle : base embarquée dans `DATA_DIR`. |
+| `DATA_DIR` | non | Dossier de la base embarquée (défaut `/data` dans l'image : à monter en volume). |
 | `DATABASE_SSL` | non | `true` si ton Postgres externe impose le SSL. |
 | `TRUST_PROXY` | non | `0` si l'addon est exposé directement sur Internet (ignore `X-Forwarded-For`). L'installeur le règle selon ton choix. |
 | `DASHBOARD_NO_CACHE` | non | `1` pour désactiver le cache de rendu du dashboard pendant que tu le modifies. |
@@ -197,7 +210,7 @@ selfhost/deploy/    Modèle du docker-compose.yml écrit par l'installeur
 .github/workflows/docker.yml   Publication automatique de l'image
 ```
 
-Toute la persistance (cache, réglages, stats, logs, mapping) est dans Postgres.
+Toute la persistance (cache, réglages, stats, logs, mapping) est dans Postgres (embarqué par défaut, ou externe via `DATABASE_URL`).
 
 ### Modifier le dashboard
 

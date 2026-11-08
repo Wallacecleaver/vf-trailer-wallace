@@ -26,7 +26,7 @@ async function main() {
                 console.error('Impossible d’appliquer schema.sql :', err.message);
                 process.exit(1);
             }
-            console.log(`Postgres pas encore prêt (${err.message}) — nouvel essai dans 2 s (${attempt}/15)`);
+            console.log(`Base pas encore prête (${err.message}) — nouvel essai dans 2 s (${attempt}/15)`);
             await new Promise(r => setTimeout(r, 2000));
         }
     }
@@ -47,7 +47,11 @@ async function main() {
         if (!process.env.APP_BASE_URL) console.warn('⚠️  APP_BASE_URL non défini : les liens/logo pointeront vers http://localhost.');
     });
 
-    const stop = () => server.close(() => process.exit(0));
+    // Arrêt propre : ferme la base embarquée (PGlite) pour que tout soit écrit sur le disque.
+    const stop = () => server.close(async () => {
+        try { if (sql && sql.close) await sql.close(); } catch { /* rien à faire */ }
+        process.exit(0);
+    });
     process.on('SIGTERM', stop);
     process.on('SIGINT', stop);
 }
