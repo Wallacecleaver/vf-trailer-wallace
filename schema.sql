@@ -186,3 +186,20 @@ CREATE TABLE IF NOT EXISTS behavior_settings (
     updated_at                     TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))
 );
 INSERT INTO behavior_settings (id) VALUES (1) ON CONFLICT (id) DO NOTHING;
+
+-- Catalogue local des titres Netflix (ID Netflix <-> IMDB / TMDB), rempli par Wikidata puis TMDB.
+-- Permet de retrouver l'ID Netflix depuis l'IMDB ID sans interroger Wikidata à chaque requête.
+CREATE TABLE IF NOT EXISTS netflix_titles (
+    nid                TEXT PRIMARY KEY,
+    title              TEXT,
+    year               INTEGER,
+    type               TEXT,                 -- 'movie' | 'tv'
+    tmdb_id            INTEGER,
+    imdb_id            TEXT,
+    source             TEXT NOT NULL DEFAULT 'manual',  -- wikidata | tmdb | manual
+    last_seen          TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
+    trailer_checked_at TEXT,
+    raw                TEXT                  -- JSON : métadonnées brutes de la source
+);
+CREATE INDEX IF NOT EXISTS netflix_titles_imdb_idx ON netflix_titles (imdb_id);
+CREATE INDEX IF NOT EXISTS netflix_titles_tmdb_idx ON netflix_titles (tmdb_id, type);
