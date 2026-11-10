@@ -221,6 +221,12 @@ Quand **aucune** autre source (TMDB, Allociné, recherche YouTube) ne trouve de 
 - Pour un titre que Wikidata ne connaît pas : dans **Mapping**, colle l'URL Netflix du titre (`https://www.netflix.com/fr/title/81944880`) dans « lien direct » d'un override.
 - Le scraping de netflix.com va à l'encontre de leurs conditions d'utilisation et peut cesser de fonctionner si la page change. Les requêtes vers Netflix partent de ton serveur (si Netflix bloque ton IP, la source échoue sans rien casser).
 
+### Ajouter un titre Netflix à partir de son URL
+
+Pour un titre que Wikidata ne connaît pas encore (une nouveauté, par exemple), le dashboard peut relier l'URL Netflix au catalogue : il lit le titre, l'année et le type sur la page `netflix.com/fr/title/<id>`, cherche le titre sur TMDB puis enregistre l'IMDB. La chaîne ID Netflix → TMDB/IMDB → bande-annonce est alors complète.
+
+API du dashboard (connecté) : `GET /api/netflix-catalog` (état), `POST /api/netflix-catalog/sync` (contrôle des nouveautés tout de suite), `POST /api/netflix-catalog/from-url` (`{"url": "https://www.netflix.com/fr/title/81944880"}`), `POST /api/netflix-catalog/link` (`{"nid", "type": "movie|tv", "tmdbId"}` pour confirmer un titre ambigu).
+
 ## Sources de données
 
 TMDB (principal) · Allociné (repli) · YouTube (recherche) · page titre Netflix (dernier recours, via Wikidata pour l'ID). Ce produit utilise l'API TMDB mais n'est ni approuvé ni certifié par TMDB.

@@ -22,9 +22,39 @@ const { searchYoutubeRaw } = require('../lib/youtube-search');
 const { probeDirectLink } = require('../lib/media-link');
 const { netflixUrlToRelay } = require('../lib/netflix-trailer');
 const { testResolve } = require('../lib/resolver');
+const netflixLinks = require('../lib/netflix-url-link');
 const { tmdbSearch, youtubeTitle } = require('./lookups');
 
 module.exports = function registerDashboardRoutes(app) {
+    // ---- Catalogue Netflix local : état, synchro à la demande, URL Netflix -> TMDB -> IMDB ----
+    app.get('/api/netflix-catalog', requireAuth, async (req, res) => {
+        try {
+            const [t] = await sql`SELECT COUNT(*) AS total, SUM(CASE WHEN imdb_id IS NOT NULL THEN 1 ELSE 0 END) AS with_imdb FROM netflix_titles`;
+            const [s] = await sql`SELECT COUNT(*) AS seen, SUM(CASE WHEN nid_checked_at IS NOT NULL THEN 1 ELSE 0 END) AS checked FROM netflix_tmdb_seen`;
+            res.json({ titles: t.total || 0, titlesWithImdb: t.with_imdb || 0, tmdbSeenOnNetflixFr: s.seen || 0, nidLookupAttempted: s.checked || 0 });
+        } catch (err) { res.status(500).json({ error: err.message }); }
+    });
+
+    // Lance le contrôle des nouveautés tout de suite (arrière-plan ; sans effet si une synchro tourne déjà).
+    app.post('/api/netflix-catalog/sync', requireAuth, (req, res) => {
+        require('../lib/netflix-scheduler').checkNew(FALLBACK_TMDB_KEY || '');
+        res.status(202).json({ started: true });
+    });
+
+    // URL Netflix -> titre lu sur la page -> TMDB -> IMDB. Ambigu : renvoie des candidats à confirmer (/link).
+    app.post('/api/netflix-catalog/from-url', requireAuth, async (req, res) => {
+        try { res.json(await netflixLinks.addFromNetflixUrl(String((req.body && req.body.url) || ''), FALLBACK_TMDB_KEY)); }
+        catch (err) { res.status(400).json({ error: err.message }); }
+    });
+
+    app.post('/api/netflix-catalog/link', requireAuth, async (req, res) => {
+        try {
+            const b = req.body || {};
+            res.json({ status: 'linked', row: await netflixLinks.linkNetflixToTmdb(String(b.nid || ''),
+                { type: b.type, tmdbId: b.tmdbId, title: b.title, year: b.year }, FALLBACK_TMDB_KEY) });
+        } catch (err) { res.status(400).json({ error: err.message }); }
+    });
+
     // ---- Recherche TMDB pour le formulaire "Mapping des liens" du dashboard ----
     // Utilise la clé de secours serveur (réservée à l'admin), jamais celle d'un visiteur.
     app.get('/api/tmdb-search', requireAuth, tmdbSearch());
