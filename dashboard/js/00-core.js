@@ -50,7 +50,7 @@
   }
 
   let ovInterval = null;
-  const DASHBOARD_PAGES = ['overview', 'users', 'mapping', 'requests', 'teststream', 'configure', 'settings', 'logs'];
+  const DASHBOARD_PAGES = ['overview', 'users', 'mapping', 'requests', 'netflix', 'teststream', 'configure', 'settings', 'logs'];
 
   function showPage(name) {
     if (location.hash.slice(1) !== name) history.pushState(null, '', '#' + name);
@@ -63,6 +63,7 @@
     if (name === 'users') loadInstallStats();
     if (name === 'mapping') loadMapping();
     if (name === 'requests') loadRequests();
+    if (name === 'netflix') loadNetflixPage();
     if (name === 'configure') loadConfigureSettings();
     if (name === 'settings') loadBehaviorSettings();
     if (name === 'logs') initLogsPage();

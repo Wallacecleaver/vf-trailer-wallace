@@ -215,5 +215,6 @@ CREATE TABLE IF NOT EXISTS netflix_tmdb_seen (
     first_seen     TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
     last_seen      TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
     nid_checked_at TEXT,
+    imdb_checked_at TEXT,                    -- dernière tentative de retrouver l'IMDB ID chez TMDB
     PRIMARY KEY (tmdb_id, type)
 );

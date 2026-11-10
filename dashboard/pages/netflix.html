@@ -1,0 +1,52 @@
+        <!-- PAGE: CATALOGUE NETFLIX -->
+        <div class="page" id="page-netflix">
+          <div class="page-header">
+            <div><div class="page-title">Catalogue Netflix</div><div class="page-sub">Correspondances ID Netflix ↔ TMDB ↔ IMDB, synchronisées toutes les 6 h — de quoi tester la chaîne URL Netflix → IMDB → bande-annonce</div></div>
+            <div class="header-actions">
+              <button class="btn-outline-sm" onclick="loadNetflixPage()">↻ Actualiser</button>
+              <button class="btn-add" onclick="nfSyncNow()">⟳ Synchroniser maintenant</button>
+            </div>
+          </div>
+
+          <div class="stats-grid">
+            <div class="stat-card c-red"><div class="stat-label">Titres en base</div><div class="stat-value" id="nf-titles">—</div></div>
+            <div class="stat-card c-blue"><div class="stat-label">Avec un IMDB ID</div><div class="stat-value" id="nf-imdb">—</div></div>
+            <div class="stat-card c-purple"><div class="stat-label">Vus sur Netflix France (TMDB)</div><div class="stat-value" id="nf-seen">—</div></div>
+            <div class="stat-card c-green"><div class="stat-label">ID Netflix déjà cherchés</div><div class="stat-value" id="nf-checked">—</div></div>
+          </div>
+          <div class="nf-note" id="nf-note"></div>
+
+          <div class="card">
+            <div class="card-head"><div class="ts-head-icon">🔗</div><div class="card-title">URL Netflix → TMDB → IMDB</div></div>
+            <div class="card-body">
+              <div class="form-field">
+                <label>URL ou ID Netflix <span class="hint">(ex: https://www.netflix.com/fr/title/81944880)</span></label>
+                <input type="text" id="nf-url" placeholder="https://www.netflix.com/fr/title/81944880" autocomplete="off"
+                       onkeydown="if(event.key==='Enter'){event.preventDefault();nfTestUrl();}">
+              </div>
+              <div class="toggle-row" style="margin-top:6px">
+                <div><div class="label">Tester sans enregistrer</div><div class="desc">Lit la page et cherche le titre sur TMDB, mais n'écrit rien dans le catalogue. Décoche pour enregistrer la correspondance.</div></div>
+                <label class="switch"><input type="checkbox" id="nf-dry" checked><span class="slider"></span></label>
+              </div>
+              <div class="form-actions"><button class="btn-save" id="nf-url-btn" onclick="nfTestUrl()">🔬 Tester</button></div>
+              <div id="nf-url-result"></div>
+            </div>
+          </div>
+
+          <div class="card">
+            <div class="card-head"><div class="ts-head-icon">🔎</div><div class="card-title">Chercher dans le catalogue</div></div>
+            <div class="card-body">
+              <div class="form-field">
+                <label>IMDB ID, ID Netflix ou URL Netflix</label>
+                <input type="text" id="nf-q" placeholder="tt15239678 ou 81944880" autocomplete="off"
+                       onkeydown="if(event.key==='Enter'){event.preventDefault();nfSearch();}">
+              </div>
+              <div class="form-actions">
+                <button class="btn-outline-sm" onclick="nfTrailers()">🎞️ Bandes-annonces Netflix</button>
+                <button class="btn-save" onclick="nfSearch()">Chercher</button>
+              </div>
+              <div id="nf-q-result"></div>
+            </div>
+          </div>
+        </div>
+

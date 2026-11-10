@@ -221,11 +221,14 @@ Quand **aucune** autre source (TMDB, Allociné, recherche YouTube) ne trouve de 
 - Pour un titre que Wikidata ne connaît pas : dans **Mapping**, colle l'URL Netflix du titre (`https://www.netflix.com/fr/title/81944880`) dans « lien direct » d'un override.
 - Le scraping de netflix.com va à l'encontre de leurs conditions d'utilisation et peut cesser de fonctionner si la page change. Les requêtes vers Netflix partent de ton serveur (si Netflix bloque ton IP, la source échoue sans rien casser).
 
-### Ajouter un titre Netflix à partir de son URL
+### Onglet « Catalogue Netflix » (dashboard)
 
-Pour un titre que Wikidata ne connaît pas encore (une nouveauté, par exemple), le dashboard peut relier l'URL Netflix au catalogue : il lit le titre, l'année et le type sur la page `netflix.com/fr/title/<id>`, cherche le titre sur TMDB puis enregistre l'IMDB. La chaîne ID Netflix → TMDB/IMDB → bande-annonce est alors complète.
+L'onglet montre l'état du catalogue local (titres en base, avec IMDB, vus sur Netflix France, ID Netflix déjà cherchés), lance une synchro à la demande et permet de tester toute la chaîne :
 
-API du dashboard (connecté) : `GET /api/netflix-catalog` (état), `POST /api/netflix-catalog/sync` (contrôle des nouveautés tout de suite), `POST /api/netflix-catalog/from-url` (`{"url": "https://www.netflix.com/fr/title/81944880"}`), `POST /api/netflix-catalog/link` (`{"nid", "type": "movie|tv", "tmdbId"}` pour confirmer un titre ambigu).
+- **URL Netflix → TMDB → IMDB** : colle `https://www.netflix.com/fr/title/81944880` ; l'addon lit le titre, l'année et le type sur la page, cherche le titre sur TMDB et affiche l'IMDB trouvé. Par défaut « Tester sans enregistrer » est coché : rien n'est écrit en base. Si le titre est ambigu, l'onglet propose des candidats TMDB à confirmer.
+- **Chercher dans le catalogue** : par IMDB ID, ID Netflix ou URL ; indique aussi si TMDB voit le titre sur Netflix France. Le bouton « Bandes-annonces Netflix » lit la page et liste les bandes-annonces trouvées (sans exposer les liens signés).
+
+Les mêmes fonctions sont disponibles en API (connecté, en-tête `x-admin-token`) : `GET /api/netflix-catalog`, `POST /api/netflix-catalog/sync`, `GET /api/netflix-catalog/lookup?q=`, `POST /api/netflix-catalog/trailers`, `POST /api/netflix-catalog/from-url` (`dryRun: true` pour ne rien enregistrer), `POST /api/netflix-catalog/link`.
 
 ## Sources de données
 
