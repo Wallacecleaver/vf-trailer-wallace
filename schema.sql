@@ -186,3 +186,30 @@ CREATE TABLE IF NOT EXISTS behavior_settings (
     updated_at                     TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))
 );
 INSERT INTO behavior_settings (id) VALUES (1) ON CONFLICT (id) DO NOTHING;
+
+-- Catalogue Netflix (France) : correspondances ID Netflix <-> TMDB <-> IMDB, remplies par lib/netflix-catalog.js
+-- (Wikidata, TMDB « disponible sur Netflix FR », URL Netflix collée dans le dashboard) et rafraîchies toutes les 6 h.
+-- nid est NULL tant qu'on ne connaît pas l'ID Netflix d'un titre vu dans le catalogue TMDB (plusieurs NULL autorisés).
+CREATE TABLE IF NOT EXISTS netflix_titles (
+    id            INTEGER PRIMARY KEY AUTOINCREMENT,
+    nid           TEXT UNIQUE,
+    media_type    TEXT,                       -- 'movie' | 'tv'
+    tmdb_id       INTEGER,
+    imdb_id       TEXT,
+    title         TEXT,
+    year          INTEGER,
+    on_netflix_fr INTEGER NOT NULL DEFAULT 0, -- vu dans le catalogue TMDB Netflix France lors de la dernière synchro complète
+    source        TEXT,                       -- wikidata | tmdb | url | manual
+    data          TEXT NOT NULL DEFAULT '{}', -- JSON : métadonnées brutes utiles
+    first_seen    TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
+    last_seen     TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))
+);
+CREATE INDEX IF NOT EXISTS netflix_titles_imdb_idx ON netflix_titles (imdb_id);
+CREATE INDEX IF NOT EXISTS netflix_titles_tmdb_idx ON netflix_titles (media_type, tmdb_id);
+
+-- État de la synchronisation du catalogue (dernières réussites, dernier rapport)
+CREATE TABLE IF NOT EXISTS netflix_sync_state (
+    key        TEXT PRIMARY KEY,
+    value      TEXT NOT NULL,
+    updated_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))
+);

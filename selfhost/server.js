@@ -33,6 +33,9 @@ async function main() {
     purge();
     setInterval(purge, 6 * 60 * 60 * 1000).unref();
 
+    // Catalogue Netflix (ID Netflix <-> TMDB <-> IMDB) : synchro Wikidata + TMDB toutes les 6 h (NETFLIX_CATALOG_SYNC=0 pour couper).
+    require('../lib/netflix-catalog').startScheduler();
+
     const server = app.listen(PORT, HOST, () => {
         console.log(`Addon démarré sur http://${HOST}:${PORT}`);
         if (!process.env.DASHBOARD_PASSWORD) console.warn('⚠️  DASHBOARD_PASSWORD non défini : le dashboard sera inaccessible.');

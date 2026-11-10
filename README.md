@@ -100,7 +100,8 @@ Ouvre `APP_BASE_URL` dans ton navigateur, renseigne ta clé TMDB, puis clique su
 | `DATA_DIR` | non | Dossier de la base SQLite (`addon.sqlite`) (défaut `/data` dans l'image : à monter en volume). |
 | `TRUST_PROXY` | non | `0` si l'addon est exposé directement sur Internet (ignore `X-Forwarded-For`). L'installeur le règle selon ton choix. |
 | `DASHBOARD_NO_CACHE` | non | `1` pour désactiver le cache de rendu du dashboard pendant que tu le modifies. |
-| `NETFLIX_COUNTRY` | non | Pays de la page Netflix lue par le repli Netflix (défaut `fr`). |
+| `NETFLIX_COUNTRY` | non | Pays de la page Netflix lue par le repli Netflix et du catalogue TMDB synchronisé (défaut `fr`). |
+| `NETFLIX_CATALOG_SYNC` | non | `0` pour désactiver la synchro automatique du catalogue Netflix (voir plus bas). |
 
 ### Ressources utilisées (très légères)
 
@@ -220,6 +221,18 @@ Quand **aucune** autre source (TMDB, Allociné, recherche YouTube) ne trouve de 
 - Activé par défaut, désactivable dans **Réglages → Sources de résolution**.
 - Pour un titre que Wikidata ne connaît pas : dans **Mapping**, colle l'URL Netflix du titre (`https://www.netflix.com/fr/title/81944880`) dans « lien direct » d'un override.
 - Le scraping de netflix.com va à l'encontre de leurs conditions d'utilisation et peut cesser de fonctionner si la page change. Les requêtes vers Netflix partent de ton serveur (si Netflix bloque ton IP, la source échoue sans rien casser).
+
+### Catalogue Netflix local (synchro toutes les 6 h)
+
+L'addon garde dans SQLite (table `netflix_titles`) les correspondances **ID Netflix ↔ TMDB ↔ IMDB**, et le repli Netflix les consulte avant d'interroger Wikidata. Netflix ne publie aucune liste de ses IDs : le catalogue se remplit à partir de trois sources.
+
+- **Wikidata** : tous les éléments qui ont un ID Netflix (avec IMDB et TMDB). Passe complète au premier lancement puis chaque semaine ; entre-temps, seulement les éléments modifiés.
+- **TMDB** (nécessite `TMDB_API_KEY`) : tout ce qui est disponible sur Netflix France. Ces titres sont marqués `on_netflix_fr` ; ceux dont l'ID Netflix est inconnu sont fusionnés avec Wikidata dès qu'un IMDB/TMDB commun apparaît.
+- **URL Netflix** : l'API du dashboard lit le titre, l'année et le type sur la page, cherche le titre sur TMDB puis enregistre l'IMDB.
+
+La synchro démarre ~30 s après le lancement si la dernière date de plus de 6 h, puis tourne toutes les 6 h. Le rapport de la dernière passe est dans le journal du dashboard (contexte `CATALOG`).
+
+API du dashboard (connecté) : `GET /api/netflix-catalog` (stats), `POST /api/netflix-catalog/sync` (`{"full": true}` pour forcer une passe Wikidata complète), `POST /api/netflix-catalog/from-url` (`{"url": "https://www.netflix.com/fr/title/81944880"}`), `POST /api/netflix-catalog/link` (`{"nid", "mediaType", "tmdbId"}` pour confirmer un titre ambigu).
 
 ## Sources de données
 

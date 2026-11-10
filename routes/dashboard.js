@@ -22,9 +22,44 @@ const { searchYoutubeRaw } = require('../lib/youtube-search');
 const { probeDirectLink } = require('../lib/media-link');
 const { netflixUrlToRelay } = require('../lib/netflix-trailer');
 const { testResolve } = require('../lib/resolver');
+const catalog = require('../lib/netflix-catalog');
 const { tmdbSearch, youtubeTitle } = require('./lookups');
 
 module.exports = function registerDashboardRoutes(app) {
+    // ---- Catalogue Netflix (ID Netflix <-> TMDB <-> IMDB, synchro toutes les 6 h) ----
+    app.get('/api/netflix-catalog', requireAuth, async (req, res) => {
+        try { res.json(await catalog.getCatalogStats()); }
+        catch (err) { res.status(500).json({ error: err.message }); }
+    });
+
+    // Lance une synchro tout de suite (en arrière-plan : la réponse arrive immédiatement).
+    app.post('/api/netflix-catalog/sync', requireAuth, (req, res) => {
+        catalog.runSync({ forceFull: req.body && req.body.full === true })
+            .catch(err => console.error('Synchro catalogue Netflix :', err.message));
+        res.status(202).json({ started: true });
+    });
+
+    // URL Netflix -> titre lu sur la page -> TMDB -> IMDB. Si le titre est ambigu, renvoie des candidats à confirmer.
+    app.post('/api/netflix-catalog/from-url', requireAuth, async (req, res) => {
+        try {
+            res.json(await catalog.addFromNetflixUrl(String((req.body && req.body.url) || ''), FALLBACK_TMDB_KEY));
+        } catch (err) {
+            res.status(400).json({ error: err.message });
+        }
+    });
+
+    // Confirmation manuelle d'un candidat TMDB pour un ID Netflix.
+    app.post('/api/netflix-catalog/link', requireAuth, async (req, res) => {
+        try {
+            const b = req.body || {};
+            res.json({ status: 'linked', row: await catalog.linkNetflixToTmdb(String(b.nid || ''), {
+                mediaType: b.mediaType, tmdbId: b.tmdbId, title: b.title, year: b.year, source: 'manual',
+            }, FALLBACK_TMDB_KEY) });
+        } catch (err) {
+            res.status(400).json({ error: err.message });
+        }
+    });
+
     // ---- Recherche TMDB pour le formulaire "Mapping des liens" du dashboard ----
     // Utilise la clé de secours serveur (réservée à l'admin), jamais celle d'un visiteur.
     app.get('/api/tmdb-search', requireAuth, tmdbSearch());

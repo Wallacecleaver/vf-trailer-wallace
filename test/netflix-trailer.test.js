@@ -23,6 +23,7 @@ function netflixPage(nid, videoUrl) {
 }
 
 before(async () => {
+    nf._hooks.localLookup = async () => null; // pas de base locale dans ces tests : on teste la voie Wikidata
     fake = http.createServer((req, res) => {
         const u = new URL(req.url, 'http://x');
         if (u.pathname === '/sparql') {
