@@ -10,7 +10,7 @@
       if (!data.configured) {
         ['install-stat-total', 'install-stat-today', 'install-stat-users', 'install-stat-req'].forEach(id => document.getElementById(id).textContent = '⚠️');
         document.getElementById('users-body').innerHTML =
-          '<tr class="empty-row"><td colspan="5">Base de données non configurée — vérifie DATABASE_URL</td></tr>';
+          '<tr class="empty-row"><td colspan="5">Base de données indisponible — vérifie que le dossier de données (DATA_DIR) est accessible en écriture</td></tr>';
         document.getElementById('install-chart-svg').innerHTML = '';
         document.getElementById('user-split-body').innerHTML = '';
         return;

@@ -3,7 +3,7 @@
 #   docker compose up -d --build
 # Mise à jour :  git pull && docker compose up -d --build
 # Les données (réglages dashboard, mapping, stats) vivent dans le volume `data` : elles survivent aux mises à jour.
-# Base embarquée (PGlite) par défaut. Pour un vrai Postgres, définis DATABASE_URL dans .env.
+# Base SQLite intégrée (fichier /data/addon.sqlite) : un seul conteneur, rien d'autre à installer.
 
 services:
   app:

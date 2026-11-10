@@ -10,7 +10,7 @@
       if (!data.configured) {
         ['stat-total', 'stat-movies', 'stat-series', 'stat-today'].forEach(id => document.getElementById(id).textContent = '⚠️');
         document.getElementById('top-titles-body').innerHTML =
-          '<tr class="empty-row"><td colspan="5">Base de données non configurée — vérifie DATABASE_URL</td></tr>';
+          '<tr class="empty-row"><td colspan="5">Base de données indisponible — vérifie que le dossier de données (DATA_DIR) est accessible en écriture</td></tr>';
         document.getElementById('chart-svg').innerHTML = '';
         document.getElementById('split-body').innerHTML = '';
         return;

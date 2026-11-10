@@ -133,7 +133,7 @@
       if (force) { desc.textContent = 'Vérification en cours...'; setVal('db', '…', null); setVal('tmdbkey', '…', null); setVal('svc-tmdb', '…', null); setVal('svc-youtube', '…', null); setVal('svc-allocine', '…', null); setVal('cache', '…', null); }
       const res = await fetch('/api/diagnostics', { headers: authHeaders() });
       const d = await res.json();
-      setVal('db', d.db ? '✓ Connectée' : '✗ Indisponible', d.db, d.db ? 'Postgres opérationnel' : 'Vérifie DATABASE_URL et que le conteneur db tourne');
+      setVal('db', d.db ? '✓ Connectée' : '✗ Indisponible', d.db, d.db ? 'SQLite opérationnelle' : 'Vérifie que DATA_DIR est accessible en écriture');
       if (d.tmdbKey && d.tmdbKey.present) {
         setVal('tmdbkey', d.tmdbKey.valid === true ? '✓ Valide' : '✗ Invalide', d.tmdbKey.valid === true, 'Clé …' + (d.tmdbKey.last4 || ''));
       } else {

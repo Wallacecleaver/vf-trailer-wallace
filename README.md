@@ -13,7 +13,7 @@ Tout tourne sur ton serveur (VPS, Raspberry Pi, NAS…), avec Docker.
 
 ## 🏠 Installation (Docker)
 
-Tout tourne chez toi : l'addon + sa base Postgres, dans deux conteneurs. Aucun compte externe requis.
+Tout tourne chez toi : l'addon et sa base SQLite (un simple fichier), dans un seul conteneur. Aucun compte externe requis.
 
 ### Prérequis
 
@@ -31,7 +31,7 @@ docker run --rm -it --user "$(id -u):$(id -g)" -v "$PWD":/data <IMAGE> install
 docker compose up -d
 ```
 
-`<IMAGE>` est le nom de l'image publiée (par exemple `monnom/vf-trailers:latest`). La première commande lance l'installeur, qui pose quelques questions puis écrit `docker-compose.yml` et `.env` dans le dossier ; la seconde démarre l'addon et sa base.
+`<IMAGE>` est le nom de l'image publiée (par exemple `monnom/vf-trailers:latest`). La première commande lance l'installeur, qui pose quelques questions puis écrit `docker-compose.yml` et `.env` dans le dossier ; la seconde démarre l'addon.
 
 L'installeur demande :
 
@@ -40,7 +40,7 @@ L'installeur demande :
 3. **Ton mot de passe du dashboard** : tu le choisis (8 caractères minimum, saisi masqué et confirmé), ou Entrée pour en générer un.
 4. **Le port d'écoute** (`3000` par défaut) et, sans domaine, l'adresse du serveur (`localhost` par défaut).
 
-Le mot de passe de la base Postgres est généré automatiquement : il reste interne à Docker, tu n'as jamais à le connaître. Si un `.env` existe déjà, l'installeur n'y touche pas (supprime-le pour refaire la configuration).
+Si un `.env` existe déjà, l'installeur n'y touche pas (supprime-le pour refaire la configuration).
 
 Installation sans question (scripts) : passe les réponses en variables, `-e DOMAIN=... -e TMDB_API_KEY=... -e DASHBOARD_PASSWORD='...'` après `docker run`.
 
@@ -73,17 +73,16 @@ L'addon répond alors sur `http://IP_DU_SERVEUR:3000` :
 
 L'addon écoute en HTTP sur le port choisi (`3000` par défaut) : mets-y ton reverse proxy habituel (Nginx, Traefik, Nginx Proxy Manager, Caddy…) pour le HTTPS. Si le proxy tourne sur la même machine, ajoute `BIND_ADDRESS=127.0.0.1` dans le `.env` pour ne pas exposer le port directement.
 
-### Déploiement WDock / « git pull » sur VPS (sans Postgres à gérer)
+### Déploiement WDock / « git pull » sur VPS
 
-Sans `DATABASE_URL`, l'addon utilise une **base Postgres embarquée** (PGlite) stockée dans `/data/pgdata` : un seul conteneur, rien d'autre à installer, même SQL que Postgres. Tout ce que tu sauvegardes dans le dashboard (réglages, page de config, mapping, stats, logs) est écrit dans cette base.
+L'addon utilise une **base SQLite** (module `node:sqlite` intégré à Node, aucune dépendance) stockée dans `/data/addon.sqlite` : un seul conteneur, rien d'autre à installer. Tout ce que tu sauvegardes dans le dashboard (réglages, page de config, mapping, stats, logs) est écrit dans ce fichier.
 
 Pour que ça survive aux redéploiements, **`/data` doit être un volume persistant** :
 
 - **WDock** : crée le projet depuis le repo GitHub (port `3000`), ajoute les variables `DASHBOARD_PASSWORD`, `APP_BASE_URL` (l'adresse publique, avec `https://`) et `TMDB_API_KEY`, et monte un volume persistant sur `/data` si WDock le permet.
 - **VPS en direct** : `cp .env.example .env`, remplis-le, puis `docker compose up -d --build`. Mise à jour : `git pull && docker compose up -d --build` (le volume `data` n'est jamais touché).
-- Si tu ne peux pas monter de volume, pointe `DATABASE_URL` vers un Postgres externe : la persistance ne dépend alors plus du conteneur.
 
-Sauvegarde : copie le dossier du volume `data` (arrête l'addon avant pour une copie propre).
+Sauvegarde : copie le fichier `addon.sqlite` du volume `data` (voir « Maintenance » ci-dessous).
 
 ### Installer dans Stremio
 
@@ -94,33 +93,29 @@ Ouvre `APP_BASE_URL` dans ton navigateur, renseigne ta clé TMDB, puis clique su
 | Variable | Obligatoire | Description |
 |---|:--:|---|
 | `DASHBOARD_PASSWORD` | ✅ | Mot de passe du dashboard. Sans lui, le dashboard est inaccessible. |
-| `POSTGRES_PASSWORD` | non | Uniquement avec l'installeur / le compose à deux conteneurs (app + Postgres). Inutile avec la base embarquée (WDock, `docker compose` racine). |
 | `APP_BASE_URL` | ✅ | URL publique de l'addon, sans slash final (logo, liens `/proposer`…). |
 | `TMDB_API_KEY` | conseillé | Clé TMDB du testeur de flux du dashboard. |
 | `BIND_ADDRESS` | non | `127.0.0.1` pour ne pas exposer le port 3000 sur Internet (défaut `0.0.0.0`). |
 | `HOST_PORT` | non | Port exposé sur la machine (défaut `3000`). |
-| `DATABASE_URL` | non | Postgres externe. Sans elle : base embarquée dans `DATA_DIR`. |
-| `DATA_DIR` | non | Dossier de la base embarquée (défaut `/data` dans l'image : à monter en volume). |
-| `DATABASE_SSL` | non | `true` si ton Postgres externe impose le SSL. |
+| `DATA_DIR` | non | Dossier de la base SQLite (`addon.sqlite`) (défaut `/data` dans l'image : à monter en volume). |
 | `TRUST_PROXY` | non | `0` si l'addon est exposé directement sur Internet (ignore `X-Forwarded-For`). L'installeur le règle selon ton choix. |
 | `DASHBOARD_NO_CACHE` | non | `1` pour désactiver le cache de rendu du dashboard pendant que tu le modifies. |
 | `NETFLIX_COUNTRY` | non | Pays de la page Netflix lue par le repli Netflix (défaut `fr`). |
 
 ### Ressources utilisées (très légères)
 
-Mesures réelles sur la version actuelle :
+Mesures faites avant le passage à SQLite (la base n'est plus un processus séparé, à re-mesurer) :
 
 | | Au repos | Sous charge (≈ 110 requêtes/s, écritures en base) |
 |---|---|---|
 | **Addon (Node.js)** | ≈ 85 Mo de RAM, ≈ 0,7 % d'un cœur | ≈ 110 Mo de RAM |
-| **Postgres (réglé léger)** | ≈ 10 à 20 Mo de RAM | quelques dizaines de Mo |
 
 Un usage Stremio normal est de l'ordre de quelques requêtes par minute : le CPU reste quasi à zéro. Ce qui est déjà en place pour que ça reste ainsi :
 
-- Postgres est réglé pour les petites machines (`shared_buffers=24MB`, 25 connexions max, pas de parallélisme) au lieu de la config par défaut, bien plus gourmande.
-- Plafonds Docker : **256 Mo** pour l'addon, **192 Mo** pour Postgres, **0,5 cœur** chacun. Tourne sans souci sur un Raspberry Pi ou le plus petit VPS.
-- Mémoire Node plafonnée (`--max-old-space-size=128`) et pool de connexions limité à 5.
-- Les journaux Docker sont limités à 3 × 10 Mo par conteneur (le disque ne se remplit pas).
+- SQLite tourne dans le processus de l'addon (pas de second conteneur) : cache de 2 Mo, journal WAL borné à 4 Mo.
+- Plafonds Docker : **256 Mo** et **0,5 cœur** pour l'addon. Tourne sans souci sur un Raspberry Pi ou le plus petit VPS.
+- Mémoire Node plafonnée (`--max-old-space-size`, voir `Dockerfile`).
+- Les journaux Docker sont limités à 3 × 10 Mo (le disque ne se remplit pas).
 - Les journaux de l'appli (500 lignes), les échecs (50 titres) et les résolutions (1 h) sont bornés ; les entrées de cache expirées sont purgées toutes les 6 h.
 - Aucun processus en tâche de fond : l'addon ne fait rien tant que personne ne lui demande une bande-annonce.
 
@@ -138,13 +133,16 @@ docker compose logs -f app
 
 # Redémarrer / arrêter
 docker compose restart app
-docker compose down                 # les données sont conservées (volume pgdata)
+docker compose down                 # les données sont conservées (volume data)
 
-# Sauvegarder la base
-docker compose exec -T db pg_dump -U vf vf > sauvegarde.sql
+# Sauvegarder la base (copie cohérente, même pendant que l'addon tourne)
+docker compose exec app node -e "const {DatabaseSync}=require('node:sqlite');new DatabaseSync('/data/addon.sqlite').exec(\"VACUUM INTO '/data/sauvegarde.sqlite'\")"
+docker compose cp app:/data/sauvegarde.sqlite ./sauvegarde.sqlite
 
-# Restaurer
-docker compose exec -T db psql -U vf vf < sauvegarde.sql
+# Restaurer : arrête l'addon, remplace le fichier du volume, redémarre
+docker compose stop app
+docker compose cp ./sauvegarde.sqlite app:/data/addon.sqlite
+docker compose start app
 ```
 
 > ⚠️ `docker compose down -v` supprime aussi le volume : **toutes les données** (mapping, réglages, stats) seraient perdues.
@@ -153,45 +151,28 @@ Le schéma SQL ([`schema.sql`](schema.sql)) est appliqué automatiquement à cha
 
 ### Sans Docker (Node.js directement)
 
-Il faut Node.js 20+ et un Postgres accessible.
+Il faut Node.js 22.13 ou plus récent (SQLite est intégré, rien d'autre à installer).
 
 ```bash
 npm install
-export DATABASE_URL=postgres://utilisateur:motdepasse@localhost:5432/base
+export DATA_DIR=./data   # la base y sera créée (addon.sqlite)
 export DASHBOARD_PASSWORD=...
 export APP_BASE_URL=http://localhost:3000
 export TMDB_API_KEY=...
-npm start          # (= node selfhost/server.js) crée les tables au premier lancement
+npm start          # (= node selfhost/server.js) crée la base et les tables au premier lancement
 ```
 
 Pour le garder en service, utilise par exemple `systemd` ou `pm2 start selfhost/server.js --name vf-trailers`.
-
-### Importer des données depuis un autre Postgres
-
-Si tu as déjà des données (mapping, réglages, stats) sur une autre base Postgres :
-
-```bash
-# Export depuis l'ancienne base (remplace l'URL)
-pg_dump --data-only --no-owner "postgres://utilisateur:motdepasse@ancien-hote/base" > donnees.sql
-
-# Démarre d'abord la stack (elle crée les tables), puis importe
-docker compose exec -T db psql -U vf vf < donnees.sql
-```
-
-Si l'import signale des doublons sur les lignes de réglages (`id = 1`), c'est sans gravité : vide d'abord ces tables avec
-`TRUNCATE configure_settings, behavior_settings, request_stats_global;` avant d'importer.
-Pense ensuite à mettre à jour `APP_BASE_URL` et à réinstaller l'addon dans Stremio avec la nouvelle adresse.
 
 ### Dépannage
 
 | Symptôme | Piste |
 |---|---|
-| `Postgres pas encore prêt` dans les logs | Normal au tout premier démarrage (quelques secondes) ; l'addon réessaie tout seul. |
+| `Impossible d’ouvrir la base` dans les logs | `DATA_DIR` n'existe pas ou n'est pas inscriptible par l'utilisateur de l'addon : vérifie le volume monté sur `/data`. |
 | Le dashboard refuse le mot de passe / « non configuré » | `DASHBOARD_PASSWORD` absent de `.env`. Après modification : `docker compose up -d`. |
 | Stremio refuse d'installer l'addon | Stremio exige du **HTTPS** pour les addons distants : mets un reverse proxy HTTPS devant le port de l'addon. |
 | `pull access denied` / image introuvable au téléchargement | L'image n'est pas encore construite ou pas publique : vérifie la CI, puis la visibilité **Public** du dépôt d'images. |
 | Le logo ou les liens pointent vers un mauvais domaine | `APP_BASE_URL` mal renseignée. |
-| `password authentication failed` | `POSTGRES_PASSWORD` modifié après la création du volume : remets l'ancienne valeur, ou change le mot de passe dans Postgres (`ALTER USER vf PASSWORD '...'`), ou repars de zéro avec `docker compose down -v` (⚠️ efface les données). |
 
 ---
 
@@ -200,7 +181,7 @@ Pense ensuite à mettre à jour `APP_BASE_URL` et à réinstaller l'addon dans S
 ```
 api/index.js        Application Express (routes Stremio, API, pages)
 selfhost/server.js  Point d'entrée self-host (écoute un port, applique schema.sql, sert public/)
-schema.sql          Schéma Postgres complet (idempotent)
+schema.sql          Schéma SQLite complet (idempotent)
 lib/                Modules : db, cache, matching des titres, Allociné, YouTube, stats, réglages…
 dashboard/          Dashboard découpé en vrais fichiers HTML / CSS / JS (voir dashboard/README.md)
 public/             Fichiers statiques (logo)
@@ -210,7 +191,7 @@ selfhost/deploy/    Modèle du docker-compose.yml écrit par l'installeur
 .github/workflows/docker.yml   Publication automatique de l'image
 ```
 
-Toute la persistance (cache, réglages, stats, logs, mapping) est dans Postgres (embarqué par défaut, ou externe via `DATABASE_URL`).
+Toute la persistance (cache, réglages, stats, logs, mapping) est dans un fichier SQLite (`DATA_DIR/addon.sqlite`).
 
 ### Modifier le dashboard
 

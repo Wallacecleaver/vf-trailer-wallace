@@ -16,30 +16,22 @@ const PORT = Number(process.env.PORT) || 3000;
 const HOST = process.env.HOST || '0.0.0.0';
 
 async function main() {
-    // Réessaie quelques fois : au premier démarrage, Postgres peut mettre quelques secondes à être prêt.
-    for (let attempt = 1; attempt <= 15; attempt++) {
-        try {
-            if (await ensureSchema()) console.log('Base de données prête (schema.sql appliqué).');
-            break;
-        } catch (err) {
-            if (attempt === 15) {
-                console.error('Impossible d’appliquer schema.sql :', err.message);
-                process.exit(1);
-            }
-            console.log(`Base pas encore prête (${err.message}) — nouvel essai dans 2 s (${attempt}/15)`);
-            await new Promise(r => setTimeout(r, 2000));
-        }
+    // La base SQLite est locale : si elle ne s'ouvre pas (dossier de données absent ou non inscriptible), on s'arrête.
+    try {
+        if (await ensureSchema()) console.log('Base de données prête (schema.sql appliqué).');
+    } catch (err) {
+        console.error('Impossible d’ouvrir la base ni d’appliquer schema.sql :', err.message);
+        console.error('Vérifie que DATA_DIR est accessible en écriture (volume monté sur /data avec Docker).');
+        process.exit(1);
     }
 
     // Purge des entrées de cache expirées (une entrée expirée est ignorée à la lecture mais reste en base) :
     // un petit DELETE toutes les 6 h garde la base légère.
     const sql = require('../lib/db');
-    const purge = () => sql`DELETE FROM kv_cache WHERE expires_at < now()`
+    const purge = () => sql`DELETE FROM kv_cache WHERE expires_at < ${Date.now()}`
         .catch(err => console.error('Purge du cache expiré impossible :', err.message));
-    if (sql) {
-        purge();
-        setInterval(purge, 6 * 60 * 60 * 1000).unref();
-    }
+    purge();
+    setInterval(purge, 6 * 60 * 60 * 1000).unref();
 
     const server = app.listen(PORT, HOST, () => {
         console.log(`Addon démarré sur http://${HOST}:${PORT}`);
@@ -47,9 +39,9 @@ async function main() {
         if (!process.env.APP_BASE_URL) console.warn('⚠️  APP_BASE_URL non défini : les liens/logo pointeront vers http://localhost.');
     });
 
-    // Arrêt propre : ferme la base embarquée (PGlite) pour que tout soit écrit sur le disque.
-    const stop = () => server.close(async () => {
-        try { if (sql && sql.close) await sql.close(); } catch { /* rien à faire */ }
+    // Arrêt propre : ferme la base SQLite (le journal WAL est alors intégré au fichier principal).
+    const stop = () => server.close(() => {
+        try { sql.close(); } catch { /* rien à faire */ }
         process.exit(0);
     });
     process.on('SIGTERM', stop);

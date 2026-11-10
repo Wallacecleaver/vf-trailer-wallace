@@ -59,7 +59,7 @@
     try {
       const res = await fetch('/api/logs', { headers: authHeaders() });
       if (!res.ok) { logout(); return; }
-      allLogs = await res.json(); // le plus récent en premier (base Postgres)
+      allLogs = await res.json(); // le plus récent en premier (base SQLite)
       renderLogs();
       refreshLogsBadgeFrom(allLogs);
     } catch (e) { /* silencieux, on retentera au prochain tick */ }

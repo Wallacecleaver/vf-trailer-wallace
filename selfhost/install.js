@@ -142,7 +142,6 @@ async function main() {
     const env = [
         '# Généré par l\'installeur — modifie puis relance : docker compose up -d',
         `DASHBOARD_PASSWORD='${password}'`,
-        `POSTGRES_PASSWORD=${rand(24)}`,
         `APP_BASE_URL=${baseUrl}`,
     ];
     if (tmdb) env.push(`TMDB_API_KEY=${tmdb}`);

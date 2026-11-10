@@ -8,7 +8,8 @@ ENV VF_IMAGE=$IMAGE_REF
 
 ENV NODE_ENV=production
 # Plafonne le tas V8 : le ramasse-miettes travaille plus tôt, la RAM reste basse (~100 Mo).
-ENV NODE_OPTIONS="--max-old-space-size=192"
+# --disable-warning : masque l'avertissement « expérimental » de node:sqlite (la base SQLite intégrée à Node).
+ENV NODE_OPTIONS="--max-old-space-size=192 --disable-warning=ExperimentalWarning"
 WORKDIR /app
 
 # Dépendances d'abord (meilleur cache Docker)
@@ -17,7 +18,7 @@ RUN npm ci --omit=dev && npm cache clean --force
 
 COPY . .
 
-# Données (base embarquée PGlite quand DATABASE_URL n'est pas défini) : monte un volume sur /data
+# Données (base SQLite : /data/addon.sqlite) : monte un volume sur /data
 # pour que réglages du dashboard, mapping et stats survivent aux mises à jour / redéploiements.
 ENV DATA_DIR=/data
 RUN mkdir -p /data && chown -R node:node /data

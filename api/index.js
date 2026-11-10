@@ -1780,7 +1780,7 @@ app.delete('/api/cache', requireAuth, async (req, res) => {
     res.json({ success: ok });
 });
 
-// Joignabilité réelle de la base Postgres (pas juste « configurée »).
+// Joignabilité réelle de la base SQLite (pas juste « configurée »).
 async function dbOk() {
     if (!sql) return false;
     try { await sql`SELECT 1`; return true; } catch (err) { return false; }

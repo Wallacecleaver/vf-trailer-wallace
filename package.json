@@ -7,11 +7,12 @@
   },
   "dependencies": {
     "@distube/ytdl-core": "^4.14.4",
-    "@electric-sql/pglite": "^0.5.15",
     "bcryptjs": "^3.0.3",
     "cheerio": "^1.0.0",
     "express": "^4.19.2",
-    "node-fetch": "^2.6.9",
-    "pg": "^8.13.0"
+    "node-fetch": "^2.6.9"
+  },
+  "engines": {
+    "node": ">=22.13"
   }
 }
