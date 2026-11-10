@@ -33,16 +33,8 @@ async function main() {
     purge();
     setInterval(purge, 6 * 60 * 60 * 1000).unref();
 
-    // Catalogue Netflix local : au premier démarrage (table vide), remplissage depuis Wikidata en tâche de fond.
-    // NETFLIX_SYNC=0 désactive. Les erreurs réseau ne bloquent jamais l'addon.
-    if (process.env.NETFLIX_SYNC !== '0') {
-        const titles = require('../lib/netflix-titles');
-        titles.countTitles().then(async n => {
-            if (n > 0) return;
-            const r = await require('../lib/netflix-wikidata-sync').syncFromWikidata();
-            console.log(`Catalogue Netflix : ${r.written} titres importés depuis Wikidata.`);
-        }).catch(err => console.warn('Catalogue Netflix : import Wikidata impossible :', err.message));
-    }
+    // Catalogue Netflix local : remplissage initial puis contrôle toutes les 6 h (NETFLIX_SYNC=0 désactive).
+    require('../lib/netflix-scheduler').start();
 
     const server = app.listen(PORT, HOST, () => {
         console.log(`Addon démarré sur http://${HOST}:${PORT}`);

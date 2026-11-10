@@ -203,3 +203,17 @@ CREATE TABLE IF NOT EXISTS netflix_titles (
 );
 CREATE INDEX IF NOT EXISTS netflix_titles_imdb_idx ON netflix_titles (imdb_id);
 CREATE INDEX IF NOT EXISTS netflix_titles_tmdb_idx ON netflix_titles (tmdb_id, type);
+
+-- Titres vus par TMDB comme disponibles sur Netflix France (discover, fournisseur Netflix).
+-- nid_checked_at : dernière tentative de retrouver l'ID Netflix (Wikidata) ; réessayée après quelques jours.
+CREATE TABLE IF NOT EXISTS netflix_tmdb_seen (
+    tmdb_id        INTEGER NOT NULL,
+    type           TEXT NOT NULL,            -- 'movie' | 'tv'
+    imdb_id        TEXT,
+    title          TEXT,
+    year           INTEGER,
+    first_seen     TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
+    last_seen      TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
+    nid_checked_at TEXT,
+    PRIMARY KEY (tmdb_id, type)
+);
