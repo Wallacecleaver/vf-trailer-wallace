@@ -1,11 +1,50 @@
         <!-- PAGE: CATALOGUE NETFLIX -->
         <div class="page" id="page-netflix">
           <div class="page-header">
-            <div><div class="page-title">Catalogue Netflix</div><div class="page-sub">Correspondances ID Netflix ↔ TMDB ↔ IMDB, synchronisées toutes les 6 h — de quoi tester la chaîne URL Netflix → IMDB → bande-annonce</div></div>
+            <div><div class="page-title">Catalogue Netflix</div><div class="page-sub">Table des ID Netflix ↔ TMDB ↔ IMDB : remplie par Wikidata, TMDB et l'exploration en arrière-plan</div></div>
             <div class="header-actions">
               <button class="btn-outline-sm" onclick="loadNetflixPage()">↻ Actualiser</button>
               <button class="btn-add" onclick="nfSyncNow()">⟳ Synchroniser maintenant</button>
             </div>
+          </div>
+
+
+          <!-- Exploration en arrière-plan -->
+          <div class="card nf-crawler" id="nf-crawler">
+            <div class="nfc-top">
+              <div class="nfc-title">
+                <div class="nfc-icon">🕸️</div>
+                <div>
+                  <div class="nfc-name">Exploration en arrière-plan <span class="nfc-pill" id="nfc-pill">—</span></div>
+                  <div class="nfc-sub">Lit les pages Netflix une à une, ajoute leurs titres à la table et suit les titres similaires pour trouver de nouveaux ID.</div>
+                </div>
+              </div>
+              <label class="switch nfc-switch" title="Démarrer / arrêter l'exploration"><input type="checkbox" id="nfc-enabled" onchange="nfCrawlerToggle(this.checked)"><span class="slider"></span></label>
+            </div>
+            <div class="nfc-progress">
+              <div class="nfc-bar"><div class="nfc-bar-fill" id="nfc-bar-fill" style="width:0%"></div></div>
+              <div class="nfc-progress-row"><span id="nfc-progress-text">—</span><span id="nfc-eta" class="nfc-muted"></span></div>
+            </div>
+            <div class="nfc-grid">
+              <div class="nfc-mini"><div class="nfc-mini-v" id="nfc-pending">—</div><div class="nfc-mini-k">À explorer</div></div>
+              <div class="nfc-mini"><div class="nfc-mini-v" id="nfc-done">—</div><div class="nfc-mini-k">Explorés</div></div>
+              <div class="nfc-mini"><div class="nfc-mini-v" id="nfc-disc">—</div><div class="nfc-mini-k">Nouveaux ID (session)</div></div>
+              <div class="nfc-mini"><div class="nfc-mini-v" id="nfc-matched">—</div><div class="nfc-mini-k">Liés à IMDB (session)</div></div>
+              <div class="nfc-mini"><div class="nfc-mini-v" id="nfc-issues">—</div><div class="nfc-mini-k">Absents / erreurs</div></div>
+            </div>
+            <div class="nfc-foot">
+              <div class="nfc-speed">
+                <label for="nfc-delay">Cadence</label>
+                <select id="nfc-delay" onchange="nfCrawlerDelay(this.value)">
+                  <option value="1500">Rapide · 1 page / 1,5 s</option>
+                  <option value="4000">Normal · 1 page / 4 s</option>
+                  <option value="10000">Discret · 1 page / 10 s</option>
+                  <option value="30000">Très discret · 1 page / 30 s</option>
+                </select>
+              </div>
+              <div class="nfc-last" id="nfc-last"></div>
+            </div>
+            <div class="nfc-warn">⚠️ Lire les pages Netflix va à l'encontre de leurs CGU : l'IP de ton VPS peut être bloquée. L'exploration se met en pause toute seule (15 min, puis plus longtemps) si Netflix répond « trop de requêtes ».</div>
           </div>
 
           <div class="stats-grid">
@@ -15,6 +54,36 @@
             <div class="stat-card c-green"><div class="stat-label">ID Netflix déjà cherchés</div><div class="stat-value" id="nf-checked">—</div></div>
           </div>
           <div class="nf-note" id="nf-note"></div>
+
+          <div class="nf-tabs">
+            <button class="nf-tab active" data-nftab="table" onclick="nfShowTab('table')">📚 Table des ID</button>
+            <button class="nf-tab" data-nftab="tools" onclick="nfShowTab('tools')">🧰 Outils</button>
+          </div>
+
+          <div id="nf-tab-table">
+            <div class="card nf-table-card">
+              <div class="table-toolbar">
+                <input type="text" id="nf-t-q" placeholder="🔍 Titre, ID Netflix ou IMDB ID…" autocomplete="off" oninput="nfTableSearchDebounced()">
+                <div class="nf-chips" id="nf-chips">
+                  <button class="nf-chip active" data-f="all" onclick="nfSetFilter('all')">Tous</button>
+                  <button class="nf-chip" data-f="imdb" onclick="nfSetFilter('imdb')">Avec IMDB</button>
+                  <button class="nf-chip" data-f="noimdb" onclick="nfSetFilter('noimdb')">Sans IMDB</button>
+                  <button class="nf-chip" data-f="pending" onclick="nfSetFilter('pending')">À explorer</button>
+                  <button class="nf-chip" data-f="done" onclick="nfSetFilter('done')">Explorés</button>
+                  <button class="nf-chip" data-f="error" onclick="nfSetFilter('error')">Problèmes</button>
+                </div>
+              </div>
+              <div class="nf-table-scroll">
+                <table class="nf-table">
+                  <thead><tr><th>ID Netflix</th><th>Titre</th><th>Année</th><th>Type</th><th>TMDB</th><th>IMDB</th><th>Source</th><th>État</th></tr></thead>
+                  <tbody id="nf-t-body"><tr class="empty-row"><td colspan="8">Chargement…</td></tr></tbody>
+                </table>
+              </div>
+              <div class="nf-pager" id="nf-pager"></div>
+            </div>
+          </div>
+
+          <div id="nf-tab-tools" style="display:none">
 
           <div class="card">
             <div class="card-head"><div class="ts-head-icon">🔗</div><div class="card-title">URL Netflix → TMDB → IMDB</div></div>
@@ -48,5 +117,5 @@
               <div id="nf-q-result"></div>
             </div>
           </div>
+          </div>
         </div>
-

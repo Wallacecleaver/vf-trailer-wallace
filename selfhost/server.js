@@ -33,7 +33,8 @@ async function main() {
     purge();
     setInterval(purge, 6 * 60 * 60 * 1000).unref();
 
-    // Catalogue Netflix local : remplissage initial puis contrôle toutes les 6 h (NETFLIX_SYNC=0 désactive).
+    // Catalogue Netflix local : remplissage initial, contrôle toutes les 6 h (NETFLIX_SYNC=0 désactive) et exploration
+    // en arrière-plan des pages Netflix (désactivée par défaut : on l'active dans le dashboard ; NETFLIX_CRAWL=0 la coupe).
     require('../lib/netflix-scheduler').start();
 
     const server = app.listen(PORT, HOST, () => {

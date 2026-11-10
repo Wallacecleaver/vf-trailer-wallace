@@ -101,6 +101,7 @@ Ouvre `APP_BASE_URL` dans ton navigateur, renseigne ta clé TMDB, puis clique su
 | `TRUST_PROXY` | non | `0` si l'addon est exposé directement sur Internet (ignore `X-Forwarded-For`). L'installeur le règle selon ton choix. |
 | `DASHBOARD_NO_CACHE` | non | `1` pour désactiver le cache de rendu du dashboard pendant que tu le modifies. |
 | `NETFLIX_COUNTRY` | non | Pays de la page Netflix lue par le repli Netflix (défaut `fr`). |
+| `NETFLIX_CRAWL` | non | `0` désactive complètement l'exploration en arrière-plan des pages Netflix (sinon elle s'active depuis le dashboard). |
 
 ### Ressources utilisées (très légères)
 
@@ -220,6 +221,10 @@ Quand **aucune** autre source (TMDB, Allociné, recherche YouTube) ne trouve de 
 - Activé par défaut, désactivable dans **Réglages → Sources de résolution**.
 - Pour un titre que Wikidata ne connaît pas : dans **Mapping**, colle l'URL Netflix du titre (`https://www.netflix.com/fr/title/81944880`) dans « lien direct » d'un override.
 - Le scraping de netflix.com va à l'encontre de leurs conditions d'utilisation et peut cesser de fonctionner si la page change. Les requêtes vers Netflix partent de ton serveur (si Netflix bloque ton IP, la source échoue sans rien casser).
+
+### Exploration Netflix en arrière-plan
+
+Dans l'onglet « Catalogue Netflix », l'interrupteur **Exploration en arrière-plan** (arrêtée par défaut) lit les pages `netflix.com/<pays>/title/<id>` une par une : titre, année et type sont enregistrés dans la table `netflix_titles`, et les **titres similaires cités par chaque page** ajoutent de nouveaux ID « à explorer » — le catalogue se déploie de proche en proche, sans deviner les ID au hasard. Quand le titre **et** l'année concordent avec TMDB, l'IMDB ID est lié automatiquement. Une seule requête à la fois, cadence réglable (1,5 s minimum, 4 s par défaut), pause automatique de 15 min à 6 h si Netflix répond 403/429, reprise après redémarrage. Comme pour le repli Netflix, cela va à l'encontre des CGU de Netflix : prévois une IP dont tu peux te passer.
 
 ### Onglet « Catalogue Netflix » (dashboard)
 

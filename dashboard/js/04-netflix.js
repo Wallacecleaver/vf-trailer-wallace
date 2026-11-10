@@ -29,6 +29,9 @@
     if (!data.syncEnabled) notes.push('⚠️ La synchro automatique est désactivée (NETFLIX_SYNC=0).');
     if (!data.tmdbKeyConfigured) notes.push('⚠️ TMDB_API_KEY n\'est pas définie : seul Wikidata alimente le catalogue, et la recherche TMDB de cet onglet est indisponible.');
     document.getElementById('nf-note').innerHTML = notes.map(escapeHtml).join('<br>');
+    nfCrawlerLoad();
+    nfLoadTable();
+    nfStartPolling();
   }
 
   async function nfSyncNow() {
@@ -115,4 +118,151 @@
     out.innerHTML = nfBox('ok', '✅ ' + data.trailers.length + ' bande(s)-annonce(s) trouvée(s)' +
       data.trailers.map(function (t) { return nfRow(t.title || 'Bande-annonce', t.runtimeSec ? Math.round(t.runtimeSec) + ' s' : null); }).join('') +
       nfRow('Lien relais de l\'addon', data.relayUrl));
+  }
+
+  // ---- Exploration en arrière-plan ----
+  let nfInterval = null;
+  const nfFmt = n => Number(n || 0).toLocaleString('fr-FR');
+
+  function nfStartPolling() {
+    if (nfInterval) return;
+    nfInterval = setInterval(function () {
+      if (!document.getElementById('page-netflix').classList.contains('active')) { nfStopPolling(); return; }
+      nfCrawlerLoad(true);
+    }, 8000);
+  }
+  function nfStopPolling() { if (nfInterval) { clearInterval(nfInterval); nfInterval = null; } }
+
+  async function nfCrawlerLoad(refreshTable) {
+    const { ok, data } = await nfCall('/api/netflix-catalog/crawler');
+    if (!ok) return;
+    nfRenderCrawler(data);
+    if (refreshTable && data.enabled && nfTable.page === 1 && !nfTable.q) nfLoadTable(true);
+  }
+
+  function nfRenderCrawler(d) {
+    const c = d.counts;
+    const pill = document.getElementById('nfc-pill');
+    let kind = 'off', label = 'Arrêtée';
+    if (!d.available) { kind = 'off'; label = 'Désactivée (NETFLIX_CRAWL=0)'; }
+    else if (d.enabled && d.paused) { kind = 'pause'; label = 'En pause jusqu\'à ' + new Date(d.pausedUntil).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' }); }
+    else if (d.enabled) { kind = 'on'; label = 'En cours'; }
+    pill.className = 'nfc-pill ' + kind;
+    pill.textContent = label;
+    const sw = document.getElementById('nfc-enabled');
+    sw.checked = d.enabled; sw.disabled = !d.available;
+    document.getElementById('nf-crawler').classList.toggle('running', d.enabled && !d.paused);
+
+    const processed = d.total - c.pending;
+    document.getElementById('nfc-bar-fill').style.width = Math.min(100, d.progress * 100).toFixed(1) + '%';
+    document.getElementById('nfc-progress-text').textContent = nfFmt(processed) + ' / ' + nfFmt(d.total) + ' pages explorées · ' + Math.round(d.progress * 100) + ' %';
+    document.getElementById('nfc-eta').textContent = c.pending > 0 && d.enabled ? '≈ ' + (d.etaHours >= 1 ? d.etaHours.toLocaleString('fr-FR') + ' h' : Math.max(1, Math.round(d.etaHours * 60)) + ' min') + ' restantes (sans compter les nouveaux ID)' : '';
+    document.getElementById('nfc-pending').textContent = nfFmt(c.pending);
+    document.getElementById('nfc-done').textContent = nfFmt(c.done);
+    document.getElementById('nfc-disc').textContent = '+' + nfFmt(d.session.discovered);
+    document.getElementById('nfc-matched').textContent = '+' + nfFmt(d.session.matched);
+    document.getElementById('nfc-issues').textContent = nfFmt(c.missing + c.noinfo + c.error);
+    const sel = document.getElementById('nfc-delay');
+    if (document.activeElement !== sel) {
+      if (![].some.call(sel.options, function (o) { return Number(o.value) === d.delayMs; })) {
+        const o = document.createElement('option'); o.value = d.delayMs; o.textContent = 'Personnalisée · ' + (d.delayMs / 1000) + ' s'; sel.appendChild(o);
+      }
+      sel.value = String(d.delayMs);
+    }
+    const last = [];
+    if (d.last.nid) last.push('Dernier : ' + (d.last.title ? d.last.title + ' ' : '') + '#' + d.last.nid);
+    if (d.last.error) last.push('⚠️ ' + d.last.error);
+    document.getElementById('nfc-last').textContent = last.join(' · ');
+  }
+
+  async function nfCrawlerToggle(on) {
+    const { ok, data } = await nfCall('/api/netflix-catalog/crawler', { enabled: !!on });
+    if (!ok) { toast(data.error || 'Erreur'); document.getElementById('nfc-enabled').checked = !on; return; }
+    nfRenderCrawler(data);
+    toast(on ? 'Exploration démarrée' : 'Exploration arrêtée');
+  }
+
+  async function nfCrawlerDelay(ms) {
+    const { ok, data } = await nfCall('/api/netflix-catalog/crawler', { delayMs: Number(ms) });
+    if (!ok) { toast(data.error || 'Erreur'); return; }
+    nfRenderCrawler(data);
+    toast('Cadence mise à jour');
+  }
+
+  // ---- Table des ID ----
+  let nfTable = { q: '', filter: 'all', page: 1, size: 25, total: 0 };
+  let nfSearchTimer = null;
+
+  function nfShowTab(name) {
+    document.querySelectorAll('#page-netflix .nf-tab').forEach(function (b) { b.classList.toggle('active', b.dataset.nftab === name); });
+    document.getElementById('nf-tab-table').style.display = name === 'table' ? '' : 'none';
+    document.getElementById('nf-tab-tools').style.display = name === 'tools' ? '' : 'none';
+  }
+
+  function nfTableSearchDebounced() {
+    clearTimeout(nfSearchTimer);
+    nfSearchTimer = setTimeout(function () {
+      nfTable.q = document.getElementById('nf-t-q').value.trim();
+      nfTable.page = 1;
+      nfLoadTable();
+    }, 300);
+  }
+
+  function nfSetFilter(f) {
+    nfTable.filter = f; nfTable.page = 1;
+    document.querySelectorAll('#nf-chips .nf-chip').forEach(function (b) { b.classList.toggle('active', b.dataset.f === f); });
+    nfLoadTable();
+  }
+
+  function nfGoPage(p) { nfTable.page = p; nfLoadTable(); }
+
+  const NF_STATUS = {
+    pending: ['À explorer', 'grey'], done: ['Exploré', 'green'], missing: ['Absent FR', 'amber'],
+    noinfo: ['Illisible', 'amber'], error: ['Erreur', 'red'],
+  };
+  const NF_SOURCE = { manual: 'Manuel', tmdb: 'TMDB', wikidata: 'Wikidata', crawl: 'Exploration' };
+
+  function nfBadge(text, kind) { return '<span class="nf-badge ' + kind + '">' + escapeHtml(text) + '</span>'; }
+
+  function nfRenderRow(r) {
+    const st = NF_STATUS[r.crawl_status || 'pending'] || NF_STATUS.pending;
+    const tmdb = r.tmdb_id
+      ? '<a class="nf-link mono" target="_blank" rel="noopener" href="https://www.themoviedb.org/' + (r.type === 'tv' ? 'tv' : 'movie') + '/' + encodeURIComponent(r.tmdb_id) + '">' + escapeHtml(r.tmdb_id) + '</a>'
+      : '<span class="nf-dash">—</span>';
+    const imdb = r.imdb_id
+      ? '<a class="nf-link mono" target="_blank" rel="noopener" href="https://www.imdb.com/title/' + encodeURIComponent(r.imdb_id) + '/">' + escapeHtml(r.imdb_id) + '</a>'
+      : '<span class="nf-dash">—</span>';
+    return '<tr>' +
+      '<td><a class="nf-link mono" target="_blank" rel="noopener" href="https://www.netflix.com/title/' + encodeURIComponent(r.nid) + '">' + escapeHtml(r.nid) + '</a></td>' +
+      '<td class="nf-title-cell">' + (r.title ? escapeHtml(r.title) : '<span class="nf-dash">non lu</span>') + '</td>' +
+      '<td class="mono">' + (r.year || '<span class="nf-dash">—</span>') + '</td>' +
+      '<td>' + (nfTypeLabel(r.type) ? nfBadge(nfTypeLabel(r.type), r.type === 'tv' ? 'purple' : 'blue') : '<span class="nf-dash">—</span>') + '</td>' +
+      '<td>' + tmdb + '</td><td>' + imdb + '</td>' +
+      '<td>' + nfBadge(NF_SOURCE[r.source] || r.source, 'grey') + '</td>' +
+      '<td>' + nfBadge(st[0], st[1]) + '</td></tr>';
+  }
+
+  async function nfLoadTable(silent) {
+    const body = document.getElementById('nf-t-body');
+    const qs = 'q=' + encodeURIComponent(nfTable.q) + '&filter=' + nfTable.filter + '&page=' + nfTable.page + '&size=' + nfTable.size;
+    const { ok, data } = await nfCall('/api/netflix-catalog/titles?' + qs);
+    if (!ok) { if (!silent) body.innerHTML = '<tr class="empty-row"><td colspan="8">' + escapeHtml(data.error || 'Erreur') + '</td></tr>'; return; }
+    nfTable.total = data.total; nfTable.page = data.page;
+    body.innerHTML = data.rows.length ? data.rows.map(nfRenderRow).join('')
+      : '<tr class="empty-row"><td colspan="8">Aucun titre' + (nfTable.q || nfTable.filter !== 'all' ? ' pour ce filtre' : ' pour l\'instant') + '</td></tr>';
+    nfRenderPager(data);
+  }
+
+  function nfRenderPager(d) {
+    const pages = Math.max(1, Math.ceil(d.total / d.size));
+    const el = document.getElementById('nf-pager');
+    const from = d.total ? (d.page - 1) * d.size + 1 : 0;
+    const to = Math.min(d.total, d.page * d.size);
+    el.innerHTML = '<span class="nf-pager-info">' + nfFmt(from) + '–' + nfFmt(to) + ' sur ' + nfFmt(d.total) + '</span>' +
+      '<span class="nf-pager-btns">' +
+      '<button class="btn-outline-sm" ' + (d.page <= 1 ? 'disabled' : 'onclick="nfGoPage(1)"') + '>«</button>' +
+      '<button class="btn-outline-sm" ' + (d.page <= 1 ? 'disabled' : 'onclick="nfGoPage(' + (d.page - 1) + ')"') + '>‹ Préc.</button>' +
+      '<span class="nf-pager-page">' + d.page + ' / ' + nfFmt(pages) + '</span>' +
+      '<button class="btn-outline-sm" ' + (d.page >= pages ? 'disabled' : 'onclick="nfGoPage(' + (d.page + 1) + ')"') + '>Suiv. ›</button>' +
+      '<button class="btn-outline-sm" ' + (d.page >= pages ? 'disabled' : 'onclick="nfGoPage(' + pages + ')"') + '>»</button></span>';
   }

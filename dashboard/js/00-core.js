@@ -59,6 +59,7 @@
     document.getElementById('page-' + name).classList.add('active');
     document.querySelector('.nav-item[data-page="' + name + '"]').classList.add('active');
     if (name !== 'overview' && ovInterval) { clearInterval(ovInterval); ovInterval = null; const ao = document.getElementById('ov-auto'); if (ao) ao.checked = false; }
+    if (name !== 'netflix' && typeof nfStopPolling === 'function') nfStopPolling();
     if (name === 'overview') loadOverview();
     if (name === 'users') loadInstallStats();
     if (name === 'mapping') loadMapping();

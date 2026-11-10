@@ -199,7 +199,12 @@ CREATE TABLE IF NOT EXISTS netflix_titles (
     source             TEXT NOT NULL DEFAULT 'manual',  -- wikidata | tmdb | manual
     last_seen          TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
     trailer_checked_at TEXT,
-    raw                TEXT                  -- JSON : métadonnées brutes de la source
+    raw                TEXT,                 -- JSON : métadonnées brutes de la source
+    -- Exploration en arrière-plan (lib/netflix-crawler.js) : NULL = à explorer, 'done' | 'missing' (404) | 'noinfo' | 'error'
+    crawl_status       TEXT,
+    crawl_attempts     INTEGER NOT NULL DEFAULT 0,
+    crawled_at         TEXT,
+    discovered_from    TEXT                  -- ID Netflix de la page où cet ID a été découvert
 );
 CREATE INDEX IF NOT EXISTS netflix_titles_imdb_idx ON netflix_titles (imdb_id);
 CREATE INDEX IF NOT EXISTS netflix_titles_tmdb_idx ON netflix_titles (tmdb_id, type);
@@ -217,4 +222,10 @@ CREATE TABLE IF NOT EXISTS netflix_tmdb_seen (
     nid_checked_at TEXT,
     imdb_checked_at TEXT,                    -- dernière tentative de retrouver l'IMDB ID chez TMDB
     PRIMARY KEY (tmdb_id, type)
+);
+
+-- État persistant de l'exploration Netflix (activée ou non, cadence, pause après un blocage).
+CREATE TABLE IF NOT EXISTS netflix_crawl_state (
+    key   TEXT PRIMARY KEY,
+    value TEXT
 );

@@ -8,6 +8,8 @@ const { isNid } = require('../lib/netflix-common');
 const { parseNetflixId, getTrailers, relayUrl } = require('../lib/netflix-trailer');
 const { addFromNetflixUrl, linkNetflixToTmdb } = require('../lib/netflix-url-link');
 const scheduler = require('../lib/netflix-scheduler');
+const store = require('../lib/netflix-titles');
+const crawler = require('../lib/netflix-crawler');
 
 module.exports = function registerNetflixAdminRoutes(app) {
     // Chiffres du catalogue.
@@ -27,6 +29,29 @@ module.exports = function registerNetflixAdminRoutes(app) {
     app.post('/api/netflix-catalog/sync', requireAuth, (req, res) => {
         scheduler.checkNew(FALLBACK_TMDB_KEY || '');
         res.status(202).json({ started: true });
+    });
+
+    // La table : titres du catalogue, paginés (?q=&filter=all|imdb|noimdb|pending|done|error&page=&size=).
+    app.get('/api/netflix-catalog/titles', requireAuth, async (req, res) => {
+        try {
+            res.json(await store.listTitles({ q: req.query.q, filter: req.query.filter, page: req.query.page, size: req.query.size }));
+        } catch (err) { res.status(500).json({ error: err.message }); }
+    });
+
+    // Exploration en arrière-plan : état (réglages, progression, répartition de la table).
+    app.get('/api/netflix-catalog/crawler', requireAuth, async (req, res) => {
+        try { res.json(await crawler.getStatus()); } catch (err) { res.status(500).json({ error: err.message }); }
+    });
+
+    // Exploration : { enabled: bool } démarre/arrête ; { delayMs } règle la cadence (1,5 s minimum).
+    app.post('/api/netflix-catalog/crawler', requireAuth, async (req, res) => {
+        try {
+            const b = req.body || {};
+            if (process.env.NETFLIX_CRAWL === '0') return res.status(409).json({ error: 'Exploration désactivée par NETFLIX_CRAWL=0' });
+            if (b.delayMs !== undefined) await crawler.setDelay(b.delayMs);
+            if (typeof b.enabled === 'boolean') await crawler.setEnabled(b.enabled);
+            res.json(await crawler.getStatus());
+        } catch (err) { res.status(500).json({ error: err.message }); }
     });
 
     // Cherche dans le catalogue par IMDB ID, ID Netflix ou URL Netflix.
