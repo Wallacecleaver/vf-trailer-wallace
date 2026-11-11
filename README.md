@@ -224,7 +224,11 @@ Quand **aucune** autre source (TMDB, Allociné, recherche YouTube) ne trouve de 
 
 ### Exploration Netflix en arrière-plan
 
-Dans l'onglet « Catalogue Netflix », l'interrupteur **Exploration en arrière-plan** (arrêtée par défaut) lit les pages `netflix.com/<pays>/title/<id>` une par une : titre, année et type sont enregistrés dans la table `netflix_titles`, et les **titres similaires cités par chaque page** ajoutent de nouveaux ID « à explorer » — le catalogue se déploie de proche en proche, sans deviner les ID au hasard. Quand le titre **et** l'année concordent avec TMDB, l'IMDB ID est lié automatiquement. Une seule requête à la fois, cadence réglable (1,5 s minimum, 4 s par défaut), pause automatique de 15 min à 6 h si Netflix répond 403/429, reprise après redémarrage. Comme pour le repli Netflix, cela va à l'encontre des CGU de Netflix : prévois une IP dont tu peux te passer.
+Dans l'onglet « Catalogue Netflix », l'interrupteur **Exploration en arrière-plan** (arrêtée par défaut) lit les pages `netflix.com/<pays>/title/<id>` une par une : titre, année et type sont enregistrés dans la table `netflix_titles`, et les **titres similaires cités par chaque page** ajoutent de nouveaux ID « à explorer » — le catalogue se déploie de proche en proche, sans deviner les ID au hasard. Quand le titre **et** l'année concordent avec TMDB, l'IMDB ID est lié automatiquement. Une seule requête à la fois, cadence réglable (1,5 s minimum, 4 s par défaut), pause automatique de 15 min à 6 h si Netflix répond 403/429, reprise après redémarrage. Chaque page n'est lue qu'une fois (une requête, un seul parsing, une seule écriture en base, connexion réutilisée) et les titres qui ont déjà un IMDB ID passent en premier, car ce sont les seuls qu'on peut distribuer.
+
+**Vérification des liens.** Pour tout titre qui a un IMDB ID (Wikidata, TMDB…), l'exploration compare la page Netflix (titre, année) à la fiche TMDB : `Vérifié` (titre et année concordent), `Probable` (l'un des deux), `Douteux` (aucun des deux : lien écarté, jamais utilisé pour distribuer). Une saisie manuelle fait toujours foi. La carte **Couverture & distribution** montre l'entonnoir complet : titres → pages lues → IMDB → liens vérifiés → bande-annonce présente → prêts à distribuer → déjà proposés à Stremio (et lus via `/nf/<id>.mp4`).
+
+Comme pour le repli Netflix, cela va à l'encontre des CGU de Netflix : prévois une IP dont tu peux te passer.
 
 ### Onglet « Catalogue Netflix » (dashboard)
 

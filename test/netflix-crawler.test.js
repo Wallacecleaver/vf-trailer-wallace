@@ -11,11 +11,12 @@ const assert = require('node:assert');
 const http = require('node:http');
 const express = require('express');
 
-let sql, store, crawler, nf, tmdbSync, fake, appServer, api, token;
+let sql, store, crawler, nf, tmdbSync, linkCheck, fake, appServer, api, token;
 
 // Page Netflix factice : titre + titres « similaires » (dans le JSON embarqué et en lien /title/<id>).
-const page = (nid, title, year, typename, similar) => {
+const page = (nid, title, year, typename, similar, trailerUrl) => {
     const video = { videoId: Number(nid), __typename: typename, title, latestYear: year, shortSynopsis: 's', contentAdvisory: {} };
+    if (trailerUrl) video.trailers = { edges: [{ node: { title: 'Bande-annonce', runtimeSec: 90, playableVideo: { url: trailerUrl } } }] };
     const rows = { trifectaRows: { collections: [{ videos: similar.map(id => ({ __typename: 'Show', videoId: Number(id), title: 'x' })) }] } };
     return `<html><script>netflix.reactContext = ${JSON.stringify({ models: { a: { videos: [video], ...rows } } })};</script></html>`;
 };
@@ -27,12 +28,19 @@ before(async () => {
     crawler = require('../lib/netflix-crawler');
     nf = require('../lib/netflix-trailer');
     tmdbSync = require('../lib/netflix-tmdb-sync');
+    linkCheck = require('../lib/netflix-link-check');
 
     fake = http.createServer((req, res) => {
         const u = new URL(req.url, 'http://x');
         const json = o => { res.writeHead(200, { 'Content-Type': 'application/json' }); res.end(JSON.stringify(o)); };
         let m = u.pathname.match(/^\/3\/search\/(movie|tv)$/);
         if (m) return json({ results: u.searchParams.get('query') === 'Lupin' ? [{ id: 7, name: 'Lupin', first_air_date: '2021-01-08' }] : [] });
+        m = u.pathname.match(/^\/3\/find\/(tt\d+)$/);
+        if (m) {
+            if (m[1] === 'tt2000020') return json({ movie_results: [], tv_results: [{ id: 7, name: 'Lupin', first_air_date: '2021-01-08' }] });
+            if (m[1] === 'tt2000021') return json({ movie_results: [{ id: 8, title: 'Totalement différent', release_date: '2015-05-05' }], tv_results: [] });
+            return json({ movie_results: [], tv_results: [] });
+        }
         m = u.pathname.match(/^\/3\/(movie|tv)\/7\/external_ids$/);
         if (m) return json({ imdb_id: 'tt1000007' });
         m = u.pathname.match(/^\/title\/(\d+)$/);
@@ -42,6 +50,8 @@ before(async () => {
             if (nid === '80000004') { res.writeHead(403); return res.end(); }
             res.writeHead(200, { 'Content-Type': 'text/html' });
             if (nid === '80000010' || nid === '80000011') return res.end(page(nid, nid === '80000010' ? 'Lupin' : 'Lupin', nid === '80000010' ? 2021 : 1999, 'Show', []));
+            if (nid === '80000020') return res.end(page(nid, 'Lupin', 2023, 'Show', [], 'https://cdn.example/v.mp4?e=9999999999'));
+            if (nid === '80000021') return res.end(page(nid, 'Autre film', 1990, 'Movie', []));
             if (nid === '80000001') return res.end(page(nid, 'Lupin', 2021, 'Show', ['80000002', '80000003', '80000004']));
             return res.end(page(nid, 'Autre titre', 2020, 'Movie', ['80000001']));
         }
@@ -147,4 +157,68 @@ test('liaison TMDB automatique : seulement si titre ET année concordent', async
     assert.strictEqual(ok.source, 'crawl'); // la liaison automatique reste moins fiable qu'une saisie ou la synchro TMDB
     assert.strictEqual((await store.getTitle('80000011')).imdb_id, null);
     crawler._setTmdbKey('');
+});
+
+test('compare : ok / weak / mismatch (série : l\'année de la dernière saison reste compatible)', () => {
+    const c = linkCheck.compare;
+    assert.strictEqual(c({ title: 'Lupin', year: 2021 }, { type: 'tv', name: 'Lupin', first_air_date: '2021-01-08' }), 'ok');
+    assert.strictEqual(c({ title: 'Lupin', year: 2025 }, { type: 'tv', name: 'Lupin', first_air_date: '2021-01-08' }), 'ok');
+    assert.strictEqual(c({ title: 'Le Tour du monde en 80 jours', year: 2004 }, { type: 'movie', title: 'Around the World in 80 Days', original_title: 'Around the World in 80 Days', release_date: '2004-06-16' }), 'weak');
+    assert.strictEqual(c({ title: 'Autre film', year: 1990 }, { type: 'movie', title: 'Totalement différent', release_date: '2015-05-05' }), 'mismatch');
+    assert.strictEqual(c({ title: 'X', year: 2000 }, null), 'unknown');
+});
+
+test('titre avec IMDB : lien vérifié, bande-annonce notée, tout écrit en une fois', async () => {
+    crawler._setTmdbKey('k');
+    await store.upsertTitle({ nid: '80000020', imdb_id: 'tt2000020', source: 'wikidata' });
+    assert.strictEqual(await crawler.exploreOne('80000020'), 'done');
+    const row = await store.getTitle('80000020');
+    assert.strictEqual(row.link_status, 'ok');
+    assert.strictEqual(row.has_trailer, 1);
+    assert.strictEqual(row.tmdb_id, 7);
+    assert.strictEqual(row.type, 'tv');
+    assert.strictEqual(row.source, 'wikidata');
+});
+
+test('lien faux (titre ET année différents) : « mismatch », écarté de la distribution', async () => {
+    await store.upsertTitle({ nid: '80000021', imdb_id: 'tt2000021', source: 'wikidata' });
+    await crawler.exploreOne('80000021');
+    const row = await store.getTitle('80000021');
+    assert.strictEqual(row.link_status, 'mismatch');
+    assert.strictEqual(row.has_trailer, 0);
+    assert.strictEqual(await store.findNidByImdb('tt2000021'), null, 'un lien jugé faux n\'est jamais utilisé');
+    assert.strictEqual(await store.findNidByImdb('tt2000020'), '80000020');
+});
+
+test('saisie manuelle : jamais remise en cause par la vérification', async () => {
+    await store.upsertTitle({ nid: '80000022', imdb_id: 'tt2000021', source: 'manual' });
+    await crawler.exploreOne('80000022');   // même page « Lupin 2021 » mais IMDB d'un autre film : l'utilisateur a décidé
+    assert.strictEqual((await store.getTitle('80000022')).link_status, null);
+    crawler._setTmdbKey('');
+});
+
+test('coverage : lus, liés, vérifiés, bande-annonce, prêts, distribués', async () => {
+    await store.markServed('80000020');
+    await store.markServed('80000020');
+    await store.markPlayed('80000020');
+    const c = (await call('/api/netflix-catalog/coverage')).data;
+    assert.strictEqual(c.mismatch, 1);
+    assert.strictEqual(c.ready, 1);          // seul 80000020 : IMDB + bande-annonce + lien non faux
+    assert.ok(c.with_trailer >= 1 && c.verified >= 1);
+    assert.strictEqual(c.served_titles, 1);
+    assert.strictEqual(c.served_total, 2);
+    assert.strictEqual(c.played_total, 1);
+    const ready = (await call('/api/netflix-catalog/titles?filter=ready')).data;
+    assert.deepStrictEqual(ready.rows.map(r => r.nid), ['80000020']);
+    assert.strictEqual((await call('/api/netflix-catalog/titles?filter=doubtful')).data.total, 1);
+});
+
+test('file d\'attente : les titres avec IMDB d\'abord, les pages déjà lues avec bande-annonce connue jamais reprises', async () => {
+    await store.upsertTitle({ nid: '80000030', source: 'crawl' });
+    await store.upsertTitle({ nid: '80000031', imdb_id: 'tt3000031', source: 'wikidata' });
+    assert.strictEqual(await store.nextToCrawl(), '80000031');
+    await store.markCrawled('80000031', 'done');            // « done » sans info bande-annonce -> rattrapage
+    assert.strictEqual(await store.nextToCrawl(), '80000031');
+    await store.saveCrawlResult('80000031', { hasTrailer: false });
+    assert.notStrictEqual(await store.nextToCrawl(), '80000031');
 });

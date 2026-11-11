@@ -642,3 +642,20 @@
   #page-netflix .nf-pager-page { padding:0 8px; font-variant-numeric:tabular-nums; color:var(--text2); }
   #page-netflix .nf-pager button:disabled { opacity:.35; cursor:default; }
   @media (max-width:800px) { #page-netflix .nfc-grid { grid-template-columns:repeat(2,1fr); } }
+
+  /* ---- Catalogue Netflix : couverture ---- */
+  #page-netflix .nf-coverage .card-head { gap:11px; }
+  #page-netflix .nfv-ready { margin-left:auto; font-size:22px; font-weight:800; color:var(--accent); font-variant-numeric:tabular-nums; }
+  #page-netflix .nfv-ready small { font-size:11px; font-weight:600; color:var(--muted); margin-left:4px; }
+  #page-netflix .nfv-steps { display:flex; flex-direction:column; gap:14px; }
+  #page-netflix .nfv-row { display:flex; justify-content:space-between; gap:12px; font-size:12.5px; }
+  #page-netflix .nfv-k { color:var(--text2); }
+  #page-netflix .nfv-v { font-weight:800; font-variant-numeric:tabular-nums; }
+  #page-netflix .nfv-v small { color:var(--muted); font-weight:600; margin-left:4px; }
+  #page-netflix .nfv-bar { height:8px; border-radius:999px; background:var(--surface2); border:1px solid var(--border); margin-top:6px; overflow:hidden; }
+  #page-netflix .nfv-fill { height:100%; border-radius:999px; transition:width .6s ease; min-width:2px; }
+  #page-netflix .nfv-fill.grey { background:#718096; } #page-netflix .nfv-fill.blue { background:#60a5fa; }
+  #page-netflix .nfv-fill.green { background:#48bb78; } #page-netflix .nfv-fill.purple { background:#a78bfa; }
+  #page-netflix .nfv-fill.red { background:linear-gradient(90deg, #c53030, var(--accent)); }
+  #page-netflix .nfv-extra { font-size:11px; color:var(--muted); margin-top:4px; }
+  #page-netflix .nfv-note { margin-top:16px; padding-top:12px; border-top:1px solid var(--border); font-size:12px; color:var(--muted); line-height:1.5; }

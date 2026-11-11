@@ -38,6 +38,11 @@ module.exports = function registerNetflixAdminRoutes(app) {
         } catch (err) { res.status(500).json({ error: err.message }); }
     });
 
+    // Couverture concrète : lus -> liés -> vérifiés -> avec bande-annonce -> prêts à distribuer -> distribués.
+    app.get('/api/netflix-catalog/coverage', requireAuth, async (req, res) => {
+        try { res.json(await store.coverage()); } catch (err) { res.status(500).json({ error: err.message }); }
+    });
+
     // Exploration en arrière-plan : état (réglages, progression, répartition de la table).
     app.get('/api/netflix-catalog/crawler', requireAuth, async (req, res) => {
         try { res.json(await crawler.getStatus()); } catch (err) { res.status(500).json({ error: err.message }); }

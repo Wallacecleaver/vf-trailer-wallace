@@ -55,6 +55,16 @@
           </div>
           <div class="nf-note" id="nf-note"></div>
 
+          <!-- Couverture : de l'ID Netflix jusqu'à la bande-annonce distribuée -->
+          <div class="card nf-coverage">
+            <div class="card-head"><div class="ts-head-icon">🎯</div><div class="card-title">Couverture &amp; distribution</div>
+              <div class="nfv-ready"><span id="nfv-ready-n">—</span> <small>prêts à distribuer</small></div></div>
+            <div class="card-body">
+              <div class="nfv-steps" id="nfv-steps"><div class="nf-dash">Chargement…</div></div>
+              <div class="nfv-note" id="nfv-note"></div>
+            </div>
+          </div>
+
           <div class="nf-tabs">
             <button class="nf-tab active" data-nftab="table" onclick="nfShowTab('table')">📚 Table des ID</button>
             <button class="nf-tab" data-nftab="tools" onclick="nfShowTab('tools')">🧰 Outils</button>
@@ -71,12 +81,16 @@
                   <button class="nf-chip" data-f="pending" onclick="nfSetFilter('pending')">À explorer</button>
                   <button class="nf-chip" data-f="done" onclick="nfSetFilter('done')">Explorés</button>
                   <button class="nf-chip" data-f="error" onclick="nfSetFilter('error')">Problèmes</button>
+                  <button class="nf-chip" data-f="ready" onclick="nfSetFilter('ready')">✅ Prêts</button>
+                  <button class="nf-chip" data-f="notrailer" onclick="nfSetFilter('notrailer')">Sans bande-annonce</button>
+                  <button class="nf-chip" data-f="doubtful" onclick="nfSetFilter('doubtful')">Liens douteux</button>
+                  <button class="nf-chip" data-f="served" onclick="nfSetFilter('served')">Distribués</button>
                 </div>
               </div>
               <div class="nf-table-scroll">
                 <table class="nf-table">
-                  <thead><tr><th>ID Netflix</th><th>Titre</th><th>Année</th><th>Type</th><th>TMDB</th><th>IMDB</th><th>Source</th><th>État</th></tr></thead>
-                  <tbody id="nf-t-body"><tr class="empty-row"><td colspan="8">Chargement…</td></tr></tbody>
+                  <thead><tr><th>ID Netflix</th><th>Titre</th><th>Année</th><th>Type</th><th>TMDB</th><th>IMDB</th><th>Lien</th><th>Bande-annonce</th><th>Servi</th><th>État</th></tr></thead>
+                  <tbody id="nf-t-body"><tr class="empty-row"><td colspan="10">Chargement…</td></tr></tbody>
                 </table>
               </div>
               <div class="nf-pager" id="nf-pager"></div>

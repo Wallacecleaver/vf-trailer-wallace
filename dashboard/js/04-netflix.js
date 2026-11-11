@@ -30,6 +30,7 @@
     if (!data.tmdbKeyConfigured) notes.push('⚠️ TMDB_API_KEY n\'est pas définie : seul Wikidata alimente le catalogue, et la recherche TMDB de cet onglet est indisponible.');
     document.getElementById('nf-note').innerHTML = notes.map(escapeHtml).join('<br>');
     nfCrawlerLoad();
+    nfCoverageLoad();
     nfLoadTable();
     nfStartPolling();
   }
@@ -129,6 +130,7 @@
     nfInterval = setInterval(function () {
       if (!document.getElementById('page-netflix').classList.contains('active')) { nfStopPolling(); return; }
       nfCrawlerLoad(true);
+      nfCoverageLoad();
     }, 8000);
   }
   function nfStopPolling() { if (nfInterval) { clearInterval(nfInterval); nfInterval = null; } }
@@ -224,6 +226,13 @@
 
   function nfBadge(text, kind) { return '<span class="nf-badge ' + kind + '">' + escapeHtml(text) + '</span>'; }
 
+  const NF_LINK = {
+    ok: ['Vérifié', 'green', 'Titre et année concordent avec TMDB'],
+    weak: ['Probable', 'amber', 'Le titre ou l\'année concorde avec TMDB (titre traduit autrement, par exemple)'],
+    mismatch: ['Douteux', 'red', 'Ni le titre ni l\'année ne concordent : lien écarté de la distribution'],
+    unknown: ['Inconnu', 'grey', 'TMDB ne connaît pas ce titre'],
+  };
+
   function nfRenderRow(r) {
     const st = NF_STATUS[r.crawl_status || 'pending'] || NF_STATUS.pending;
     const tmdb = r.tmdb_id
@@ -232,24 +241,32 @@
     const imdb = r.imdb_id
       ? '<a class="nf-link mono" target="_blank" rel="noopener" href="https://www.imdb.com/title/' + encodeURIComponent(r.imdb_id) + '/">' + escapeHtml(r.imdb_id) + '</a>'
       : '<span class="nf-dash">—</span>';
+    let link = '<span class="nf-dash">—</span>';
+    if (r.imdb_id) {
+      const l = NF_LINK[r.link_status] || (r.source === 'manual' ? ['Manuel', 'blue', 'Saisi à la main : fait foi'] : ['À vérifier', 'grey', 'Pas encore vérifié contre TMDB']);
+      link = '<span title="' + escapeHtml(l[2]) + '">' + nfBadge(l[0], l[1]) + '</span>';
+    }
+    const trailer = r.has_trailer === 1 ? nfBadge('✓ Oui', 'green') : r.has_trailer === 0 ? nfBadge('Aucune', 'amber') : '<span class="nf-dash">—</span>';
+    const served = r.served_count > 0
+      ? '<span class="mono" title="' + r.served_count + ' fois proposée · ' + (r.played_count || 0) + ' lecture(s)">' + nfFmt(r.served_count) + '×</span>'
+      : '<span class="nf-dash">—</span>';
     return '<tr>' +
       '<td><a class="nf-link mono" target="_blank" rel="noopener" href="https://www.netflix.com/title/' + encodeURIComponent(r.nid) + '">' + escapeHtml(r.nid) + '</a></td>' +
       '<td class="nf-title-cell">' + (r.title ? escapeHtml(r.title) : '<span class="nf-dash">non lu</span>') + '</td>' +
       '<td class="mono">' + (r.year || '<span class="nf-dash">—</span>') + '</td>' +
       '<td>' + (nfTypeLabel(r.type) ? nfBadge(nfTypeLabel(r.type), r.type === 'tv' ? 'purple' : 'blue') : '<span class="nf-dash">—</span>') + '</td>' +
-      '<td>' + tmdb + '</td><td>' + imdb + '</td>' +
-      '<td>' + nfBadge(NF_SOURCE[r.source] || r.source, 'grey') + '</td>' +
-      '<td>' + nfBadge(st[0], st[1]) + '</td></tr>';
+      '<td>' + tmdb + '</td><td>' + imdb + '</td><td>' + link + '</td><td>' + trailer + '</td><td>' + served + '</td>' +
+      '<td><span title="Source : ' + escapeHtml(NF_SOURCE[r.source] || r.source) + '">' + nfBadge(st[0], st[1]) + '</span></td></tr>';
   }
 
   async function nfLoadTable(silent) {
     const body = document.getElementById('nf-t-body');
     const qs = 'q=' + encodeURIComponent(nfTable.q) + '&filter=' + nfTable.filter + '&page=' + nfTable.page + '&size=' + nfTable.size;
     const { ok, data } = await nfCall('/api/netflix-catalog/titles?' + qs);
-    if (!ok) { if (!silent) body.innerHTML = '<tr class="empty-row"><td colspan="8">' + escapeHtml(data.error || 'Erreur') + '</td></tr>'; return; }
+    if (!ok) { if (!silent) body.innerHTML = '<tr class="empty-row"><td colspan="10">' + escapeHtml(data.error || 'Erreur') + '</td></tr>'; return; }
     nfTable.total = data.total; nfTable.page = data.page;
     body.innerHTML = data.rows.length ? data.rows.map(nfRenderRow).join('')
-      : '<tr class="empty-row"><td colspan="8">Aucun titre' + (nfTable.q || nfTable.filter !== 'all' ? ' pour ce filtre' : ' pour l\'instant') + '</td></tr>';
+      : '<tr class="empty-row"><td colspan="10">Aucun titre' + (nfTable.q || nfTable.filter !== 'all' ? ' pour ce filtre' : ' pour l\'instant') + '</td></tr>';
     nfRenderPager(data);
   }
 
@@ -265,4 +282,32 @@
       '<span class="nf-pager-page">' + d.page + ' / ' + nfFmt(pages) + '</span>' +
       '<button class="btn-outline-sm" ' + (d.page >= pages ? 'disabled' : 'onclick="nfGoPage(' + (d.page + 1) + ')"') + '>Suiv. ›</button>' +
       '<button class="btn-outline-sm" ' + (d.page >= pages ? 'disabled' : 'onclick="nfGoPage(' + pages + ')"') + '>»</button></span>';
+  }
+
+  // ---- Couverture : de l'ID Netflix jusqu'à la distribution ----
+  async function nfCoverageLoad() {
+    const { ok, data: c } = await nfCall('/api/netflix-catalog/coverage');
+    if (!ok) return;
+    const total = c.total || 1;
+    const steps = [
+      ['Titres en base', c.total, 'grey', null],
+      ['Pages Netflix lues', c.read, 'blue', null],
+      ['Liés à un IMDB ID', c.with_imdb, 'blue', null],
+      ['Liens vérifiés (titre/année concordent)', c.verified, 'green', c.mismatch ? c.mismatch + ' douteux écartés' : null],
+      ['Avec une bande-annonce sur la page', c.with_trailer, 'purple', c.without_trailer ? c.without_trailer + ' sans' : null],
+      ['Prêts à distribuer (IMDB + bande-annonce)', c.ready, 'red', c.imdb_unread ? c.imdb_unread + ' pas encore lus' : null],
+      ['Déjà proposés à Stremio', c.served_titles, 'green', c.served_total ? nfFmt(c.served_total) + ' fois · ' + nfFmt(c.played_total) + ' lecture(s)' : null],
+    ];
+    document.getElementById('nfv-steps').innerHTML = steps.map(function (s) {
+      const pct = Math.min(100, (s[1] / total) * 100);
+      return '<div class="nfv-step"><div class="nfv-row"><span class="nfv-k">' + escapeHtml(s[0]) + '</span>' +
+        '<span class="nfv-v">' + nfFmt(s[1]) + ' <small>' + (pct < 1 && s[1] ? '<1' : Math.round(pct)) + ' %</small></span></div>' +
+        '<div class="nfv-bar"><div class="nfv-fill ' + s[2] + '" style="width:' + pct.toFixed(1) + '%"></div></div>' +
+        (s[3] ? '<div class="nfv-extra">' + escapeHtml(s[3]) + '</div>' : '') + '</div>';
+    }).join('');
+    document.getElementById('nfv-ready-n').textContent = nfFmt(c.ready);
+    const note = [];
+    if (c.read) note.push(Math.round((c.with_trailer / c.read) * 100) + ' % des pages lues ont une bande-annonce');
+    if (c.unverified) note.push(nfFmt(c.unverified) + ' lien(s) IMDB pas encore vérifié(s) : l\'exploration les vérifie au fil de l\'eau');
+    document.getElementById('nfv-note').textContent = note.join(' · ');
   }

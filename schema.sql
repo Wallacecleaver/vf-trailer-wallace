@@ -204,7 +204,12 @@ CREATE TABLE IF NOT EXISTS netflix_titles (
     crawl_status       TEXT,
     crawl_attempts     INTEGER NOT NULL DEFAULT 0,
     crawled_at         TEXT,
-    discovered_from    TEXT                  -- ID Netflix de la page où cet ID a été découvert
+    discovered_from    TEXT,                 -- ID Netflix de la page où cet ID a été découvert
+    has_trailer        INTEGER,              -- 1 = la page Netflix expose une bande-annonce, 0 = aucune, NULL = pas encore lue
+    link_status        TEXT,                 -- vérification du lien IMDB/TMDB : ok | weak | mismatch | unknown (NULL = pas vérifié)
+    served_count       INTEGER NOT NULL DEFAULT 0,  -- fois où la bande-annonce a été proposée à Stremio/AIOMetadata
+    played_count       INTEGER NOT NULL DEFAULT 0,  -- fois où la vidéo a été relayée (/nf/<id>.mp4)
+    last_served_at     TEXT
 );
 CREATE INDEX IF NOT EXISTS netflix_titles_imdb_idx ON netflix_titles (imdb_id);
 CREATE INDEX IF NOT EXISTS netflix_titles_tmdb_idx ON netflix_titles (tmdb_id, type);
