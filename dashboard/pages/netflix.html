@@ -34,13 +34,8 @@
             </div>
             <div class="nfc-foot">
               <div class="nfc-speed">
-                <label for="nfc-delay">Cadence</label>
-                <select id="nfc-delay" onchange="nfCrawlerDelay(this.value)">
-                  <option value="1500">Rapide · 1 page / 1,5 s</option>
-                  <option value="4000">Normal · 1 page / 4 s</option>
-                  <option value="10000">Discret · 1 page / 10 s</option>
-                  <option value="30000">Très discret · 1 page / 30 s</option>
-                </select>
+                <span class="nfc-speed-label">Cadence</span>
+                <div class="nfc-seg" id="nfc-seg" role="group" aria-label="Cadence d'exploration"></div>
               </div>
               <div class="nfc-last" id="nfc-last"></div>
             </div>

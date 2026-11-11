@@ -164,13 +164,7 @@
     document.getElementById('nfc-disc').textContent = '+' + nfFmt(d.session.discovered);
     document.getElementById('nfc-matched').textContent = '+' + nfFmt(d.session.matched);
     document.getElementById('nfc-issues').textContent = nfFmt(c.missing + c.noinfo + c.error);
-    const sel = document.getElementById('nfc-delay');
-    if (document.activeElement !== sel) {
-      if (![].some.call(sel.options, function (o) { return Number(o.value) === d.delayMs; })) {
-        const o = document.createElement('option'); o.value = d.delayMs; o.textContent = 'Personnalisée · ' + (d.delayMs / 1000) + ' s'; sel.appendChild(o);
-      }
-      sel.value = String(d.delayMs);
-    }
+    nfRenderSpeed(d.delayMs);
     const last = [];
     if (d.last.nid) last.push('Dernier : ' + (d.last.title ? d.last.title + ' ' : '') + '#' + d.last.nid);
     if (d.last.error) last.push('⚠️ ' + d.last.error);
@@ -182,6 +176,19 @@
     if (!ok) { toast(data.error || 'Erreur'); document.getElementById('nfc-enabled').checked = !on; return; }
     nfRenderCrawler(data);
     toast(on ? 'Exploration démarrée' : 'Exploration arrêtée');
+  }
+
+  // Cadences proposées : [libellé, délai en ms]. Le débit affiché tient compte de l'aléatoire (+12,5 % en moyenne).
+  const NF_SPEEDS = [['Rapide', 1500], ['Normal', 4000], ['Discret', 10000], ['Très discret', 30000]];
+
+  function nfRenderSpeed(delayMs) {
+    const seg = document.getElementById('nfc-seg');
+    const list = NF_SPEEDS.some(function (s) { return s[1] === delayMs; }) ? NF_SPEEDS : NF_SPEEDS.concat([['Perso', delayMs]]);
+    seg.innerHTML = list.map(function (s) {
+      const perHour = Math.round(3600000 / (s[1] * 1.125) / 10) * 10;
+      return '<button type="button" class="nfc-seg-btn' + (s[1] === delayMs ? ' active' : '') + '" onclick="nfCrawlerDelay(' + s[1] + ')">' +
+        '<b>' + escapeHtml(s[0]) + '</b><span>' + (s[1] / 1000).toLocaleString('fr-FR') + ' s · ≈ ' + perHour.toLocaleString('fr-FR') + ' /h</span></button>';
+    }).join('');
   }
 
   async function nfCrawlerDelay(ms) {

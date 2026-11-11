@@ -607,9 +607,15 @@
   #page-netflix .nfc-mini-v { font-size:20px; font-weight:800; font-variant-numeric:tabular-nums; }
   #page-netflix .nfc-mini-k { font-size:10.5px; text-transform:uppercase; letter-spacing:.8px; color:var(--muted); margin-top:2px; }
   #page-netflix .nfc-foot { display:flex; align-items:center; justify-content:space-between; gap:14px; flex-wrap:wrap; margin-top:16px; }
-  #page-netflix .nfc-speed { display:flex; align-items:center; gap:10px; font-size:12px; color:var(--text2); }
-  #page-netflix .nfc-speed select { background:var(--input-bg); border:1px solid var(--border); color:var(--text); border-radius:8px; padding:7px 10px; font-size:12.5px; }
-  #page-netflix .nfc-speed select:focus { outline:none; border-color:var(--accent); }
+  #page-netflix .nfc-speed { display:flex; align-items:center; gap:12px; flex-wrap:wrap; font-size:12px; color:var(--text2); }
+  #page-netflix .nfc-seg { display:flex; gap:6px; flex-wrap:wrap; }
+  #page-netflix .nfc-seg-btn { display:flex; flex-direction:column; align-items:flex-start; gap:2px; padding:8px 14px; border-radius:10px; cursor:pointer;
+    background:var(--surface2); border:1px solid var(--border); color:var(--text2); font-family:inherit; text-align:left; transition:all .15s; }
+  #page-netflix .nfc-seg-btn b { font-size:12.5px; color:var(--text); }
+  #page-netflix .nfc-seg-btn span { font-size:10.5px; color:var(--muted); font-variant-numeric:tabular-nums; }
+  #page-netflix .nfc-seg-btn:hover { border-color:var(--text2); }
+  #page-netflix .nfc-seg-btn.active { background:var(--accent-dim); border-color:rgba(229,62,62,.55); }
+  #page-netflix .nfc-seg-btn.active b { color:var(--accent); }
   #page-netflix .nfc-last { font-size:12px; color:var(--muted); min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
   #page-netflix .nfc-warn { margin-top:14px; padding-top:12px; border-top:1px solid var(--border); font-size:11.5px; color:var(--muted); line-height:1.5; }
 
