@@ -2,7 +2,7 @@
 
 Addon [Stremio](https://www.stremio.com/) qui affiche la **bande-annonce officielle française** (et le teaser quand il existe) de n'importe quel film ou série, directement dans la fiche du titre.
 
-- **Sources** : TMDB → Allociné → recherche YouTube (en repli), puis la page titre Netflix en tout dernier recours (voir ci-dessous), avec détection VF par liste blanche.
+- **Sources** : TMDB → Allociné → recherche YouTube (en repli), puis les bandes-annonces Netflix fournies par une autre instance (API de fédération) ou, à défaut, la page titre Netflix (voir ci-dessous), avec détection VF par liste blanche.
 - **Stremio** : teaser (si dispo) puis bande-annonce. Compatible avec l'option « A trailer addon » d'**AIOMetadata** (mode `aiom` : un seul lien `ytId`/`url`, avec délai maximum réglable).
 - **Dashboard d'administration** : stats, utilisateurs, mapping manuel des liens, journal des échecs, test des flux, logs, réglages, cache…
 - **Pages publiques** : configuration de l'addon (`/`), proposition de liens par la communauté (`/proposer`).
@@ -102,6 +102,9 @@ Ouvre `APP_BASE_URL` dans ton navigateur, renseigne ta clé TMDB, puis clique su
 | `DASHBOARD_NO_CACHE` | non | `1` pour désactiver le cache de rendu du dashboard pendant que tu le modifies. |
 | `NETFLIX_COUNTRY` | non | Pays de la page Netflix lue par le repli Netflix (défaut `fr`). |
 | `NETFLIX_CRAWL` | non | `0` désactive complètement l'exploration en arrière-plan des pages Netflix (sinon elle s'active depuis le dashboard). |
+| `NETFLIX_FEDERATION_URL` | non | URL de base d'une instance « Netflix Catalogue » qui fournit les bandes-annonces par API (sans slash final). |
+| `NETFLIX_FEDERATION_API_KEY` | non | Clé API (`API_KEY`) de cette instance amont. |
+| `NETFLIX_FEDERATION_TIMEOUT_MS` | non | Délai maximal d'un appel à l'instance amont en millisecondes (défaut `6000`). |
 
 ### Ressources utilisées (très légères)
 
@@ -214,9 +217,36 @@ Chaque push sur `main` déclenche `.github/workflows/docker.yml` : tests, puis c
 - **Docker Hub (recommandé pour rester discret)** : crée un compte / une organisation Docker Hub au nom de ton choix, puis dans le dépôt : variable `IMAGE_NAME` = `nom/vf-trailers`, secrets `DOCKERHUB_USERNAME` et `DOCKERHUB_TOKEN` (jeton d'accès en lecture/écriture). Le dépôt d'images Docker Hub est public par défaut.
 - **GHCR (par défaut)** : sans configuration, l'image est publiée sur `ghcr.io/<propriétaire>/<dépôt>`. Le nom de l'image contient alors ton identifiant GitHub, et le paquet doit être passé en *Public* à la main (une seule fois).
 
+### Bandes-annonces Netflix via une autre instance (fédération)
+
+Plutôt que de scraper `netflix.com`, l'addon peut demander les bandes-annonces Netflix à une instance du projet
+[Netflix Catalogue](https://github.com/Wallacecleaver/Netflix-catalogue-stremio), qui expose une API protégée par clé.
+
+Sur l'instance **source** (Netflix Catalogue), configure `API_KEY` et une `PUBLIC_URL` accessible depuis ce serveur.
+Ici (instance VF), ajoute dans le `.env` :
+
+```env
+NETFLIX_FEDERATION_URL=https://netflix.mondomaine.fr
+NETFLIX_FEDERATION_API_KEY=la-cle-api-de-l-instance-amont
+# facultatif
+NETFLIX_FEDERATION_TIMEOUT_MS=6000
+```
+
+Fonctionnement :
+
+- la source est utilisée dans la chaîne de repli, **avant** le scraping de la page Netflix ;
+- elle est aussi interrogée quand TMDB ne connaît pas du tout le titre (recherche par IMDb) ;
+- l'addon interroge d'abord l'amont par IMDb, puis par TMDB + type (`movie`/`series`) si nécessaire ;
+- les URLs renvoyées sont des vidéos directes (relais `/trailer/<id>/<n>.mp4` de l'instance amont), lisibles par Stremio et AIOMetadata ;
+- un résultat est gardé en mémoire 6 h ; un échec est retenté au bout de 30 min (puis mis en cache par l'addon comme les autres sources) ;
+- activable/désactivable dans **Réglages → Sources de résolution** (« Bandes-annonces via l'instance Netflix Catalogue ») ;
+- le diagnostic de la page Réglages indique si l'instance amont est configurée et joignable.
+
+Sans `NETFLIX_FEDERATION_URL`, le comportement reste identique à avant : la source est simplement ignorée.
+
 ### Repli sur la page Netflix
 
-Quand **aucune** autre source (TMDB, Allociné, recherche YouTube) ne trouve de bande-annonce, l'addon tente la page du titre sur Netflix : il retrouve l'ID Netflix via Wikidata (par IMDB ID), lit la page `netflix.com/<pays>/title/<id>` et renvoie une URL stable de ton serveur, `APP_BASE_URL/nf/<id>.mp4`. Les liens vidéo Netflix expirent en quelques heures : cette route les renouvelle à chaque lecture et relaie la vidéo (requêtes `Range` comprises). Compatible avec le mode AIOMetadata (lien `url`).
+Quand **aucune** autre source (TMDB, Allociné, recherche YouTube, fédération) ne trouve de bande-annonce, l'addon tente la page du titre sur Netflix : il retrouve l'ID Netflix via Wikidata (par IMDB ID), lit la page `netflix.com/<pays>/title/<id>` et renvoie une URL stable de ton serveur, `APP_BASE_URL/nf/<id>.mp4`. Les liens vidéo Netflix expirent en quelques heures : cette route les renouvelle à chaque lecture et relaie la vidéo (requêtes `Range` comprises). Compatible avec le mode AIOMetadata (lien `url`).
 
 - Activé par défaut, désactivable dans **Réglages → Sources de résolution**.
 - Pour un titre que Wikidata ne connaît pas : dans **Mapping**, colle l'URL Netflix du titre (`https://www.netflix.com/fr/title/81944880`) dans « lien direct » d'un override.
@@ -241,4 +271,4 @@ Les mêmes fonctions sont disponibles en API (connecté, en-tête `x-admin-token
 
 ## Sources de données
 
-TMDB (principal) · Allociné (repli) · YouTube (recherche) · page titre Netflix (dernier recours, via Wikidata pour l'ID). Ce produit utilise l'API TMDB mais n'est ni approuvé ni certifié par TMDB.
+TMDB (principal) · Allociné (repli) · YouTube (recherche) · instance Netflix Catalogue (fédération, optionnel) · page titre Netflix (dernier recours, via Wikidata pour l'ID). Ce produit utilise l'API TMDB mais n'est ni approuvé ni certifié par TMDB.

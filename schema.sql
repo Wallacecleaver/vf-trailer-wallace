@@ -169,6 +169,7 @@ CREATE TABLE IF NOT EXISTS behavior_settings (
     id                             INTEGER PRIMARY KEY,
     allocine_fallback              INTEGER,
     youtube_search_fallback        INTEGER,
+    netflix_federation             INTEGER,
     netflix_fallback               INTEGER,
     max_trailers                   INTEGER,
     extra_vf_keywords              TEXT,    -- JSON : ["mot", ...]

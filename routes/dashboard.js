@@ -21,6 +21,7 @@ const {
 const { searchYoutubeRaw } = require('../lib/youtube-search');
 const { probeDirectLink } = require('../lib/media-link');
 const { netflixUrlToRelay } = require('../lib/netflix-trailer');
+const federation = require('../lib/netflix-federation');
 const { testResolve } = require('../lib/resolver');
 const { tmdbSearch, youtubeTitle } = require('./lookups');
 
@@ -351,14 +352,17 @@ module.exports = function registerDashboardRoutes(app) {
             }
         }
 
-        const services = await checkServices();
-
-        const cache = await getCacheStats();
+        const [services, federationStatus, cache] = await Promise.all([
+            checkServices(),
+            federation.checkConnection(),
+            getCacheStats(),
+        ]);
 
         res.json({
             db: dbReachable,
             tmdbKey: { present: !!FALLBACK_TMDB_KEY, last4: tmdbKeyLast4, valid: tmdbKeyValid },
             services,
+            federation: federationStatus,
             cache,
         });
     });
