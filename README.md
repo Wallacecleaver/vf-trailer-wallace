@@ -2,7 +2,7 @@
 
 Addon [Stremio](https://www.stremio.com/) qui affiche la **bande-annonce officielle française** (et le teaser quand il existe) de n'importe quel film ou série, directement dans la fiche du titre.
 
-- **Sources** : TMDB → Allociné → recherche YouTube (en repli), puis une instance **Netflix Catalogue** si tu en configures une, avec détection VF par liste blanche.
+- **Sources** : TMDB → Allociné → instance **Netflix Catalogue** (si configurée) → recherche YouTube en dernier recours, avec détection VF par liste blanche.
 - **Stremio** : teaser (si dispo) puis bande-annonce. Compatible avec l'option « A trailer addon » d'**AIOMetadata** (mode `aiom` : un seul lien `ytId`/`url`, avec délai maximum réglable).
 - **Dashboard d'administration** : stats, utilisateurs, mapping manuel des liens, journal des échecs, test des flux, logs, réglages, cache…
 - **Pages publiques** : configuration de l'addon (`/`), proposition de liens par la communauté (`/proposer`).
@@ -171,7 +171,7 @@ Si tu fais tourner une instance de l'addon **Netflix Catalogue**, l'addon peut l
 NETFLIX_CATALOGUE_URL=https://netflix.mondomaine.fr
 ```
 
-- Ordre de la chaîne : TMDB → Allociné → recherche YouTube → **Netflix Catalogue**.
+- Ordre de la chaîne : TMDB → Allociné → **Netflix Catalogue** → recherche YouTube (dernier recours).
 - La source est aussi interrogée quand TMDB ne connaît pas du tout le titre (recherche par IMDb).
 - L'addon demande d'abord par IMDb, puis par TMDB + type si nécessaire.
 - Les URLs renvoyées sont des vidéos directes (relais `/trailer/...` de l'instance amont).
@@ -230,4 +230,4 @@ Chaque push sur `main` déclenche `.github/workflows/docker.yml` : tests, puis c
 
 ## Sources de données
 
-TMDB (principal) · Allociné (repli) · YouTube (recherche) · instance Netflix Catalogue (optionnel, par URL). Ce produit utilise l'API TMDB mais n'est ni approuvé ni certifié par TMDB.
+TMDB (principal) · Allociné (repli) · instance Netflix Catalogue (optionnel, par URL) · YouTube (recherche, dernier recours). Ce produit utilise l'API TMDB mais n'est ni approuvé ni certifié par TMDB.
