@@ -560,6 +560,10 @@
   #page-teststream .ts-hist-name { font-size:12.5px; font-weight:600; flex:1; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
   #page-teststream .ts-hist-meta { font-size:11px; color:var(--muted); flex-shrink:0; font-family:'JetBrains Mono',monospace; }
 
+  /* ---- Bloc « API Netflix Catalogue » (Réglages) ---- */
+  #page-settings .nf-api-row { display:flex; align-items:center; gap:10px; }
+  #page-settings .nf-api-row input { flex:1; min-width:0; }
+
 
   @media (max-width:800px) {
     .sidebar { display:none; }

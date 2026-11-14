@@ -2,7 +2,7 @@
 
 Addon [Stremio](https://www.stremio.com/) qui affiche la **bande-annonce officielle française** (et le teaser quand il existe) de n'importe quel film ou série, directement dans la fiche du titre.
 
-- **Sources** : TMDB → Allociné → recherche YouTube (en repli), avec détection VF par liste blanche.
+- **Sources** : TMDB → Allociné → recherche YouTube (en repli), puis une instance **Netflix Catalogue** si tu en configures une, avec détection VF par liste blanche.
 - **Stremio** : teaser (si dispo) puis bande-annonce. Compatible avec l'option « A trailer addon » d'**AIOMetadata** (mode `aiom` : un seul lien `ytId`/`url`, avec délai maximum réglable).
 - **Dashboard d'administration** : stats, utilisateurs, mapping manuel des liens, journal des échecs, test des flux, logs, réglages, cache…
 - **Pages publiques** : configuration de l'addon (`/`), proposition de liens par la communauté (`/proposer`).
@@ -163,6 +163,22 @@ npm start          # (= node selfhost/server.js) crée la base et les tables au 
 
 Pour le garder en service, utilise par exemple `systemd` ou `pm2 start selfhost/server.js --name vf-trailers`.
 
+### Bandes-annonces Netflix via une autre instance (optionnel)
+
+Si tu fais tourner une instance de l'addon **Netflix Catalogue**, l'addon peut lui demander ses bandes-annonces Netflix par API. Aucune clé à gérer : il suffit de coller l'URL de l'instance dans **Réglages → API Netflix Catalogue** (ou `NETFLIX_CATALOGUE_URL` dans le `.env`).
+
+```env
+NETFLIX_CATALOGUE_URL=https://netflix.mondomaine.fr
+```
+
+- Ordre de la chaîne : TMDB → Allociné → recherche YouTube → **Netflix Catalogue**.
+- La source est aussi interrogée quand TMDB ne connaît pas du tout le titre (recherche par IMDb).
+- L'addon demande d'abord par IMDb, puis par TMDB + type si nécessaire.
+- Les URLs renvoyées sont des vidéos directes (relais `/trailer/...` de l'instance amont).
+- Sur l'instance **Netflix Catalogue**, laisse `API_KEY` vide (API ouverte) : c'est l'URL que tu gardes pour toi qui fait office de secret. Si `API_KEY` est renseignée, l'appel sans clé reçoit un 401 et le diagnostic te l'indique.
+- Un résultat est gardé en mémoire 6 h ; un échec est retenté au bout de 30 min.
+- Le bouton **Tester** et le diagnostic de la page Réglages vérifient la connexion (`GET /api/status`).
+
 ### Dépannage
 
 | Symptôme | Piste |
@@ -214,4 +230,4 @@ Chaque push sur `main` déclenche `.github/workflows/docker.yml` : tests, puis c
 
 ## Sources de données
 
-TMDB (principal) · Allociné (repli) · YouTube (recherche). Ce produit utilise l'API TMDB mais n'est ni approuvé ni certifié par TMDB.
+TMDB (principal) · Allociné (repli) · YouTube (recherche) · instance Netflix Catalogue (optionnel, par URL). Ce produit utilise l'API TMDB mais n'est ni approuvé ni certifié par TMDB.

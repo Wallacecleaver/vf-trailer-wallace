@@ -2,6 +2,7 @@
   const SETTING_FIELDS = [
     { id: 'set-allocineFallback', get: el => el.checked },
     { id: 'set-youtubeSearchFallback', get: el => el.checked },
+    { id: 'set-netflixCatalogueUrl', get: el => el.value.trim() },
     { id: 'set-ignoreTeasers', get: el => el.checked },
     { id: 'set-includeExtras', get: el => el.checked },
     { id: 'set-trailerLanguage', get: el => el.value },
@@ -17,6 +18,7 @@
   ];
   const SETTING_NAMES = {
     allocineFallback: 'set-allocineFallback', youtubeSearchFallback: 'set-youtubeSearchFallback',
+    netflixCatalogueUrl: 'set-netflixCatalogueUrl',
     ignoreTeasers: 'set-ignoreTeasers', includeExtras: 'set-includeExtras',
     trailerLanguage: 'set-trailerLanguage', maxTrailers: 'set-maxTrailers',
     cacheEnabled: 'set-cacheEnabled', cacheTtlHours: 'set-cacheTtlHours',
@@ -93,6 +95,34 @@
     });
   }
 
+  // Bouton « Tester » du bloc API Netflix Catalogue : appelle /api/status sur l'instance.
+  async function testNetflixCatalogue() {
+    const input = document.getElementById('set-netflixCatalogueUrl');
+    const status = document.getElementById('nf-cat-test-status');
+    if (!status) return;
+    const url = (input ? input.value : '').trim();
+    status.className = 'link-status pending';
+    status.textContent = url ? 'Connexion à ' + url + '…' : 'Aucune URL enregistrée';
+    try {
+      const res = await fetch('/api/netflix-catalogue/test' + (url ? '?url=' + encodeURIComponent(url) : ''), { headers: authHeaders() });
+      const d = await res.json();
+      if (!d.configured) {
+        status.className = 'link-status bad';
+        status.textContent = '✗ ' + (d.reason || 'URL non configurée');
+      } else if (d.ok) {
+        status.className = 'link-status ok';
+        status.textContent = '✓ Connectée' + (d.version ? ' — version ' + d.version : '') +
+          (d.titles != null ? ' · ' + d.titles + ' titre' + (d.titles > 1 ? 's' : '') : '');
+      } else {
+        status.className = 'link-status bad';
+        status.textContent = '✗ ' + (d.reason || 'Instance injoignable');
+      }
+    } catch (e) {
+      status.className = 'link-status bad';
+      status.textContent = '✗ ' + e.message;
+    }
+  }
+
   async function loadCacheStats() {
     const desc = document.getElementById('cache-stats-desc');
     try {
@@ -129,7 +159,7 @@
       el.innerHTML = escapeHtml(label) + (sub ? '<span class="diag-sub">' + escapeHtml(sub) + '</span>' : '');
     };
     try {
-      if (force) { desc.textContent = 'Vérification en cours...'; setVal('db', '…', null); setVal('tmdbkey', '…', null); setVal('svc-tmdb', '…', null); setVal('svc-youtube', '…', null); setVal('svc-allocine', '…', null); setVal('cache', '…', null); }
+      if (force) { desc.textContent = 'Vérification en cours...'; setVal('db', '…', null); setVal('tmdbkey', '…', null); setVal('svc-tmdb', '…', null); setVal('svc-youtube', '…', null); setVal('svc-allocine', '…', null); setVal('svc-netflix-catalogue', '…', null); setVal('cache', '…', null); }
       const res = await fetch('/api/diagnostics', { headers: authHeaders() });
       const d = await res.json();
       setVal('db', d.db ? '✓ Connectée' : '✗ Indisponible', d.db, d.db ? 'SQLite opérationnelle' : 'Vérifie que DATA_DIR est accessible en écriture');
@@ -141,6 +171,13 @@
       setVal('svc-tmdb', d.services && d.services.tmdb ? '✓ Joignable' : '✗ Down', !!(d.services && d.services.tmdb), 'themoviedb.org');
       setVal('svc-youtube', d.services && d.services.youtube ? '✓ Joignable' : '✗ Down', !!(d.services && d.services.youtube), 'youtube.com');
       setVal('svc-allocine', d.services && d.services.allocine ? '✓ Joignable' : '✗ Down', !!(d.services && d.services.allocine), 'allocine.fr');
+      if (d.federation && d.federation.configured) {
+        const f = d.federation;
+        setVal('svc-netflix-catalogue', f.ok ? '✓ Joignable' : '✗ Down', !!f.ok,
+          f.ok ? (f.version ? 'v' + f.version : 'instance amont') + (f.titles != null ? ' · ' + f.titles + ' titres' : '') : (f.reason || ''));
+      } else {
+        setVal('svc-netflix-catalogue', '⚠️ Non configurée', null, 'Renseigne l’URL ci-dessous');
+      }
       setVal('cache', d.cache && d.cache.count ? (d.cache.count + ' entrée' + (d.cache.count > 1 ? 's' : '')) : 'Vide', true, (d.cache && d.cache.success ? d.cache.success + ' succès · ' : '') + (d.cache && d.cache.failures ? d.cache.failures + ' échecs' : '0 échec'));
       desc.textContent = d.db ? 'Tout est opérationnel' : '⚠️ Base de données indisponible — le cache et les stats ne fonctionneront pas';
     } catch (e) {

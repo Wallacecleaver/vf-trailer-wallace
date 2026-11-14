@@ -22,12 +22,28 @@
               <div class="diag-item"><span class="diag-label">TMDB</span><span class="diag-val diag-pending" data-diag="svc-tmdb">…</span></div>
               <div class="diag-item"><span class="diag-label">YouTube</span><span class="diag-val diag-pending" data-diag="svc-youtube">…</span></div>
               <div class="diag-item"><span class="diag-label">Allociné</span><span class="diag-val diag-pending" data-diag="svc-allocine">…</span></div>
+              <div class="diag-item"><span class="diag-label">Netflix Catalogue</span><span class="diag-val diag-pending" data-diag="svc-netflix-catalogue">…</span></div>
               <div class="diag-item"><span class="diag-label">Cache</span><span class="diag-val diag-pending" data-diag="cache">…</span></div>
             </div>
           </div>
 
           <div class="card">
-            <div class="card-head"><div><div class="card-title">🔗 Sources de résolution</div><div class="card-desc">Ordre de repli : TMDB d'abord, puis Allociné, puis la recherche YouTube</div></div></div>
+            <div class="card-head"><div><div class="card-title">🌐 API Netflix Catalogue</div><div class="card-desc">Récupère des bandes-annonces Netflix depuis une autre instance de l'addon « Netflix Catalogue ». Colle uniquement son URL : aucune clé API n'est nécessaire.</div></div></div>
+            <div class="card-body">
+              <div class="form-field full">
+                <label>URL de l'instance <span class="hint">(ex. https://netflix.mondomaine.fr — sans slash final)</span></label>
+                <div class="nf-api-row">
+                  <input type="url" id="set-netflixCatalogueUrl" placeholder="https://netflix.mondomaine.fr" spellcheck="false">
+                  <button class="btn-outline-sm" type="button" onclick="testNetflixCatalogue()">🔌 Tester</button>
+                </div>
+                <div class="link-status" id="nf-cat-test-status"></div>
+              </div>
+              <div class="info-box">Source utilisée en dernier recours, après TMDB, Allociné et YouTube — et aussi quand TMDB ne connaît pas le titre. L'instance amont doit avoir <code>API_KEY</code> vide pour accepter les appels sans clé.</div>
+            </div>
+          </div>
+
+          <div class="card">
+            <div class="card-head"><div><div class="card-title">🔗 Sources de résolution</div><div class="card-desc">Ordre de repli : TMDB d'abord, puis Allociné, puis la recherche YouTube, puis l'instance Netflix Catalogue (si configurée)</div></div></div>
             <div class="toggle-row">
               <div><div class="label">Repli sur Allociné</div><div class="desc">Si TMDB n'a pas de bande-annonce (rien du tout, ou seulement un teaser), chercher sur Allociné (scraping)</div></div>
               <label class="switch"><input type="checkbox" id="set-allocineFallback"><span class="slider"></span></label>

@@ -20,6 +20,7 @@ const {
 } = require('../lib/settings');
 const { searchYoutubeRaw } = require('../lib/youtube-search');
 const { probeDirectLink } = require('../lib/media-link');
+const federation = require('../lib/netflix-federation');
 const { testResolve } = require('../lib/resolver');
 const { tmdbSearch, youtubeTitle } = require('./lookups');
 
@@ -330,6 +331,14 @@ module.exports = function registerDashboardRoutes(app) {
         res.json({ db: await dbOk(), tmdbFallback: !!FALLBACK_TMDB_KEY });
     });
 
+    // Test de connexion à l'instance « Netflix Catalogue » (bouton « Tester » du dashboard).
+    // Utilise l'URL enregistrée, ou ?url= pour tester une adresse avant de l'enregistrer.
+    app.get('/api/netflix-catalogue/test', requireAuth, async (req, res) => {
+        const behavior = await getBehaviorSettings();
+        const url = String(req.query.url || behavior.netflixCatalogueUrl || '').trim();
+        res.json(await federation.checkConnection(url));
+    });
+
     // ---- Diagnostic complet (page Réglages du dashboard) ----
     // Regroupe en un appel tout ce qu'un admin veut savoir en arrivant sur la page : base
     // joignable, clé TMDB serveur présente + valide (testée), services externes joignables,
@@ -349,15 +358,18 @@ module.exports = function registerDashboardRoutes(app) {
             }
         }
 
-        const [services, cache] = await Promise.all([
+        const behavior = await getBehaviorSettings();
+        const [services, cache, federationStatus] = await Promise.all([
             checkServices(),
             getCacheStats(),
+            federation.checkConnection(behavior.netflixCatalogueUrl),
         ]);
 
         res.json({
             db: dbReachable,
             tmdbKey: { present: !!FALLBACK_TMDB_KEY, last4: tmdbKeyLast4, valid: tmdbKeyValid },
             services,
+            federation: federationStatus,
             cache,
         });
     });
