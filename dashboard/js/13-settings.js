@@ -2,8 +2,6 @@
   const SETTING_FIELDS = [
     { id: 'set-allocineFallback', get: el => el.checked },
     { id: 'set-youtubeSearchFallback', get: el => el.checked },
-    { id: 'set-netflixFederation', get: el => el.checked },
-    { id: 'set-netflixFallback', get: el => el.checked },
     { id: 'set-ignoreTeasers', get: el => el.checked },
     { id: 'set-includeExtras', get: el => el.checked },
     { id: 'set-trailerLanguage', get: el => el.value },
@@ -19,7 +17,6 @@
   ];
   const SETTING_NAMES = {
     allocineFallback: 'set-allocineFallback', youtubeSearchFallback: 'set-youtubeSearchFallback',
-    netflixFederation: 'set-netflixFederation', netflixFallback: 'set-netflixFallback',
     ignoreTeasers: 'set-ignoreTeasers', includeExtras: 'set-includeExtras',
     trailerLanguage: 'set-trailerLanguage', maxTrailers: 'set-maxTrailers',
     cacheEnabled: 'set-cacheEnabled', cacheTtlHours: 'set-cacheTtlHours',
@@ -132,7 +129,7 @@
       el.innerHTML = escapeHtml(label) + (sub ? '<span class="diag-sub">' + escapeHtml(sub) + '</span>' : '');
     };
     try {
-      if (force) { desc.textContent = 'Vérification en cours...'; setVal('db', '…', null); setVal('tmdbkey', '…', null); setVal('svc-tmdb', '…', null); setVal('svc-youtube', '…', null); setVal('svc-allocine', '…', null); setVal('svc-federation', '…', null); setVal('cache', '…', null); }
+      if (force) { desc.textContent = 'Vérification en cours...'; setVal('db', '…', null); setVal('tmdbkey', '…', null); setVal('svc-tmdb', '…', null); setVal('svc-youtube', '…', null); setVal('svc-allocine', '…', null); setVal('cache', '…', null); }
       const res = await fetch('/api/diagnostics', { headers: authHeaders() });
       const d = await res.json();
       setVal('db', d.db ? '✓ Connectée' : '✗ Indisponible', d.db, d.db ? 'SQLite opérationnelle' : 'Vérifie que DATA_DIR est accessible en écriture');
@@ -144,12 +141,6 @@
       setVal('svc-tmdb', d.services && d.services.tmdb ? '✓ Joignable' : '✗ Down', !!(d.services && d.services.tmdb), 'themoviedb.org');
       setVal('svc-youtube', d.services && d.services.youtube ? '✓ Joignable' : '✗ Down', !!(d.services && d.services.youtube), 'youtube.com');
       setVal('svc-allocine', d.services && d.services.allocine ? '✓ Joignable' : '✗ Down', !!(d.services && d.services.allocine), 'allocine.fr');
-      if (d.federation && d.federation.configured) {
-        const f = d.federation;
-        setVal('svc-federation', f.ok ? '✓ Joignable' : '✗ Down', !!f.ok, f.ok ? (f.version ? 'v' + f.version : 'instance amont') : (f.reason || ''));
-      } else {
-        setVal('svc-federation', '⚠️ Non configurée', null, 'NETFLIX_FEDERATION_URL absente');
-      }
       setVal('cache', d.cache && d.cache.count ? (d.cache.count + ' entrée' + (d.cache.count > 1 ? 's' : '')) : 'Vide', true, (d.cache && d.cache.success ? d.cache.success + ' succès · ' : '') + (d.cache && d.cache.failures ? d.cache.failures + ' échecs' : '0 échec'));
       desc.textContent = d.db ? 'Tout est opérationnel' : '⚠️ Base de données indisponible — le cache et les stats ne fonctionneront pas';
     } catch (e) {

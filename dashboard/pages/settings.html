@@ -22,13 +22,12 @@
               <div class="diag-item"><span class="diag-label">TMDB</span><span class="diag-val diag-pending" data-diag="svc-tmdb">…</span></div>
               <div class="diag-item"><span class="diag-label">YouTube</span><span class="diag-val diag-pending" data-diag="svc-youtube">…</span></div>
               <div class="diag-item"><span class="diag-label">Allociné</span><span class="diag-val diag-pending" data-diag="svc-allocine">…</span></div>
-              <div class="diag-item"><span class="diag-label">Netflix Catalogue</span><span class="diag-val diag-pending" data-diag="svc-federation">…</span></div>
               <div class="diag-item"><span class="diag-label">Cache</span><span class="diag-val diag-pending" data-diag="cache">…</span></div>
             </div>
           </div>
 
           <div class="card">
-            <div class="card-head"><div><div class="card-title">🔗 Sources de résolution</div><div class="card-desc">Ordre de repli : TMDB d'abord, puis Allociné, puis YouTube, puis l'instance Netflix Catalogue (fédération), puis la page Netflix en tout dernier recours</div></div></div>
+            <div class="card-head"><div><div class="card-title">🔗 Sources de résolution</div><div class="card-desc">Ordre de repli : TMDB d'abord, puis Allociné, puis la recherche YouTube</div></div></div>
             <div class="toggle-row">
               <div><div class="label">Repli sur Allociné</div><div class="desc">Si TMDB n'a pas de bande-annonce (rien du tout, ou seulement un teaser), chercher sur Allociné (scraping)</div></div>
               <label class="switch"><input type="checkbox" id="set-allocineFallback"><span class="slider"></span></label>
@@ -36,14 +35,6 @@
             <div class="toggle-row">
               <div><div class="label">Repli sur recherche YouTube</div><div class="desc">Si ni TMDB ni Allociné n'ont de bande-annonce, chercher directement sur YouTube (scraping, pas d'API/quota — source la moins fiable des deux, filtrée mais pas curatée). Nécessite que le repli Allociné soit activé</div></div>
               <label class="switch"><input type="checkbox" id="set-youtubeSearchFallback"><span class="slider"></span></label>
-            </div>
-            <div class="toggle-row">
-              <div><div class="label">Bandes-annonces via l'instance Netflix Catalogue</div><div class="desc">Demande les bandes-annonces Netflix à une autre instance de l'addon « Netflix Catalogue » (API de fédération), par TMDB/IMDb. À configurer avec <code>NETFLIX_FEDERATION_URL</code> et <code>NETFLIX_FEDERATION_API_KEY</code> dans le <code>.env</code>. Utilisé avant le scraping de la page Netflix, et même quand TMDB ne connaît pas le titre</div></div>
-              <label class="switch"><input type="checkbox" id="set-netflixFederation"><span class="slider"></span></label>
-            </div>
-            <div class="toggle-row">
-              <div><div class="label">Repli sur la page Netflix</div><div class="desc">Si aucune autre source (TMDB, Allociné, YouTube) n'a de bande-annonce, retrouver le titre sur Netflix (ID via Wikidata) et relayer la vidéo de sa page par l'addon (/nf/&lt;id&gt;.mp4). Jamais utilisé quand une autre source a trouvé quelque chose. Le scraping de netflix.com va à l'encontre de leurs CGU et peut casser si la page change. Pour un titre précis, colle l'URL Netflix du titre dans « lien direct » d'un override</div></div>
-              <label class="switch"><input type="checkbox" id="set-netflixFallback"><span class="slider"></span></label>
             </div>
             <div class="toggle-row">
               <div><div class="label">Ignorer les teasers</div><div class="desc">Ne renvoyer que les bandes-annonces (type "Trailer"), pas les "Teaser" — utile quand un teaser passe avant le vrai trailer</div></div>

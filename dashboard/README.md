@@ -19,7 +19,6 @@ Le dashboard est une page unique générée par `lib/dashboard-view.js`, qui **c
 | Mapping des liens   | `pages/mapping.html`    | `js/05-mapping.js`, `js/07-mapping-form.js`, `js/09-mapping-io.js` |
 | Demandes            | `pages/requests.html`   | `js/06-requests.js`                                                |
 | Test des flux       | `pages/test-flux.html`  | `js/08-test-flux.js`                                               |
-| Catalogue Netflix   | `pages/netflix.html`    | `js/04-netflix.js` (API : `routes/netflix-admin.js`, exploration : `lib/netflix-crawler.js`) |
 | Page Configure      | `pages/configure.html`  | `js/12-configure.js`                                               |
 | Réglages            | `pages/settings.html`   | `js/13-settings.js`, `js/11-services-status.js`                    |
 | Logs                | `pages/logs.html`       | `js/10-logs.js`                                                    |

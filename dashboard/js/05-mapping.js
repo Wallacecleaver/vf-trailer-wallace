@@ -342,7 +342,7 @@
   }
 
   function sourceLabel(src) {
-    return src === 'allocine' ? 'Allociné' : src === 'youtube_search' ? 'Recherche YouTube' : src === 'netflix' ? 'Netflix' : src === 'tmdb' ? 'TMDB' : '—';
+    return src === 'allocine' ? 'Allociné' : src === 'youtube_search' ? 'Recherche YouTube' : src === 'tmdb' ? 'TMDB' : '—';
   }
 
   function renderResolvedTable() {

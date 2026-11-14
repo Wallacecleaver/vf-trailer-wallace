@@ -20,8 +20,6 @@ const {
 } = require('../lib/settings');
 const { searchYoutubeRaw } = require('../lib/youtube-search');
 const { probeDirectLink } = require('../lib/media-link');
-const { netflixUrlToRelay } = require('../lib/netflix-trailer');
-const federation = require('../lib/netflix-federation');
 const { testResolve } = require('../lib/resolver');
 const { tmdbSearch, youtubeTitle } = require('./lookups');
 
@@ -97,9 +95,8 @@ module.exports = function registerDashboardRoutes(app) {
         }
 
         if (url && /^https?:\/\//i.test(url)) {
-            const probed = netflixUrlToRelay(url); // page titre Netflix collée -> on teste notre relais /nf/
-            const p = await probeDirectLink(probed);
-            return res.json({ ok: p.ok, kind: 'url', media: p.media, url: probed, error: p.error });
+            const p = await probeDirectLink(url);
+            return res.json({ ok: p.ok, kind: 'url', media: p.media, url, error: p.error });
         }
 
         res.status(400).json({ ok: false, error: 'YouTube ID ou URL requis' });
@@ -352,9 +349,8 @@ module.exports = function registerDashboardRoutes(app) {
             }
         }
 
-        const [services, federationStatus, cache] = await Promise.all([
+        const [services, cache] = await Promise.all([
             checkServices(),
-            federation.checkConnection(),
             getCacheStats(),
         ]);
 
@@ -362,7 +358,6 @@ module.exports = function registerDashboardRoutes(app) {
             db: dbReachable,
             tmdbKey: { present: !!FALLBACK_TMDB_KEY, last4: tmdbKeyLast4, valid: tmdbKeyValid },
             services,
-            federation: federationStatus,
             cache,
         });
     });

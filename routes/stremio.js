@@ -1,6 +1,5 @@
-// Routes Stremio : manifest, relais Netflix, meta, stream.
+// Routes Stremio : manifest, meta, stream.
 
-const { relayTrailer } = require('../lib/netflix-trailer');
 const { recordRequest } = require('../lib/stats');
 const { recordInstallActivity } = require('../lib/install-stats');
 const { recordAiomStat } = require('../lib/aiom-stats');
@@ -11,11 +10,6 @@ const { resolveStreams, getBehaviorSettingsFast, buildMetaObject } = require('..
 const { aiomTimeoutMs, withDeadline, aiomOutcome, resolveStreamsSingleFlight, logAiomRequest } = require('../lib/aiom');
 
 module.exports = function registerStremioRoutes(app) {
-    // Relais de la bande-annonce de la page Netflix (source de dernier recours, voir lib/netflix-trailer.js).
-    // Stremio / AIOMetadata reçoivent cette URL stable ; le lien vidéo Netflix, lui, expire : il est renouvelé ici.
-    app.get('/nf/:nid.mp4', (req, res) => relayTrailer(req, res, req.params.nid));
-    app.head('/nf/:nid.mp4', (req, res) => relayTrailer(req, res, req.params.nid));
-
     // Manifest et stream acceptent un segment de config optionnel en tête d'URL.
     app.get('/:config?/manifest.json', async (req, res) => {
         let hasValidConfig = false;

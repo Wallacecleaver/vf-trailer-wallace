@@ -32,7 +32,6 @@ require('../routes/stremio')(app);
 require('../routes/pages')(app);
 require('../routes/public')(app);
 require('../routes/dashboard')(app);
-require('../routes/netflix-admin')(app);
 
 // ---- Gestion d'erreurs globales ----
 // Toutes les routes renvoient du JSON : les erreurs (body trop gros, JSON invalide...)

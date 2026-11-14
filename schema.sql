@@ -169,8 +169,6 @@ CREATE TABLE IF NOT EXISTS behavior_settings (
     id                             INTEGER PRIMARY KEY,
     allocine_fallback              INTEGER,
     youtube_search_fallback        INTEGER,
-    netflix_federation             INTEGER,
-    netflix_fallback               INTEGER,
     max_trailers                   INTEGER,
     extra_vf_keywords              TEXT,    -- JSON : ["mot", ...]
     ignore_teasers                 INTEGER,
@@ -187,51 +185,3 @@ CREATE TABLE IF NOT EXISTS behavior_settings (
     updated_at                     TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))
 );
 INSERT INTO behavior_settings (id) VALUES (1) ON CONFLICT (id) DO NOTHING;
-
--- Catalogue local des titres Netflix (ID Netflix <-> IMDB / TMDB), rempli par Wikidata puis TMDB.
--- Permet de retrouver l'ID Netflix depuis l'IMDB ID sans interroger Wikidata à chaque requête.
-CREATE TABLE IF NOT EXISTS netflix_titles (
-    nid                TEXT PRIMARY KEY,
-    title              TEXT,
-    year               INTEGER,
-    type               TEXT,                 -- 'movie' | 'tv'
-    tmdb_id            INTEGER,
-    imdb_id            TEXT,
-    source             TEXT NOT NULL DEFAULT 'manual',  -- wikidata | tmdb | manual
-    last_seen          TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
-    trailer_checked_at TEXT,
-    raw                TEXT,                 -- JSON : métadonnées brutes de la source
-    -- Exploration en arrière-plan (lib/netflix-crawler.js) : NULL = à explorer, 'done' | 'missing' (404) | 'noinfo' | 'error'
-    crawl_status       TEXT,
-    crawl_attempts     INTEGER NOT NULL DEFAULT 0,
-    crawled_at         TEXT,
-    discovered_from    TEXT,                 -- ID Netflix de la page où cet ID a été découvert
-    has_trailer        INTEGER,              -- 1 = la page Netflix expose une bande-annonce, 0 = aucune, NULL = pas encore lue
-    link_status        TEXT,                 -- vérification du lien IMDB/TMDB : ok | weak | mismatch | unknown (NULL = pas vérifié)
-    served_count       INTEGER NOT NULL DEFAULT 0,  -- fois où la bande-annonce a été proposée à Stremio/AIOMetadata
-    played_count       INTEGER NOT NULL DEFAULT 0,  -- fois où la vidéo a été relayée (/nf/<id>.mp4)
-    last_served_at     TEXT
-);
-CREATE INDEX IF NOT EXISTS netflix_titles_imdb_idx ON netflix_titles (imdb_id);
-CREATE INDEX IF NOT EXISTS netflix_titles_tmdb_idx ON netflix_titles (tmdb_id, type);
-
--- Titres vus par TMDB comme disponibles sur Netflix France (discover, fournisseur Netflix).
--- nid_checked_at : dernière tentative de retrouver l'ID Netflix (Wikidata) ; réessayée après quelques jours.
-CREATE TABLE IF NOT EXISTS netflix_tmdb_seen (
-    tmdb_id        INTEGER NOT NULL,
-    type           TEXT NOT NULL,            -- 'movie' | 'tv'
-    imdb_id        TEXT,
-    title          TEXT,
-    year           INTEGER,
-    first_seen     TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
-    last_seen      TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
-    nid_checked_at TEXT,
-    imdb_checked_at TEXT,                    -- dernière tentative de retrouver l'IMDB ID chez TMDB
-    PRIMARY KEY (tmdb_id, type)
-);
-
--- État persistant de l'exploration Netflix (activée ou non, cadence, pause après un blocage).
-CREATE TABLE IF NOT EXISTS netflix_crawl_state (
-    key   TEXT PRIMARY KEY,
-    value TEXT
-);
