@@ -1,6 +1,6 @@
 const test = require('node:test');
 const assert = require('node:assert');
-const { applyDisplayMode } = require('../lib/stream-format');
+const { applyDisplayMode, buildPreviewStreams } = require('../lib/stream-format');
 const { decodeConfig } = require('../lib/config');
 
 const streams = [
@@ -43,4 +43,21 @@ test('display : decodeConfig n\'accepte que des modes connus', () => {
     const enc = o => Buffer.from(JSON.stringify(o)).toString('base64url');
     assert.strictEqual(decodeConfig(enc({ display: 'detailed' })).display, 'detailed');
     assert.strictEqual(decodeConfig(enc({ display: 'nimporte' })).display, 'default');
+});
+
+test('aperçu : le lien externe garde le type et le titre du film (pas "Bande-annonce" seul)', () => {
+    const out = buildPreviewStreams({ display: 'detailed' });
+    const ext = out.find(s => s.externalUrl);
+    assert.match(ext.title, /^Bande-annonce • Dune : Deuxième partie\n/);
+    assert.match(ext.title, /Ouverture externe/);
+    assert.ok(!ext.title.includes('(ouvrir dans YouTube)'));
+});
+
+test('aperçu : respecte externalOnly, maxLinks et aiom comme le vrai /stream', () => {
+    assert.strictEqual(buildPreviewStreams({ display: 'default' }).length, 4);
+    assert.ok(buildPreviewStreams({ display: 'default', externalOnly: true }).every(s => s.externalUrl));
+    assert.strictEqual(buildPreviewStreams({ display: 'default', maxLinks: 2 }).length, 2);
+    const aiom = buildPreviewStreams({ display: 'detailed', aiom: true });
+    assert.strictEqual(aiom.length, 1);
+    assert.ok(aiom[0].ytId && !('__quality' in aiom[0]));
 });

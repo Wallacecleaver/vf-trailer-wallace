@@ -5,6 +5,7 @@ const { renderConfigureHtml } = require('../lib/configure-view');
 const { renderContributeHtml } = require('../lib/contribute-view');
 const { getConfigureSettings } = require('../lib/settings');
 const { requireAuth } = require('../lib/auth');
+const { DISPLAY_MODES, buildPreviewStreams } = require('../lib/stream-format');
 
 module.exports = function registerPageRoutes(app) {
     // Favicon embarqué en base64 -> évite les 404
@@ -32,6 +33,21 @@ module.exports = function registerPageRoutes(app) {
         const settings = await getConfigureSettings();
         res.setHeader('Content-Type', 'text/html; charset=utf-8');
         res.send(renderConfigureHtml(settings));
+    });
+
+    // Aperçu des liens pour /configure : même code de présentation que le vrai /stream, sur un
+    // film d'exemple. Public, sans donnée utilisateur ; les paramètres sont validés un par un.
+    app.get('/api/preview-streams', (req, res) => {
+        const q = req.query || {};
+        const n = Number(q.maxLinks);
+        const config = {
+            display: DISPLAY_MODES.includes(q.display) ? q.display : 'default',
+            externalOnly: q.externalOnly === '1',
+            maxLinks: Number.isInteger(n) && n > 0 && n <= 10 ? n : null,
+            aiom: q.aiom === '1',
+        };
+        res.setHeader('Cache-Control', 'no-store');
+        res.json({ streams: buildPreviewStreams(config).map(s => ({ name: s.name, title: s.title })) });
     });
 
     // Aperçu en direct pour le dashboard : rend /configure à partir du payload en cours
