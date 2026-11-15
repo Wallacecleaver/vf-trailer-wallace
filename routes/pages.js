@@ -47,7 +47,7 @@ module.exports = function registerPageRoutes(app) {
             aiom: q.aiom === '1',
         };
         res.setHeader('Cache-Control', 'no-store');
-        res.json({ streams: buildPreviewStreams(config).map(s => ({ name: s.name, title: s.title })) });
+        res.json({ streams: buildPreviewStreams(config, String(q.title || '').trim().slice(0, 120) || null).map(s => ({ name: s.name, title: s.title })) });
     });
 
     // Aperçu en direct pour le dashboard : rend /configure à partir du payload en cours

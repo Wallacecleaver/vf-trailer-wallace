@@ -61,3 +61,9 @@ test('aperçu : respecte externalOnly, maxLinks et aiom comme le vrai /stream', 
     assert.strictEqual(aiom.length, 1);
     assert.ok(aiom[0].ytId && !('__quality' in aiom[0]));
 });
+
+test('aperçu : le film choisi remplace le film d\'exemple', () => {
+    const out = buildPreviewStreams({ display: 'default' }, 'Oppenheimer');
+    assert.ok(out.every(s => s.title.includes('Oppenheimer')));
+    assert.ok(!out.some(s => s.title.includes('Dune')));
+});
