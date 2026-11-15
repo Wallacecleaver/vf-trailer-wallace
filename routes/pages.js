@@ -6,6 +6,8 @@ const { renderContributeHtml } = require('../lib/contribute-view');
 const { getConfigureSettings } = require('../lib/settings');
 const { requireAuth } = require('../lib/auth');
 const { DISPLAY_MODES, buildPreviewStreams } = require('../lib/stream-format');
+const { getTitleAndYear } = require('../lib/tmdb');
+const { FALLBACK_TMDB_KEY } = require('../lib/config');
 
 module.exports = function registerPageRoutes(app) {
     // Favicon embarqué en base64 -> évite les 404
@@ -37,7 +39,7 @@ module.exports = function registerPageRoutes(app) {
 
     // Aperçu des liens pour /configure : même code de présentation que le vrai /stream, sur un
     // film d'exemple. Public, sans donnée utilisateur ; les paramètres sont validés un par un.
-    app.get('/api/preview-streams', (req, res) => {
+    app.get('/api/preview-streams', async (req, res) => {
         const q = req.query || {};
         const n = Number(q.maxLinks);
         const config = {
@@ -46,8 +48,14 @@ module.exports = function registerPageRoutes(app) {
             maxLinks: Number.isInteger(n) && n > 0 && n <= 10 ? n : null,
             aiom: q.aiom === '1',
         };
+        // Plateforme du titre choisi (clé TMDB de secours du serveur, comme la recherche publique).
+        let platform = null;
+        const tmdbId = Number(q.tmdbId);
+        if (FALLBACK_TMDB_KEY && Number.isInteger(tmdbId) && tmdbId > 0 && ['movie', 'tv'].includes(q.type)) {
+            try { platform = (await getTitleAndYear(q.type, tmdbId, FALLBACK_TMDB_KEY)).platform; } catch { /* aperçu sans plateforme */ }
+        }
         res.setHeader('Cache-Control', 'no-store');
-        res.json({ streams: buildPreviewStreams(config, String(q.title || '').trim().slice(0, 120) || null).map(s => ({ name: s.name, title: s.title })) });
+        res.json({ streams: buildPreviewStreams(config, String(q.title || '').trim().slice(0, 120) || null, platform).map(s => ({ name: s.name, title: s.title })) });
     });
 
     // Aperçu en direct pour le dashboard : rend /configure à partir du payload en cours

@@ -1,6 +1,7 @@
 const test = require('node:test');
 const assert = require('node:assert');
-const { applyDisplayMode, buildPreviewStreams } = require('../lib/stream-format');
+const { applyDisplayMode, buildPreviewStreams, formatStreamName } = require('../lib/stream-format');
+const { detectPlatform } = require('../lib/tmdb');
 const { decodeConfig } = require('../lib/config');
 
 const streams = [
@@ -66,4 +67,22 @@ test('aperçu : le film choisi remplace le film d\'exemple', () => {
     const out = buildPreviewStreams({ display: 'default' }, 'Oppenheimer');
     assert.ok(out.every(s => s.title.includes('Oppenheimer')));
     assert.ok(!out.some(s => s.title.includes('Dune')));
+});
+
+test('plateforme : détection Netflix / Apple TV d\'après la fiche TMDB', () => {
+    assert.strictEqual(detectPlatform({ networks: [{ name: 'Netflix' }] }), 'netflix');
+    assert.strictEqual(detectPlatform({ production_companies: [{ name: 'Netflix Animation' }] }), 'netflix');
+    assert.strictEqual(detectPlatform({ networks: [{ name: 'Apple TV+' }] }), 'apple');
+    assert.strictEqual(detectPlatform({ production_companies: [{ name: 'Apple Original Films' }, { name: 'Skydance' }] }), 'apple');
+    assert.strictEqual(detectPlatform({ networks: [{ name: 'HBO' }], production_companies: [{ name: 'Legendary' }] }), null);
+    assert.strictEqual(detectPlatform({}), null);
+});
+
+test('plateforme : le nom du flux suit la plateforme, VF par défaut', () => {
+    assert.strictEqual(formatStreamName(), '🎬 VF');
+    assert.match(formatStreamName('netflix'), /Netflix/);
+    assert.match(formatStreamName('apple'), /Apple TV/);
+    const out = buildPreviewStreams({ display: 'default' }, 'Severance', 'apple');
+    assert.ok(out.every(s => /Apple TV/.test(s.name)));
+    assert.match(out[1].name, /YouTube/);
 });
