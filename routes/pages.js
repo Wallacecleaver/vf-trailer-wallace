@@ -6,7 +6,7 @@ const { renderContributeHtml } = require('../lib/contribute-view');
 const { getConfigureSettings } = require('../lib/settings');
 const { requireAuth } = require('../lib/auth');
 const { DISPLAY_MODES, buildPreviewStreams } = require('../lib/stream-format');
-const { getTitleAndYear } = require('../lib/tmdb');
+const { getPlatform } = require('../lib/tmdb');
 const { FALLBACK_TMDB_KEY } = require('../lib/config');
 
 module.exports = function registerPageRoutes(app) {
@@ -52,7 +52,7 @@ module.exports = function registerPageRoutes(app) {
         let platform = null;
         const tmdbId = Number(q.tmdbId);
         if (FALLBACK_TMDB_KEY && Number.isInteger(tmdbId) && tmdbId > 0 && ['movie', 'tv'].includes(q.type)) {
-            try { platform = (await getTitleAndYear(q.type, tmdbId, FALLBACK_TMDB_KEY)).platform; } catch { /* aperçu sans plateforme */ }
+            try { platform = await getPlatform(q.type, tmdbId, FALLBACK_TMDB_KEY); } catch { /* aperçu sans plateforme */ }
         }
         res.setHeader('Cache-Control', 'no-store');
         res.json({ streams: buildPreviewStreams(config, String(q.title || '').trim().slice(0, 120) || null, platform).map(s => ({ name: s.name, title: s.title })) });

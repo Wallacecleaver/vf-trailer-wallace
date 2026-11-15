@@ -1,7 +1,7 @@
 const test = require('node:test');
 const assert = require('node:assert');
 const { applyDisplayMode, buildPreviewStreams, formatStreamName } = require('../lib/stream-format');
-const { detectPlatform } = require('../lib/tmdb');
+const { detectPlatform, platformFromProviders } = require('../lib/tmdb');
 const { decodeConfig } = require('../lib/config');
 
 const streams = [
@@ -85,4 +85,15 @@ test('plateforme : le nom du flux suit la plateforme, VF par défaut', () => {
     const out = buildPreviewStreams({ display: 'default' }, 'Severance', 'apple');
     assert.ok(out.every(s => /Apple TV/.test(s.name)));
     assert.match(out[1].name, /YouTube/);
+});
+
+test('disponibilité : Netflix / Apple TV+ en abonnement uniquement', () => {
+    assert.strictEqual(platformFromProviders({ flatrate: [{ provider_name: 'Netflix' }] }), 'netflix');
+    assert.strictEqual(platformFromProviders({ flatrate: [{ provider_name: 'Netflix Standard with Ads' }] }), 'netflix');
+    assert.strictEqual(platformFromProviders({ flatrate: [{ provider_name: 'Apple TV Plus' }] }), 'apple');
+    assert.strictEqual(platformFromProviders({ flatrate: [{ provider_name: 'Disney Plus' }, { provider_name: 'Apple TV+' }] }), 'apple');
+    // achat / location (« Apple TV » store) : ne compte pas
+    assert.strictEqual(platformFromProviders({ rent: [{ provider_name: 'Apple TV' }], buy: [{ provider_name: 'Apple TV' }] }), null);
+    assert.strictEqual(platformFromProviders({ flatrate: [{ provider_name: 'Canal+' }] }), null);
+    assert.strictEqual(platformFromProviders(undefined), null);
 });
