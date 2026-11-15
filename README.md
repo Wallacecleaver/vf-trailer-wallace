@@ -165,18 +165,21 @@ Pour le garder en service, utilise par exemple `systemd` ou `pm2 start selfhost/
 
 ### Bandes-annonces Netflix via une autre instance (optionnel)
 
-Si tu fais tourner une instance de l'addon **Netflix Catalogue**, l'addon peut lui demander ses bandes-annonces Netflix par API. Aucune clé à gérer : il suffit de coller l'URL de l'instance dans **Réglages → API Netflix Catalogue** (ou `NETFLIX_CATALOGUE_URL` dans le `.env`).
+Si tu fais tourner une instance de l'addon **Netflix Catalogue**, l'addon peut lui demander ses bandes-annonces par API : colle son URL, et sa clé si elle en a une, dans **Réglages → API Netflix Catalogue** (ou `NETFLIX_CATALOGUE_URL` / `NETFLIX_CATALOGUE_KEY` dans le `.env`).
 
 ```env
 NETFLIX_CATALOGUE_URL=https://netflix.mondomaine.fr
+NETFLIX_CATALOGUE_KEY=la-cle-generee-sur-l-instance
 ```
+
+La clé se génère en un clic sur l'instance amont : **Paramètres → API de fédération → Générer une clé**, puis elle s'envoie en en-tête `x-api-key`. Laisse le champ vide si l'instance amont a `API_KEY` vide (API ouverte).
 
 - Ordre de la chaîne : TMDB → Allociné → **Netflix Catalogue** → recherche YouTube (dernier recours).
 - **Interrupteur YouTube** (Dashboard → Réglages → Sources de résolution) : désactivé, les vidéos YouTube de TMDB et la recherche YouTube sont ignorées. La chaîne devient Allociné → Netflix Catalogue (liens directs uniquement). Les overrides manuels avec un ID YouTube restent appliqués.
 - La source est aussi interrogée quand TMDB ne connaît pas du tout le titre (recherche par IMDb).
 - L'addon demande d'abord par IMDb, puis par TMDB + type si nécessaire.
 - Les URLs renvoyées sont des vidéos directes (relais `/trailer/...` de l'instance amont).
-- Sur l'instance **Netflix Catalogue**, laisse `API_KEY` vide (API ouverte) : c'est l'URL que tu gardes pour toi qui fait office de secret. Si `API_KEY` est renseignée, l'appel sans clé reçoit un 401 et le diagnostic te l'indique.
+- Sur l'instance **Netflix Catalogue**, laisse `API_KEY` vide (API ouverte) : c'est l'URL que tu gardes pour toi qui fait office de secret. Ou génère une clé depuis son dashboard et colle-la ici : elle est alors exigée sur chaque appel (401 sans elle).
 - Un résultat est gardé en mémoire 6 h ; un échec est retenté au bout de 30 min.
 - Le bouton **Tester** et le diagnostic de la page Réglages vérifient la connexion (`GET /api/status`).
 

@@ -4,6 +4,7 @@
     { id: 'set-allocineFallback', get: el => el.checked },
     { id: 'set-youtubeSearchFallback', get: el => el.checked },
     { id: 'set-netflixCatalogueUrl', get: el => el.value.trim() },
+    { id: 'set-netflixCatalogueKey', get: el => el.value.trim() },
     { id: 'set-ignoreTeasers', get: el => el.checked },
     { id: 'set-includeExtras', get: el => el.checked },
     { id: 'set-trailerLanguage', get: el => el.value },
@@ -21,6 +22,7 @@
     youtubeEnabled: 'set-youtubeEnabled',
     allocineFallback: 'set-allocineFallback', youtubeSearchFallback: 'set-youtubeSearchFallback',
     netflixCatalogueUrl: 'set-netflixCatalogueUrl',
+    netflixCatalogueKey: 'set-netflixCatalogueKey',
     ignoreTeasers: 'set-ignoreTeasers', includeExtras: 'set-includeExtras',
     trailerLanguage: 'set-trailerLanguage', maxTrailers: 'set-maxTrailers',
     cacheEnabled: 'set-cacheEnabled', cacheTtlHours: 'set-cacheTtlHours',
@@ -103,10 +105,15 @@
     const status = document.getElementById('nf-cat-test-status');
     if (!status) return;
     const url = (input ? input.value : '').trim();
+    const keyInput = document.getElementById('set-netflixCatalogueKey');
+    const key = (keyInput ? keyInput.value : '').trim();
     status.className = 'link-status pending';
     status.textContent = url ? 'Connexion à ' + url + '…' : 'Aucune URL enregistrée';
     try {
-      const res = await fetch('/api/netflix-catalogue/test' + (url ? '?url=' + encodeURIComponent(url) : ''), { headers: authHeaders() });
+      const params = new URLSearchParams();
+      if (url) params.set('url', url);
+      if (key) params.set('key', key);
+      const res = await fetch('/api/netflix-catalogue/test' + (params.toString() ? '?' + params.toString() : ''), { headers: authHeaders() });
       const d = await res.json();
       if (!d.configured) {
         status.className = 'link-status bad';

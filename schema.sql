@@ -171,6 +171,7 @@ CREATE TABLE IF NOT EXISTS behavior_settings (
     allocine_fallback              INTEGER,
     youtube_search_fallback        INTEGER,
     netflix_catalogue_url          TEXT,    -- instance « Netflix Catalogue » (API de fédération, URL seule)
+    netflix_catalogue_key          TEXT,    -- clé API de cette instance (vide = API ouverte)
     max_trailers                   INTEGER,
     extra_vf_keywords              TEXT,    -- JSON : ["mot", ...]
     ignore_teasers                 INTEGER,

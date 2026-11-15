@@ -336,7 +336,8 @@ module.exports = function registerDashboardRoutes(app) {
     app.get('/api/netflix-catalogue/test', requireAuth, async (req, res) => {
         const behavior = await getBehaviorSettings();
         const url = String(req.query.url || behavior.netflixCatalogueUrl || '').trim();
-        res.json(await federation.checkConnection(url));
+        const key = String(req.query.key || behavior.netflixCatalogueKey || '').trim();
+        res.json(await federation.checkConnection(url, key));
     });
 
     // ---- Diagnostic complet (page Réglages du dashboard) ----
@@ -362,7 +363,7 @@ module.exports = function registerDashboardRoutes(app) {
         const [services, cache, federationStatus] = await Promise.all([
             checkServices(),
             getCacheStats(),
-            federation.checkConnection(behavior.netflixCatalogueUrl),
+            federation.checkConnection(behavior.netflixCatalogueUrl, behavior.netflixCatalogueKey),
         ]);
 
         res.json({

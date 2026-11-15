@@ -32,3 +32,33 @@ test('checkConnection : sans URL -> non configurée', async () => {
     assert.strictEqual(r.configured, false);
     assert.strictEqual(r.ok, false);
 });
+
+// La clé API de l'instance amont part en en-tête x-api-key, et rien n'est envoyé sans clé.
+test('resolveFederatedTrailer : la clé part en x-api-key (absente si aucune clé)', async () => {
+    const fetchPath = require.resolve('node-fetch');
+    const fedPath = require.resolve('../lib/netflix-federation');
+    const realFetch = require.cache[fetchPath];
+    const seen = [];
+    require.cache[fetchPath] = {
+        id: fetchPath, filename: fetchPath, loaded: true,
+        exports: async (url, opts) => {
+            seen.push({ url, headers: (opts && opts.headers) || {} });
+            return { ok: true, status: 200, text: async () => JSON.stringify({ found: true, trailers: [{ url: 'https://x/y.mp4' }] }) };
+        },
+    };
+    delete require.cache[fedPath];
+    try {
+        const fed = require('../lib/netflix-federation');
+
+        await fed.resolveFederatedTrailer({ imdbId: 'tt1111111', baseUrl: 'https://netflix.exemple.fr', apiKey: 'cle-secrete' });
+        assert.strictEqual(seen[0].headers['x-api-key'], 'cle-secrete');
+
+        fed.clearCache();
+        seen.length = 0;
+        await fed.resolveFederatedTrailer({ imdbId: 'tt2222222', baseUrl: 'https://netflix.exemple.fr' });
+        assert.strictEqual(seen[0].headers['x-api-key'], undefined);
+    } finally {
+        if (realFetch) require.cache[fetchPath] = realFetch; else delete require.cache[fetchPath];
+        delete require.cache[fedPath];
+    }
+});

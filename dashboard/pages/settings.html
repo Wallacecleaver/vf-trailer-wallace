@@ -28,7 +28,7 @@
           </div>
 
           <div class="card">
-            <div class="card-head"><div><div class="card-title">🌐 API Netflix Catalogue</div><div class="card-desc">Récupère des bandes-annonces Netflix depuis une autre instance de l'addon « Netflix Catalogue ». Colle uniquement son URL : aucune clé API n'est nécessaire.</div></div></div>
+            <div class="card-head"><div><div class="card-title">🌐 API Netflix Catalogue</div><div class="card-desc">Récupère des bandes-annonces Netflix (et Apple TV) depuis une instance de l'addon « Netflix Catalogue ». Colle son URL, et sa clé API si elle en a une.</div></div></div>
             <div class="card-body">
               <div class="form-field full">
                 <label>URL de l'instance <span class="hint">(ex. https://netflix.mondomaine.fr — sans slash final)</span></label>
@@ -38,7 +38,11 @@
                 </div>
                 <div class="link-status" id="nf-cat-test-status"></div>
               </div>
-              <div class="info-box">Source utilisée en dernier recours, après TMDB, Allociné et YouTube — et aussi quand TMDB ne connaît pas le titre. L'instance amont doit avoir <code>API_KEY</code> vide pour accepter les appels sans clé.</div>
+              <div class="form-field full">
+                <label>Clé API <span class="hint">(vide si l'instance amont est ouverte)</span></label>
+                <input type="password" id="set-netflixCatalogueKey" placeholder="clé générée dans Paramètres → API de fédération" spellcheck="false" autocomplete="off">
+              </div>
+              <div class="info-box">Source utilisée en dernier recours, après TMDB, Allociné et YouTube — et aussi quand TMDB ne connaît pas le titre. Sur l'instance amont, la clé se génère en un clic : <b>Paramètres → API de fédération → Générer une clé</b>. Envoyée en en-tête <code>x-api-key</code>.</div>
             </div>
           </div>
 
