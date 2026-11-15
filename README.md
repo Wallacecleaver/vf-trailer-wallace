@@ -172,6 +172,7 @@ NETFLIX_CATALOGUE_URL=https://netflix.mondomaine.fr
 ```
 
 - Ordre de la chaîne : TMDB → Allociné → **Netflix Catalogue** → recherche YouTube (dernier recours).
+- **Interrupteur YouTube** (Dashboard → Réglages → Sources de résolution) : désactivé, les vidéos YouTube de TMDB et la recherche YouTube sont ignorées. La chaîne devient Allociné → Netflix Catalogue (liens directs uniquement). Les overrides manuels avec un ID YouTube restent appliqués.
 - La source est aussi interrogée quand TMDB ne connaît pas du tout le titre (recherche par IMDb).
 - L'addon demande d'abord par IMDb, puis par TMDB + type si nécessaire.
 - Les URLs renvoyées sont des vidéos directes (relais `/trailer/...` de l'instance amont).

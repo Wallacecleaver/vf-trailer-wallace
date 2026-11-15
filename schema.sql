@@ -167,6 +167,7 @@ INSERT INTO configure_settings (id) VALUES (1) ON CONFLICT (id) DO NOTHING;
 
 CREATE TABLE IF NOT EXISTS behavior_settings (
     id                             INTEGER PRIMARY KEY,
+    youtube_enabled                INTEGER, -- interrupteur général YouTube (vidéos TMDB + recherche)
     allocine_fallback              INTEGER,
     youtube_search_fallback        INTEGER,
     netflix_catalogue_url          TEXT,    -- instance « Netflix Catalogue » (API de fédération, URL seule)

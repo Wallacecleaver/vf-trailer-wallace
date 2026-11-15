@@ -45,6 +45,10 @@
           <div class="card">
             <div class="card-head"><div><div class="card-title">🔗 Sources de résolution</div><div class="card-desc">Ordre de repli : TMDB d'abord, puis Allociné, puis l'instance Netflix Catalogue (si configurée), puis la recherche YouTube en dernier recours</div></div></div>
             <div class="toggle-row">
+              <div><div class="label">YouTube</div><div class="desc">Interrupteur général. Désactivé : les vidéos YouTube de TMDB et la recherche YouTube sont ignorées, seuls Allociné et l'instance Netflix Catalogue fournissent des bandes-annonces (liens directs, plus aucun lien YouTube). Les overrides manuels avec un ID YouTube restent appliqués</div></div>
+              <label class="switch"><input type="checkbox" id="set-youtubeEnabled"><span class="slider"></span></label>
+            </div>
+            <div class="toggle-row">
               <div><div class="label">Repli sur Allociné</div><div class="desc">Si TMDB n'a pas de bande-annonce (rien du tout, ou seulement un teaser), chercher sur Allociné (scraping)</div></div>
               <label class="switch"><input type="checkbox" id="set-allocineFallback"><span class="slider"></span></label>
             </div>

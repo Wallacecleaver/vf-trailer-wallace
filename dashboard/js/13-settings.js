@@ -1,5 +1,6 @@
   // ---- SETTINGS (comportement) ----
   const SETTING_FIELDS = [
+    { id: 'set-youtubeEnabled', get: el => el.checked },
     { id: 'set-allocineFallback', get: el => el.checked },
     { id: 'set-youtubeSearchFallback', get: el => el.checked },
     { id: 'set-netflixCatalogueUrl', get: el => el.value.trim() },
@@ -17,6 +18,7 @@
     { id: 'set-aiomTimeoutSeconds', get: el => Math.min(12, Math.max(1, Number(el.value) || 5)) },
   ];
   const SETTING_NAMES = {
+    youtubeEnabled: 'set-youtubeEnabled',
     allocineFallback: 'set-allocineFallback', youtubeSearchFallback: 'set-youtubeSearchFallback',
     netflixCatalogueUrl: 'set-netflixCatalogueUrl',
     ignoreTeasers: 'set-ignoreTeasers', includeExtras: 'set-includeExtras',
