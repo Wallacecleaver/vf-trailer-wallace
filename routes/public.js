@@ -41,10 +41,12 @@ module.exports = function registerPublicRoutes(app) {
     app.post('/api/test-tvdb', lookupLimit, async (req, res) => {
         const body = req.body || {};
         const key = typeof body.key === 'string' && body.key.trim() ? body.key.trim() : TVDB_API_KEY;
-        const pin = typeof body.pin === 'string' ? body.pin.trim() : '';
-        if (!key) return res.status(400).json({ valid: false, error: 'Aucune clé de projet TheTVDB disponible. Demande à l’administrateur de configurer TVDB_API_KEY ou renseigne ta propre clé de projet.' });
-        const result = await authenticateTvdb(key, pin);
         res.setHeader('Cache-Control', 'no-store');
+        if (!key) return res.status(400).json({
+            valid: false,
+            error: 'Aucune clé TheTVDB fournie. Renseigne ta clé personnelle ou demande à l’administrateur de configurer TVDB_API_KEY.',
+        });
+        const result = await authenticateTvdb(key);
         res.json({ valid: result.valid, error: result.valid ? null : result.error });
     });
 
@@ -60,7 +62,7 @@ module.exports = function registerPublicRoutes(app) {
         try {
             const prev = await getCached('system:health:last');
             if (prev) {
-                for (const svc of ['tmdb', 'youtube', 'allocine', 'tvdb', 'anilist', 'jikan']) {
+                for (const svc of ['tmdb', 'youtube', 'allocine', 'tvdb', 'anilist']) {
                     if (prev[svc] !== current[svc]) {
                         await logEvent({
                             level: current[svc] ? 'info' : 'warn',
