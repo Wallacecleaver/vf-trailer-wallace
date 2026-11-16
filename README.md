@@ -2,7 +2,7 @@
 
 Addon [Stremio](https://www.stremio.com/) qui affiche la **bande-annonce officielle française** (et le teaser quand il existe) de n'importe quel film ou série, directement dans la fiche du titre.
 
-- **Sources** : TMDB → Allociné → instance **Netflix Catalogue** (si configurée) → recherche YouTube en dernier recours, avec détection VF par liste blanche.
+- **Sources** : TMDB en premier, puis **TheTVDB** pour les séries/saisons, **AniList + Jikan** pour identifier les animés et récupérer leurs promos, puis recherche YouTube, Allociné et instance **Netflix Catalogue** en dernier recours. Les sources animées ne retiennent que les vidéos explicitement VF/VOSTFR.
 - **Stremio** : teaser (si dispo) puis bande-annonce. Compatible avec l'option « A trailer addon » d'**AIOMetadata** (mode `aiom` : un seul lien `ytId`/`url`, avec délai maximum réglable).
 - **Dashboard d'administration** : stats, utilisateurs, mapping manuel des liens, journal des échecs, test des flux, logs, réglages, cache…
 - **Pages publiques** : configuration de l'addon (`/`), proposition de liens par la communauté (`/proposer`).
@@ -18,7 +18,7 @@ Tout tourne chez toi : l'addon et sa base SQLite (un simple fichier), dans un se
 ### Prérequis
 
 - Un serveur / VPS / Raspberry Pi 64 bits avec [Docker](https://docs.docker.com/engine/install/) et le plugin Compose (`docker compose version`).
-- Une clé API TMDB gratuite : <https://www.themoviedb.org/settings/api>.
+- Une clé API TMDB gratuite : <https://www.themoviedb.org/settings/api>. TheTVDB est facultatif : l'administrateur peut configurer une clé de projet côté serveur, ou chaque utilisateur peut renseigner la sienne sur `/configure`.
 - Pour installer l'addon dans Stremio **depuis un autre appareil**, un nom de domaine en HTTPS servi par ton reverse proxy (Stremio refuse les addons HTTP distants).
 
 ### Installation (100 % Docker, rien à cloner ni à télécharger)
@@ -65,7 +65,7 @@ L'addon répond alors sur `http://IP_DU_SERVEUR:3000` :
 
 | Adresse | Rôle |
 |---|---|
-| `/` | Page de configuration (chaque utilisateur y met sa clé TMDB et obtient son lien d'installation) |
+| `/` | Page de configuration (chaque utilisateur renseigne sa clé TMDB et, facultativement, sa clé de projet + son PIN TheTVDB) |
 | `/dashboard` | Dashboard admin (mot de passe = `DASHBOARD_PASSWORD`) |
 | `/proposer` | Proposition de liens par la communauté |
 
@@ -96,6 +96,7 @@ Ouvre `APP_BASE_URL` dans ton navigateur, renseigne ta clé TMDB, puis clique su
 | `TOKEN_SECRET` | conseillé | Secret aléatoire de signature des sessions, indépendant du mot de passe. Absent = secret généré au démarrage (sessions perdues à chaque redémarrage). |
 | `APP_BASE_URL` | ✅ | URL publique de l'addon, sans slash final (logo, liens `/proposer`…). |
 | `TMDB_API_KEY` | conseillé | Clé TMDB du testeur de flux du dashboard. |
+| `TVDB_API_KEY` | non | Clé de projet TheTVDB v4 partagée par défaut ; une clé et un PIN personnels peuvent la remplacer dans `/configure`. |
 | `BIND_ADDRESS` | non | `127.0.0.1` pour ne pas exposer le port 3000 sur Internet (défaut `127.0.0.1`). |
 | `HOST_PORT` | non | Port exposé sur la machine (défaut `3000`). |
 | `DATA_DIR` | non | Dossier de la base SQLite (`addon.sqlite`) (défaut `/data` dans l'image : à monter en volume). |
@@ -104,7 +105,7 @@ Ouvre `APP_BASE_URL` dans ton navigateur, renseigne ta clé TMDB, puis clique su
 | `ALLOW_PRIVATE_UPSTREAM` | non | `1` pour autoriser une instance « Netflix Catalogue » sur une adresse privée (réseau Docker). Désactivé par défaut (anti-SSRF). |
 | `DASHBOARD_NO_CACHE` | non | `1` pour désactiver le cache de rendu du dashboard pendant que tu le modifies. |
 
-> **Note sécurité — clé TMDB dans le lien d'installation.** La configuration utilisateur (dont ta clé TMDB) est encodée en base64 dans l'URL `/<config>/manifest.json`, comme le font la plupart des addons Stremio. Le base64 n'est pas du chiffrement : ne partage pas ce lien publiquement, et sache qu'il peut apparaître dans l'historique du navigateur ou les journaux d'un proxy. L'en-tête `Referrer-Policy: no-referrer` limite les fuites par référent.
+> **Note sécurité — identifiants dans le lien d'installation.** La configuration utilisateur (clé TMDB, et éventuellement clé de projet + PIN TheTVDB) est encodée en base64 dans l'URL `/<config>/manifest.json`. Le base64 n'est pas du chiffrement : ne partage pas ce lien publiquement, et sache qu'il peut apparaître dans l'historique du navigateur ou les journaux d'un proxy. L'en-tête `Referrer-Policy: no-referrer` limite les fuites par référent. Les champs TheTVDB ne sont pas mémorisés dans le stockage local du navigateur.
 
 ### Ressources utilisées (très légères)
 
@@ -179,7 +180,7 @@ NETFLIX_CATALOGUE_KEY=la-cle-generee-sur-l-instance
 
 La clé se génère en un clic sur l'instance amont : **Paramètres → API de fédération → Générer une clé**, puis elle s'envoie en en-tête `x-api-key`. Laisse le champ vide si l'instance amont a `API_KEY` vide (API ouverte).
 
-- Ordre de la chaîne : TMDB → Allociné → **Netflix Catalogue** → recherche YouTube (dernier recours).
+- Ordre de résolution : TMDB → **TheTVDB** (séries/saisons) → **AniList/Jikan** (animés japonais) → recherche YouTube → Allociné → **Netflix Catalogue**.
 - **Interrupteur YouTube** (Dashboard → Réglages → Sources de résolution) : désactivé, les vidéos YouTube de TMDB et la recherche YouTube sont ignorées. La chaîne devient Allociné → Netflix Catalogue (liens directs uniquement). Les overrides manuels avec un ID YouTube restent appliqués.
 - La source est aussi interrogée quand TMDB ne connaît pas du tout le titre (recherche par IMDb).
 - L'addon demande d'abord par IMDb, puis par TMDB + type si nécessaire.
