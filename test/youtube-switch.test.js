@@ -51,7 +51,7 @@ test('YouTube activé (défaut) : TMDB fournit la bande-annonce YouTube, Netflix
     assert.strictEqual(calls.federation, 0);
 });
 
-test('YouTube désactivé : aucune vidéo TMDB demandée, pas de recherche YouTube, repli sur Netflix Catalogue', async () => {
+test('YouTube désactivé : aucune vidéo TMDB demandée, pas de recherche YouTube, repli sur Stockage BD', async () => {
     reset();
     const trace = [];
     const r = await resolveViaApis('movie', 'tt1234567', null, behavior({ youtubeEnabled: false }), 'KEY', trace);
@@ -76,7 +76,7 @@ test('YouTube désactivé et rien ailleurs : liste vide, jamais de recherche You
 });
 
 
-test('Sans bande-annonce TMDB : recherche YouTube avant Allociné et Netflix Catalogue', async () => {
+test('Sans bande-annonce TMDB : recherche YouTube avant Allociné et Stockage BD', async () => {
     reset();
     tmdbHasTrailer = false;
     const r = await resolveViaApis('movie', 'tt1234567', null, behavior(), 'KEY');

@@ -1,4 +1,4 @@
-// Tests du client de fédération « Netflix Catalogue » (URL seule, sans clé API).
+// Tests du client de fédération « Stockage BD » (URL seule, sans clé API).
 // Lancement : npm test
 
 const { test } = require('node:test');

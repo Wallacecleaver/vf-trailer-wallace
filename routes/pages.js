@@ -5,9 +5,8 @@ const { renderConfigureHtml } = require('../lib/configure-view');
 const { renderContributeHtml } = require('../lib/contribute-view');
 const { getConfigureSettings } = require('../lib/settings');
 const { requireAuth } = require('../lib/auth');
-const { DISPLAY_MODES, buildPreviewStreams } = require('../lib/stream-format');
-const { getPlatform } = require('../lib/tmdb');
-const { FALLBACK_TMDB_KEY } = require('../lib/config');
+const { DISPLAY_MODES } = require('../lib/stream-format');
+const { resolvePreview } = require('../lib/preview');
 const { rateLimit } = require('../lib/security');
 
 module.exports = function registerPageRoutes(app) {
@@ -31,26 +30,35 @@ module.exports = function registerPageRoutes(app) {
         res.send(renderConfigureHtml(settings));
     });
 
-    // Aperçu des liens pour /configure : même code de présentation que le vrai /stream, sur un
-    // film d'exemple. Public, sans donnée utilisateur ; les paramètres sont validés un par un.
-    app.get('/api/preview-streams', rateLimit({ windowMs: 60_000, max: 30, name: 'preview' }), async (req, res) => {
-        const q = req.query || {};
+    // Recherche réelle, en lecture seule. GET reste accepté pour les pages déjà ouvertes.
+    const previewLimit = rateLimit({ windowMs: 60_000, max: 30, name: 'preview' });
+    async function preview(req, res) {
+        const q = (req.method === 'POST' ? req.body : req.query) || {};
+        res.setHeader('Cache-Control', 'no-store');
+        const tmdbId = Number(q.tmdbId);
+        if (!Number.isInteger(tmdbId) || tmdbId <= 0 || !['movie', 'tv'].includes(q.type)) {
+            return res.status(400).json({ error: 'Choisis un film ou une série pour afficher ses bandes-annonces.' });
+        }
         const n = Number(q.maxLinks);
         const config = {
             display: DISPLAY_MODES.includes(q.display) ? q.display : 'default',
-            externalOnly: q.externalOnly === '1',
+            externalOnly: q.externalOnly === true || q.externalOnly === '1',
             maxLinks: Number.isInteger(n) && n > 0 && n <= 10 ? n : null,
-            aiom: q.aiom === '1',
+            aiom: q.aiom === true || q.aiom === '1',
         };
-        // Plateforme du titre choisi (clé TMDB de secours du serveur, comme la recherche publique).
-        let platform = null;
-        const tmdbId = Number(q.tmdbId);
-        if (FALLBACK_TMDB_KEY && Number.isInteger(tmdbId) && tmdbId > 0 && ['movie', 'tv'].includes(q.type)) {
-            try { platform = await getPlatform(q.type, tmdbId, FALLBACK_TMDB_KEY); } catch { /* aperçu sans plateforme */ }
+        if (q.includeExtras === true || q.includeExtras === 'on') config.includeExtras = true;
+        else if (q.includeExtras === false || q.includeExtras === 'off') config.includeExtras = false;
+        try {
+            const result = await resolvePreview(q.type, tmdbId, config);
+            // Seuls les textes de l'aperçu sont publics : aucune trace ni clé de connexion.
+            res.json({ source: result.source, message: result.message,
+                streams: result.streams.map(s => ({ name: s.name, title: s.title })) });
+        } catch {
+            res.status(502).json({ error: 'Impossible de charger les bandes-annonces pour le moment. Réessaie.' });
         }
-        res.setHeader('Cache-Control', 'no-store');
-        res.json({ streams: buildPreviewStreams(config, String(q.title || '').trim().slice(0, 120) || null, platform).map(s => ({ name: s.name, title: s.title })) });
-    });
+    }
+    app.get('/api/preview-streams', previewLimit, preview);
+    app.post('/api/preview-streams', previewLimit, preview);
 
     // Aperçu en direct pour le dashboard : rend /configure à partir du payload en cours
     // d'édition (non encore enregistré), pour que l'admin voie le résultat sans quitter la page.

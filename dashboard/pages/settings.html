@@ -22,13 +22,13 @@
               <div class="diag-item"><span class="diag-label">TMDB</span><span class="diag-val diag-pending" data-diag="svc-tmdb">…</span></div>
               <div class="diag-item"><span class="diag-label">YouTube</span><span class="diag-val diag-pending" data-diag="svc-youtube">…</span></div>
               <div class="diag-item"><span class="diag-label">Allociné</span><span class="diag-val diag-pending" data-diag="svc-allocine">…</span></div>
-              <div class="diag-item"><span class="diag-label">Netflix Catalogue</span><span class="diag-val diag-pending" data-diag="svc-netflix-catalogue">…</span></div>
+              <div class="diag-item"><span class="diag-label">Stockage BD</span><span class="diag-val diag-pending" data-diag="svc-netflix-catalogue">…</span></div>
               <div class="diag-item"><span class="diag-label">Cache</span><span class="diag-val diag-pending" data-diag="cache">…</span></div>
             </div>
           </div>
 
           <div class="card">
-            <div class="card-head"><div><div class="card-title">🌐 API Netflix Catalogue</div><div class="card-desc">Récupère des bandes-annonces Netflix (et Apple TV) depuis une instance de l'addon « Netflix Catalogue ». Colle son URL, et sa clé API si elle en a une.</div></div></div>
+            <div class="card-head"><div><div class="card-title">🌐 API Stockage BD</div><div class="card-desc">Récupère les bandes-annonces depuis ton instance de stockage. Colle son URL, et sa clé API si elle en a une.</div></div></div>
             <div class="card-body">
               <div class="form-field full">
                 <label>URL de l'instance <span class="hint">(ex. https://netflix.mondomaine.fr — sans slash final)</span></label>
@@ -47,9 +47,9 @@
           </div>
 
           <div class="card">
-            <div class="card-head"><div><div class="card-title">🔗 Sources de résolution</div><div class="card-desc">Ordre de résolution : TMDB d'abord, puis recherche YouTube directe, Allociné, et Netflix Catalogue en dernier recours</div></div></div>
+            <div class="card-head"><div><div class="card-title">🔗 Sources de résolution</div><div class="card-desc">Ordre de résolution : TMDB d'abord, puis recherche YouTube directe, Allociné, et Stockage BD en dernier recours</div></div></div>
             <div class="toggle-row">
-              <div><div class="label">YouTube</div><div class="desc">Interrupteur général. Désactivé : les vidéos YouTube de TMDB et la recherche YouTube sont ignorées, seuls Allociné et l'instance Netflix Catalogue fournissent des bandes-annonces (liens directs, plus aucun lien YouTube). Les overrides manuels avec un ID YouTube restent appliqués</div></div>
+              <div><div class="label">YouTube</div><div class="desc">Interrupteur général. Désactivé : les vidéos YouTube de TMDB et la recherche YouTube sont ignorées, seuls Allociné et l'instance Stockage BD fournissent des bandes-annonces (liens directs, plus aucun lien YouTube). Les overrides manuels avec un ID YouTube restent appliqués</div></div>
               <label class="switch"><input type="checkbox" id="set-youtubeEnabled"><span class="slider"></span></label>
             </div>
             <div class="toggle-row">

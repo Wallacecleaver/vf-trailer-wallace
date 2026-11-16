@@ -99,7 +99,7 @@
     });
   }
 
-  // Bouton « Tester » du bloc API Netflix Catalogue : appelle /api/status sur l'instance.
+  // Bouton « Tester » du bloc API Stockage BD : appelle /api/status sur l'instance.
   async function testNetflixCatalogue() {
     const input = document.getElementById('set-netflixCatalogueUrl');
     const status = document.getElementById('nf-cat-test-status');

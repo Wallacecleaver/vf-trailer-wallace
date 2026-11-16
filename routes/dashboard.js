@@ -331,7 +331,7 @@ module.exports = function registerDashboardRoutes(app) {
         res.json({ db: await dbOk(), tmdbFallback: !!FALLBACK_TMDB_KEY });
     });
 
-    // Test de connexion à l'instance « Netflix Catalogue » (bouton « Tester » du dashboard).
+    // Test de connexion à l'instance « Stockage BD » (bouton « Tester » du dashboard).
     // Utilise l'URL enregistrée, ou ?url= pour tester une adresse avant de l'enregistrer.
     app.get('/api/netflix-catalogue/test', requireAuth, async (req, res) => {
         const behavior = await getBehaviorSettings();

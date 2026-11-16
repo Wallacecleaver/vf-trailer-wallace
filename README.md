@@ -2,7 +2,7 @@
 
 Addon [Stremio](https://www.stremio.com/) qui affiche la **bande-annonce officielle française** (et le teaser quand il existe) de n'importe quel film ou série, directement dans la fiche du titre.
 
-- **Sources** : TMDB en premier, puis **TheTVDB** pour les séries/saisons, **AniList** pour identifier les animés, recherche YouTube VF, Allociné et instance **Netflix Catalogue** en dernier recours. Les trailers AniList ne sont retenus que si YouTube confirme explicitement VF/VOSTFR ; sinon la recherche YouTube VF prend le relais. L'API publique Jikan a été arrêtée le 1er octobre 2026 et n'est plus utilisée.
+- **Sources** : TMDB en premier, puis **TheTVDB** pour les séries/saisons, **AniList** pour identifier les animés, recherche YouTube VF, Allociné et instance **Stockage BD** en dernier recours. Les trailers AniList ne sont retenus que si YouTube confirme explicitement VF/VOSTFR ; sinon la recherche YouTube VF prend le relais. L'API publique Jikan a été arrêtée le 1er octobre 2026 et n'est plus utilisée.
 - **Stremio** : teaser (si dispo) puis bande-annonce. Compatible avec l'option « A trailer addon » d'**AIOMetadata** (mode `aiom` : un seul lien `ytId`/`url`, avec délai maximum réglable).
 - **Dashboard d'administration** : stats, utilisateurs, mapping manuel des liens, journal des échecs, test des flux, logs, réglages, cache…
 - **Pages publiques** : configuration de l'addon (`/`), proposition de liens par la communauté (`/proposer`).
@@ -102,7 +102,7 @@ Ouvre `APP_BASE_URL` dans ton navigateur, renseigne ta clé TMDB, puis clique su
 | `DATA_DIR` | non | Dossier de la base SQLite (`addon.sqlite`) (défaut `/data` dans l'image : à monter en volume). |
 | `TRUST_PROXY` | non | Nombre de reverse proxies de confiance devant l'addon (`0` par défaut : `X-Forwarded-For` est ignoré). Mets `1` uniquement derrière un reverse proxy de confiance, sinon le verrouillage anti brute-force est contournable. L'installeur le règle automatiquement. |
 | `SESSION_VERSION` | non | Changer cette valeur révoque immédiatement toutes les sessions du dashboard. |
-| `ALLOW_PRIVATE_UPSTREAM` | non | `1` pour autoriser une instance « Netflix Catalogue » sur une adresse privée (réseau Docker). Désactivé par défaut (anti-SSRF). |
+| `ALLOW_PRIVATE_UPSTREAM` | non | `1` pour autoriser une instance « Stockage BD » sur une adresse privée (réseau Docker). Désactivé par défaut (anti-SSRF). |
 | `DASHBOARD_NO_CACHE` | non | `1` pour désactiver le cache de rendu du dashboard pendant que tu le modifies. |
 
 > **Note sécurité — identifiants dans le lien d'installation.** La configuration utilisateur (clé TMDB, et éventuellement clé API TheTVDB) est encodée en base64 dans l'URL `/<config>/manifest.json`. Le base64 n'est pas du chiffrement : ne partage pas ce lien publiquement, et sache qu'il peut apparaître dans l'historique du navigateur ou les journaux d'un proxy. L'en-tête `Referrer-Policy: no-referrer` limite les fuites par référent. La clé TheTVDB n'est pas mémorisée dans le stockage local du navigateur.
@@ -169,9 +169,13 @@ npm start          # (= node selfhost/server.js) crée la base et les tables au 
 
 Pour le garder en service, utilise par exemple `systemd` ou `pm2 start selfhost/server.js --name vf-trailers`.
 
-### Bandes-annonces Netflix via une autre instance (optionnel)
+### Bandes-annonces via Stockage BD (optionnel)
 
-Si tu fais tourner une instance de l'addon **Netflix Catalogue**, l'addon peut lui demander ses bandes-annonces par API : colle son URL, et sa clé si elle en a une, dans **Réglages → API Netflix Catalogue** (ou `NETFLIX_CATALOGUE_URL` / `NETFLIX_CATALOGUE_KEY` dans le `.env`).
+Si tu fais tourner une instance de l'addon **Stockage BD**, l'addon peut lui demander ses bandes-annonces par API : colle son URL, et sa clé si elle en a une, dans **Réglages → API Stockage BD** (ou `NETFLIX_CATALOGUE_URL` / `NETFLIX_CATALOGUE_KEY` dans le `.env`).
+
+Le nom affiché est **Stockage BD**. Les noms techniques des variables, des réglages SQLite et de l'API restent compatibles avec les installations existantes : aucune connexion n'est à reconfigurer.
+
+L'aperçu de `/configure` utilise la même recherche réelle que le testeur du dashboard, y compris les liens directs du stockage et les mappings manuels. Il respecte les options d'affichage et d'extras, sans écrire dans le cache SQLite, les statistiques ou les journaux. Une courte mémoire de recherche évite de relancer les sources à chaque changement de présentation.
 
 ```env
 NETFLIX_CATALOGUE_URL=https://netflix.mondomaine.fr
@@ -180,12 +184,12 @@ NETFLIX_CATALOGUE_KEY=la-cle-generee-sur-l-instance
 
 La clé se génère en un clic sur l'instance amont : **Paramètres → API de fédération → Générer une clé**, puis elle s'envoie en en-tête `x-api-key`. Laisse le champ vide si l'instance amont a `API_KEY` vide (API ouverte).
 
-- Ordre de résolution : TMDB → **TheTVDB** (séries/saisons) → **AniList** (identification des animés) → recherche YouTube VF → Allociné → **Netflix Catalogue**.
-- **Interrupteur YouTube** (Dashboard → Réglages → Sources de résolution) : désactivé, les vidéos YouTube de TMDB et la recherche YouTube sont ignorées. La chaîne devient Allociné → Netflix Catalogue (liens directs uniquement). Les overrides manuels avec un ID YouTube restent appliqués.
+- Ordre de résolution : TMDB → **TheTVDB** (séries/saisons) → **AniList** (identification des animés) → recherche YouTube VF → Allociné → **Stockage BD**.
+- **Interrupteur YouTube** (Dashboard → Réglages → Sources de résolution) : désactivé, les vidéos YouTube de TMDB et la recherche YouTube sont ignorées. La chaîne devient Allociné → Stockage BD (liens directs uniquement). Les overrides manuels avec un ID YouTube restent appliqués.
 - La source est aussi interrogée quand TMDB ne connaît pas du tout le titre (recherche par IMDb).
 - L'addon demande d'abord par IMDb, puis par TMDB + type si nécessaire.
 - Les URLs renvoyées sont des vidéos directes (relais `/trailer/...` de l'instance amont).
-- Sur l'instance **Netflix Catalogue**, laisse `API_KEY` vide (API ouverte) : c'est l'URL que tu gardes pour toi qui fait office de secret. Ou génère une clé depuis son dashboard et colle-la ici : elle est alors exigée sur chaque appel (401 sans elle).
+- Sur l'instance **Stockage BD**, laisse `API_KEY` vide (API ouverte) : c'est l'URL que tu gardes pour toi qui fait office de secret. Ou génère une clé depuis son dashboard et colle-la ici : elle est alors exigée sur chaque appel (401 sans elle).
 - Un résultat est gardé en mémoire 6 h ; un échec est retenté au bout de 30 min.
 - Le bouton **Tester** et le diagnostic de la page Réglages vérifient la connexion (`GET /api/status`).
 
@@ -240,4 +244,4 @@ Chaque push sur `main` déclenche `.github/workflows/docker.yml` : tests, puis c
 
 ## Sources de données
 
-TMDB (principal) · TheTVDB (séries et saisons) · AniList (identification des animés) · YouTube (recherche VF) · Allociné (repli) · instance Netflix Catalogue (optionnelle, par URL). Ce produit utilise l'API TMDB mais n'est ni approuvé ni certifié par TMDB.
+TMDB (principal) · TheTVDB (séries et saisons) · AniList (identification des animés) · YouTube (recherche VF) · Allociné (repli) · instance Stockage BD (optionnelle, par URL). Ce produit utilise l'API TMDB mais n'est ni approuvé ni certifié par TMDB.
