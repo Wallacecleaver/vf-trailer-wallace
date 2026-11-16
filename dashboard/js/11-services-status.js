@@ -5,7 +5,9 @@
     { key: 'youtube', name: 'YouTube', logo: '/logos/youtube.svg', description: 'Bandes-annonces VF, films et animés' },
     { key: 'allocine', name: 'Allociné', logo: 'https://assets.allocine.fr/skin/img/allocine/logo-main-grey.5de8867c.svg', description: 'Recherche de bandes-annonces françaises' },
     { key: 'anilist', name: 'AniList', logo: '/logos/anilist.svg', description: 'Identification et titres alternatifs des animés' },
-  ];  function timeAgoFr(iso) {
+  ];
+
+  function timeAgoFr(iso) {
     const diffMin = Math.round((Date.now() - new Date(iso).getTime()) / 60000);
     if (diffMin < 1) return "à l'instant";
     if (diffMin < 60) return `il y a ${diffMin} min`;
