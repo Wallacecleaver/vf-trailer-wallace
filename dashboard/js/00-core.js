@@ -1,5 +1,18 @@
-  let token = localStorage.getItem('vftrailers_token') || '';
+  function readDashboardToken() {
+    try { return localStorage.getItem('vftrailers_token') || ''; }
+    catch (e) { return undefined; }
+  }
+
+  let token = readDashboardToken() || '';
   let isDark = true;
+
+  function saveDashboardToken(value) {
+    token = value;
+    try {
+      if (value) localStorage.setItem('vftrailers_token', value);
+      else localStorage.removeItem('vftrailers_token');
+    } catch (e) { /* la session reste utilisable dans cet onglet */ }
+  }
 
   async function doLogin() {
     const pwd = document.getElementById('login-password').value;
@@ -14,8 +27,8 @@
       });
       const data = await res.json().catch(() => ({}));
       if (res.ok && data.token) {
-        token = data.token;
-        localStorage.setItem('vftrailers_token', token);
+        saveDashboardToken(data.token);
+        document.getElementById('login-password').value = '';
         showDashboard();
       } else {
         err.textContent = data.error || 'Mot de passe incorrect';
@@ -28,11 +41,19 @@
     }
   }
 
-  function logout() {
-    localStorage.removeItem('vftrailers_token');
-    token = '';
+  function showLogin(message) {
+    if (ovInterval) { clearInterval(ovInterval); ovInterval = null; }
+    if (typeof logsInterval !== 'undefined' && logsInterval) { clearInterval(logsInterval); logsInterval = null; }
     document.getElementById('dashboard').style.display = 'none';
     document.getElementById('login-screen').style.display = 'flex';
+    const error = document.getElementById('login-error');
+    error.textContent = message || '';
+    error.style.display = message ? 'block' : 'none';
+  }
+
+  function logout(message) {
+    saveDashboardToken('');
+    showLogin(message);
   }
 
   async function showDashboard() {
@@ -46,8 +67,44 @@
   }
 
   function authHeaders(extra) {
+    const saved = readDashboardToken();
+    if (typeof saved === 'string') token = saved;
     return Object.assign({ 'x-admin-token': token }, extra || {});
   }
+
+  // Une panne réseau ou un 5xx ne supprime jamais la session. Tous les appels
+  // authentifiés récupèrent aussi un éventuel renouvellement envoyé par le serveur.
+  async function authFetch(url, options = {}) {
+    if (new URL(url, window.location.href).origin !== window.location.origin) {
+      throw new Error('Les appels du dashboard doivent rester sur le même site.');
+    }
+    const saved = readDashboardToken();
+    if (typeof saved === 'string') token = saved;
+    const sentToken = token;
+    const headers = new Headers(options.headers || {});
+    headers.set('x-admin-token', sentToken);
+    const response = await fetch(url, Object.assign({}, options, { headers }));
+    const latest = readDashboardToken();
+    // Une réponse ancienne ne doit ni effacer une nouvelle connexion, ni la remplacer.
+    if (sentToken && token === sentToken && (latest === undefined || latest === sentToken)) {
+      if (response.status === 401) logout('Ta session a expiré ou a été révoquée. Reconnecte-toi.');
+      else {
+        const renewed = response.headers.get('x-admin-token');
+        if (renewed) saveDashboardToken(renewed);
+      }
+    }
+    return response;
+  }
+
+  window.addEventListener('storage', event => {
+    if (event.key !== 'vftrailers_token' && event.key !== null) return;
+    const saved = readDashboardToken();
+    if (typeof saved !== 'string' || saved === token) return;
+    const wasLoggedIn = !!token;
+    token = saved;
+    if (!token) showLogin();
+    else if (!wasLoggedIn) showDashboard();
+  });
 
   let ovInterval = null;
   const DASHBOARD_PAGES = ['overview', 'users', 'mapping', 'requests', 'teststream', 'configure', 'settings', 'logs'];

@@ -20,7 +20,7 @@
       const frame = document.getElementById('cfg-preview');
       if (!frame) return;
       try {
-        const res = await fetch('/api/configure-preview', { method: 'POST', headers: authHeaders({ 'Content-Type': 'application/json' }), body: JSON.stringify(collectConfigurePayload()) });
+        const res = await authFetch('/api/configure-preview', { method: 'POST', headers: authHeaders({ 'Content-Type': 'application/json' }), body: JSON.stringify(collectConfigurePayload()) });
         const data = await res.json();
         frame.srcdoc = data.html || '';
       } catch (e) { /* silencieux : pas bloquant */ }
@@ -35,7 +35,7 @@
 
   async function loadConfigureSettings() {
     try {
-      const res = await fetch('/api/settings/configure', { headers: authHeaders() });
+      const res = await authFetch('/api/settings/configure', { headers: authHeaders() });
       const data = await res.json();
       CFG_FIELDS.forEach(f => { const el = document.getElementById('cfg-' + f); if (el) el.value = data[f] || ''; });
       setAccentInputs(data.accentColor);
@@ -46,7 +46,7 @@
   async function saveConfigureSettings() {
     const payload = collectConfigurePayload();
     try {
-      const res = await fetch('/api/settings/configure', {
+      const res = await authFetch('/api/settings/configure', {
         method: 'POST', headers: authHeaders({ 'Content-Type': 'application/json' }), body: JSON.stringify(payload),
       });
       if (res.ok) { toast('✅ Page configure mise à jour'); refreshConfigurePreview(); }
@@ -57,7 +57,7 @@
   async function resetConfigureDefaults() {
     if (!confirm('Réinitialiser tous les textes de la page configure ?')) return;
     try {
-      const res = await fetch('/api/settings/configure/reset', { method: 'POST', headers: authHeaders() });
+      const res = await authFetch('/api/settings/configure/reset', { method: 'POST', headers: authHeaders() });
       if (res.ok) { toast('✅ Réinitialisé'); await loadConfigureSettings(); }
       else toast('❌ Erreur');
     } catch (e) { toast('❌ ' + e.message); }

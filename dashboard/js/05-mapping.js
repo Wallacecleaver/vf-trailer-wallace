@@ -16,9 +16,9 @@
     mappingPage = 0;
     try {
       const [ovRes, failRes, resRes] = await Promise.all([
-        fetch('/api/overrides', { headers: authHeaders() }),
-        fetch('/api/failed-log', { headers: authHeaders() }),
-        fetch('/api/resolved-log', { headers: authHeaders() }),
+        authFetch('/api/overrides', { headers: authHeaders() }),
+        authFetch('/api/failed-log', { headers: authHeaders() }),
+        authFetch('/api/resolved-log', { headers: authHeaders() }),
       ]);
       overridesData = await ovRes.json();
       failedData = await failRes.json();
@@ -246,7 +246,7 @@
     let ok = 0;
     for (const o of targets) {
       try {
-        const res = await fetch('/api/overrides', {
+        const res = await authFetch('/api/overrides', {
           method: 'POST',
           headers: authHeaders({ 'Content-Type': 'application/json' }),
           body: JSON.stringify({ imdbId: o.imdbId, season: o.season || null, ytId: o.ytId || null, url: o.url || null, title: o.title || null, mediaType: o.mediaType || null, links: Array.isArray(o.links) ? o.links : undefined, notes: o.notes || null, hidden: !o.hidden }),
@@ -267,7 +267,7 @@
     let ok = 0;
     for (const o of targets) {
       try {
-        const res = await fetch('/api/overrides?imdbId=' + encodeURIComponent(o.imdbId) + '&season=' + encodeURIComponent(o.season || ''), { method: 'DELETE', headers: authHeaders() });
+        const res = await authFetch('/api/overrides?imdbId=' + encodeURIComponent(o.imdbId) + '&season=' + encodeURIComponent(o.season || ''), { method: 'DELETE', headers: authHeaders() });
         if (res.ok) ok++;
       } catch (e) { /* silencieux */ }
     }
@@ -281,7 +281,7 @@
     const o = overridesData.find(x => x.imdbId === imdbId && String(x.season || '') === String(season || ''));
     if (!o) return;
     try {
-      const res = await fetch('/api/overrides', {
+      const res = await authFetch('/api/overrides', {
         method: 'POST',
         headers: authHeaders({ 'Content-Type': 'application/json' }),
         body: JSON.stringify({
@@ -370,7 +370,7 @@
 
   async function refreshFailedBadge() {
     try {
-      const res = await fetch('/api/failed-log', { headers: authHeaders() });
+      const res = await authFetch('/api/failed-log', { headers: authHeaders() });
       const failed = await res.json();
       const badge = document.getElementById('failed-badge');
       if (failed.length) { badge.style.display = 'inline-block'; badge.textContent = failed.length; }

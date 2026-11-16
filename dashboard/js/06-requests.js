@@ -11,8 +11,8 @@
 
   async function refreshRequestsBadge() {
     try {
-      const res = await fetch('/api/contributions', { headers: authHeaders() });
-      if (!res.ok) { if (res.status === 401) { logout(); return; } return; }
+      const res = await authFetch('/api/contributions', { headers: authHeaders() });
+      if (!res.ok) { if (res.status === 401) return; return; }
       const all = await res.json();
       const pending = all.filter(c => c.status === 'pending');
       const badge = document.getElementById('requests-badge');
@@ -23,8 +23,8 @@
 
   async function loadRequests() {
     try {
-      const res = await fetch('/api/contributions', { headers: authHeaders() });
-      if (!res.ok) { if (res.status === 401) { logout(); return; } toast('❌ Erreur de chargement des demandes'); return; }
+      const res = await authFetch('/api/contributions', { headers: authHeaders() });
+      if (!res.ok) { if (res.status === 401) return; toast('❌ Erreur de chargement des demandes'); return; }
       requestsAll = await res.json();
       document.getElementById('tab-count-req-pending').textContent = requestsAll.filter(c => c.status === 'pending').length;
       document.getElementById('tab-count-req-accepted').textContent = requestsAll.filter(c => c.status === 'accepted').length;
@@ -95,8 +95,8 @@
 
   async function acceptRequest(id) {
     try {
-      const res = await fetch('/api/contributions/' + encodeURIComponent(id) + '/accept', { method: 'POST', headers: authHeaders() });
-      if (!res.ok) { if (res.status === 401) { logout(); return; } toast("❌ Erreur lors de l'acceptation"); return; }
+      const res = await authFetch('/api/contributions/' + encodeURIComponent(id) + '/accept', { method: 'POST', headers: authHeaders() });
+      if (!res.ok) { if (res.status === 401) return; toast("❌ Erreur lors de l'acceptation"); return; }
       const data = await res.json();
       if (data.success) toast('✅ Proposition acceptée — override mis à jour');
       else toast("❌ Échec de la création de l'override");
@@ -106,8 +106,8 @@
 
   async function rejectRequest(id) {
     try {
-      const res = await fetch('/api/contributions/' + encodeURIComponent(id) + '/reject', { method: 'POST', headers: authHeaders() });
-      if (!res.ok) { if (res.status === 401) { logout(); return; } toast('❌ Erreur lors du refus'); return; }
+      const res = await authFetch('/api/contributions/' + encodeURIComponent(id) + '/reject', { method: 'POST', headers: authHeaders() });
+      if (!res.ok) { if (res.status === 401) return; toast('❌ Erreur lors du refus'); return; }
       toast('🚫 Proposition refusée');
       loadRequests();
     } catch (e) { toast('❌ Erreur réseau'); }
@@ -235,7 +235,7 @@
     }
 
     try {
-      const res = await fetch('/api/overrides', {
+      const res = await authFetch('/api/overrides', {
         method: 'POST',
         headers: authHeaders({ 'Content-Type': 'application/json' }),
         body: JSON.stringify({ imdbId, season: season ? Number(season) : null, ytId: ytId || null, url: ytId ? null : (url || null), links: fallbacks.length ? fallbacks : undefined, title: title || null, hidden, mediaType: mediaType || null, notes: notes || null }),
@@ -243,7 +243,7 @@
       if (res.ok) {
         // En édition, si la saison a changé, l'entrée d'origine devient orpheline -> on la supprime.
         if (editingKey && (editingKey.imdbId !== imdbId || String(editingKey.season || '') !== String(season || ''))) {
-          await fetch('/api/overrides?imdbId=' + encodeURIComponent(editingKey.imdbId) + '&season=' + encodeURIComponent(editingKey.season || ''), {
+          await authFetch('/api/overrides?imdbId=' + encodeURIComponent(editingKey.imdbId) + '&season=' + encodeURIComponent(editingKey.season || ''), {
             method: 'DELETE', headers: authHeaders(),
           });
         }
@@ -257,7 +257,7 @@
   async function deleteOverride(imdbId, season) {
     if (!confirm('Supprimer cet override ?')) return;
     try {
-      const res = await fetch('/api/overrides?imdbId=' + encodeURIComponent(imdbId) + '&season=' + encodeURIComponent(season), {
+      const res = await authFetch('/api/overrides?imdbId=' + encodeURIComponent(imdbId) + '&season=' + encodeURIComponent(season), {
         method: 'DELETE', headers: authHeaders(),
       });
       if (res.ok) {
@@ -271,7 +271,7 @@
   async function clearFailedLog() {
     if (!confirm('Vider le journal des échecs ?')) return;
     try {
-      const res = await fetch('/api/failed-log', { method: 'DELETE', headers: authHeaders() });
+      const res = await authFetch('/api/failed-log', { method: 'DELETE', headers: authHeaders() });
       if (res.ok) { toast('✅ Journal vidé'); await loadMapping(); }
       else toast('❌ Erreur');
     } catch (e) { toast('❌ ' + e.message); }
@@ -280,7 +280,7 @@
   async function clearResolvedLog() {
     if (!confirm('Vider le journal des résolutions récentes ?')) return;
     try {
-      const res = await fetch('/api/resolved-log', { method: 'DELETE', headers: authHeaders() });
+      const res = await authFetch('/api/resolved-log', { method: 'DELETE', headers: authHeaders() });
       if (res.ok) { toast('✅ Journal vidé'); await loadMapping(); }
       else toast('❌ Erreur');
     } catch (e) { toast('❌ ' + e.message); }

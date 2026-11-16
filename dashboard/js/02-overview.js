@@ -1,8 +1,11 @@
   // ---- OVERVIEW ----
   async function loadOverview() {
     try {
-      const res = await fetch('/api/dashboard-stats', { headers: authHeaders() });
-      if (!res.ok) { logout(); return; }
+      const res = await authFetch('/api/dashboard-stats', { headers: authHeaders() });
+      if (!res.ok) {
+        if (res.status !== 401) document.getElementById('ov-updated').textContent = 'Serveur temporairement indisponible';
+        return;
+      }
       const data = await res.json();
 
       document.getElementById('ov-updated').textContent = 'MAJ ' + new Date().toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
@@ -174,7 +177,7 @@
     onTsTypeChange();
     showPage('teststream');
     try {
-      const res = await fetch('/api/tmdb-lookup?imdbId=' + encodeURIComponent(imdbId), { headers: authHeaders() });
+      const res = await authFetch('/api/tmdb-lookup?imdbId=' + encodeURIComponent(imdbId), { headers: authHeaders() });
       if (res.ok) {
         const data = await res.json();
         if (data.mediaType === 'tv') { typeEl.value = 'series'; onTsTypeChange(); }
@@ -204,7 +207,7 @@
   async function resetStats() {
     if (!confirm('Vider toutes les stats ? Cette action est irréversible.')) return;
     try {
-      const res = await fetch('/api/dashboard-stats/reset', { method: 'POST', headers: authHeaders() });
+      const res = await authFetch('/api/dashboard-stats/reset', { method: 'POST', headers: authHeaders() });
       if (res.ok) { toast('✅ Stats réinitialisées'); await loadOverview(); }
       else toast('❌ Erreur lors du reset');
     } catch (e) { toast('❌ ' + e.message); }

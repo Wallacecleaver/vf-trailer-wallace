@@ -55,8 +55,8 @@
     if (!/^tt\d{6,9}$/.test(imdbId)) { badge.classList.remove('show'); return; }
     try {
       if (!tsOverridesCache || Date.now() - tsOverridesCacheAt > 60000) {
-        const res = await fetch('/api/overrides', { headers: authHeaders() });
-        if (!res.ok) { if (res.status === 401) { logout(); return; } return; }
+        const res = await authFetch('/api/overrides', { headers: authHeaders() });
+        if (!res.ok) { if (res.status === 401) return; return; }
         tsOverridesCache = await res.json();
         tsOverridesCacheAt = Date.now();
       }
@@ -132,11 +132,14 @@
     out.innerHTML = '<div class="ts-loading"><div class="ts-eq"><span></span><span></span><span></span><span></span><span></span></div><div class="lbl">résolution en cours…</div></div>';
 
     try {
-      const res = await fetch('/api/test-resolve', {
+      const res = await authFetch('/api/test-resolve', {
         method: 'POST', headers: authHeaders({ 'Content-Type': 'application/json' }),
         body: JSON.stringify({ type, imdbId, season: season || null, ignoreOverride, aiom }),
       });
-      if (!res.ok) { logout(); return; }
+      if (!res.ok) {
+        if (res.status !== 401) out.innerHTML = '<div class="info-box">❌ Le serveur est temporairement indisponible. Réessaie.</div>';
+        return;
+      }
       const data = await res.json();
       renderStreamTestResult(data, imdbId, season || null, type);
     } catch (e) {
@@ -298,7 +301,7 @@
     const seq = ++testTmdbSearchSeq;
     const box = document.getElementById('test-tmdb-results');
     try {
-      const res = await fetch('/api/tmdb-search?q=' + encodeURIComponent(q), { headers: authHeaders() });
+      const res = await authFetch('/api/tmdb-search?q=' + encodeURIComponent(q), { headers: authHeaders() });
       const data = await res.json();
       if (seq !== testTmdbSearchSeq) return; // une recherche plus récente est partie entre-temps
       if (!res.ok) { box.innerHTML = '<div class="tmdb-empty">' + escapeHtml(data.error || 'Erreur de recherche') + '</div>'; return; }
@@ -321,7 +324,7 @@
     const box = document.getElementById('test-tmdb-results');
     box.innerHTML = '<div class="tmdb-loading">Récupération de l\'IMDB ID...</div>';
     try {
-      const res = await fetch('/api/tmdb-resolve?id=' + r.tmdbId + '&type=' + r.mediaType, { headers: authHeaders() });
+      const res = await authFetch('/api/tmdb-resolve?id=' + r.tmdbId + '&type=' + r.mediaType, { headers: authHeaders() });
       const data = await res.json();
       if (!res.ok || !data.imdbId) { toast('❌ IMDB ID introuvable pour ce titre'); box.classList.remove('show'); return; }
       document.getElementById('ts-imdb').value = data.imdbId;

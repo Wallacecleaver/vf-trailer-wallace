@@ -1,8 +1,11 @@
   // ---- USERS (installations actives) ----
   async function loadInstallStats() {
     try {
-      const res = await fetch('/api/install-stats', { headers: authHeaders() });
-      if (!res.ok) { logout(); return; }
+      const res = await authFetch('/api/install-stats', { headers: authHeaders() });
+      if (!res.ok) {
+        if (res.status !== 401) document.getElementById('install-updated').textContent = 'Serveur temporairement indisponible';
+        return;
+      }
       const data = await res.json();
 
       document.getElementById('install-updated').textContent = 'MAJ ' + new Date().toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
@@ -86,7 +89,7 @@
   async function deleteInstallUser(id, pseudo) {
     if (!confirm(`Supprimer ${pseudo} de la liste ? Ses stats seront effacées, mais son addon continuera de fonctionner normalement (ce n'est qu'une ligne de suivi, pas un accès).`)) return;
     try {
-      const res = await fetch(`/api/install-stats/${encodeURIComponent(id)}`, { method: 'DELETE', headers: authHeaders() });
+      const res = await authFetch(`/api/install-stats/${encodeURIComponent(id)}`, { method: 'DELETE', headers: authHeaders() });
       if (res.ok) { toast('✅ Utilisateur supprimé'); await loadInstallStats(); }
       else toast('❌ Erreur lors de la suppression');
     } catch (e) { toast('❌ ' + e.message); }
@@ -95,7 +98,7 @@
   async function resetInstallStats() {
     if (!confirm('Vider toutes les données d\'installation ? Cette action est irréversible.')) return;
     try {
-      const res = await fetch('/api/install-stats/reset', { method: 'POST', headers: authHeaders() });
+      const res = await authFetch('/api/install-stats/reset', { method: 'POST', headers: authHeaders() });
       if (res.ok) { toast('✅ Données réinitialisées'); await loadInstallStats(); }
       else toast('❌ Erreur lors du reset');
     } catch (e) { toast('❌ ' + e.message); }

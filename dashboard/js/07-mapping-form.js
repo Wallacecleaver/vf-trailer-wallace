@@ -13,7 +13,7 @@
     const seq = ++tmdbSearchSeq;
     const box = document.getElementById('tmdb-results');
     try {
-      const res = await fetch('/api/tmdb-search?q=' + encodeURIComponent(q), { headers: authHeaders() });
+      const res = await authFetch('/api/tmdb-search?q=' + encodeURIComponent(q), { headers: authHeaders() });
       const data = await res.json();
       if (seq !== tmdbSearchSeq) return; // une recherche plus récente est partie entre-temps
       if (!res.ok) { box.innerHTML = `<div class="tmdb-empty">${escapeHtml(data.error || 'Erreur de recherche')}</div>`; return; }
@@ -39,7 +39,7 @@
     const box = document.getElementById('tmdb-results');
     box.innerHTML = '<div class="tmdb-loading">Récupération de l\'IMDB ID...</div>';
     try {
-      const res = await fetch(`/api/tmdb-resolve?id=${r.tmdbId}&type=${r.mediaType}`, { headers: authHeaders() });
+      const res = await authFetch(`/api/tmdb-resolve?id=${r.tmdbId}&type=${r.mediaType}`, { headers: authHeaders() });
       const data = await res.json();
       if (!res.ok || !data.imdbId) { toast('❌ IMDB ID introuvable pour ce titre'); box.classList.remove('show'); return; }
       document.getElementById('ov-imdb').value = data.imdbId;
@@ -76,7 +76,7 @@
     const seq = ++ytSearchSeq;
     const box = document.getElementById('yt-results');
     try {
-      const res = await fetch('/api/youtube-search?q=' + encodeURIComponent(q), { headers: authHeaders() });
+      const res = await authFetch('/api/youtube-search?q=' + encodeURIComponent(q), { headers: authHeaders() });
       const data = await res.json();
       if (seq !== ytSearchSeq) return;
       if (!res.ok || !Array.isArray(data)) { box.innerHTML = '<div class="tmdb-empty">Erreur de recherche</div>'; return; }
@@ -154,7 +154,7 @@
     el.textContent = '…';
     el.className = 'fallback-status pending';
     try {
-      const res = await fetch('/api/test-link?ytId=' + encodeURIComponent(id) + '&url=' + encodeURIComponent(url), { headers: authHeaders() });
+      const res = await authFetch('/api/test-link?ytId=' + encodeURIComponent(id) + '&url=' + encodeURIComponent(url), { headers: authHeaders() });
       const data = await res.json();
       if (seq !== fallbackDispoSeq[i]) return;
       el.textContent = data.ok ? '✅' : '❌';
@@ -184,7 +184,7 @@
     el.className = 'link-status pending';
     linkDispoTimer = setTimeout(async () => {
       try {
-        const res = await fetch('/api/test-link?ytId=' + encodeURIComponent(yt) + '&url=', { headers: authHeaders() });
+        const res = await authFetch('/api/test-link?ytId=' + encodeURIComponent(yt) + '&url=', { headers: authHeaders() });
         const data = await res.json();
         el.textContent = data.ok ? (data.title ? '✅ ' + data.title : '✅ Lien jouable') : '❌ ' + (data.error || 'Lien injoignable');
         el.className = 'link-status ' + (data.ok ? 'ok' : 'bad');
@@ -201,7 +201,7 @@
     el.className = 'link-status pending';
     linkUrlDispoTimer = setTimeout(async () => {
       try {
-        const res = await fetch('/api/test-link?ytId=&url=' + encodeURIComponent(url), { headers: authHeaders() });
+        const res = await authFetch('/api/test-link?ytId=&url=' + encodeURIComponent(url), { headers: authHeaders() });
         const data = await res.json();
         el.textContent = data.ok ? (data.media === 'hls' ? '✅ Flux HLS (.m3u8) jouable' : data.media === 'mp4' ? '✅ Vidéo MP4 jouable' : '✅ Lien jouable') : '❌ ' + (data.error || 'Lien injoignable');
         el.className = 'link-status ' + (data.ok ? 'ok' : 'bad');
@@ -230,7 +230,7 @@
     let okCount = 0;
     for (const c of candidates) {
       try {
-        const res = await fetch('/api/test-link?ytId=' + encodeURIComponent(c.ytId) + '&url=' + encodeURIComponent(c.url), { headers: authHeaders() });
+        const res = await authFetch('/api/test-link?ytId=' + encodeURIComponent(c.ytId) + '&url=' + encodeURIComponent(c.url), { headers: authHeaders() });
         const data = await res.json();
         if (data.ok) {
           okCount++;
@@ -292,7 +292,7 @@
 
     const seq = ++imdbLookupSeq;
     try {
-      const res = await fetch(`/api/tmdb-lookup?imdbId=${imdbId}`, { headers: authHeaders() });
+      const res = await authFetch(`/api/tmdb-lookup?imdbId=${imdbId}`, { headers: authHeaders() });
       if (seq !== imdbLookupSeq) return; // un lookup plus récent est parti entre-temps
       if (!res.ok) return; // silencieux : TMDB ne connaît pas ce titre, pas grave, on laisse vide
       const data = await res.json();
@@ -318,7 +318,7 @@
 
     const seq = ++ytLookupSeq;
     try {
-      const res = await fetch(`/api/youtube-title?id=${ytId}`, { headers: authHeaders() });
+      const res = await authFetch(`/api/youtube-title?id=${ytId}`, { headers: authHeaders() });
       if (seq !== ytLookupSeq) return; // un lookup plus récent est parti entre-temps
       if (!res.ok) return; // vidéo privée/supprimée -> pas grave, le champ reste vide
       const data = await res.json();

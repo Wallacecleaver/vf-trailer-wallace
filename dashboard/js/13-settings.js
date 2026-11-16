@@ -52,7 +52,7 @@
 
   async function loadBehaviorSettings() {
     try {
-      const res = await fetch('/api/settings/behavior', { headers: authHeaders() });
+      const res = await authFetch('/api/settings/behavior', { headers: authHeaders() });
       const data = await res.json();
       Object.keys(SETTING_NAMES).forEach(k => {
         const el = document.getElementById(SETTING_NAMES[k]);
@@ -72,7 +72,7 @@
   async function saveBehaviorSettings(silent) {
     setSaveState('saving');
     try {
-      const res = await fetch('/api/settings/behavior', {
+      const res = await authFetch('/api/settings/behavior', {
         method: 'POST', headers: authHeaders({ 'Content-Type': 'application/json' }), body: JSON.stringify(collectBehaviorPayload()),
       });
       if (res.ok) { setSaveState('saved'); settingsDirty = false; setTimeout(() => { if (!settingsDirty) setSaveState(''); }, 2500); }
@@ -113,7 +113,7 @@
       const params = new URLSearchParams();
       if (url) params.set('url', url);
       if (key) params.set('key', key);
-      const res = await fetch('/api/netflix-catalogue/test' + (params.toString() ? '?' + params.toString() : ''), { headers: authHeaders() });
+      const res = await authFetch('/api/netflix-catalogue/test' + (params.toString() ? '?' + params.toString() : ''), { headers: authHeaders() });
       const d = await res.json();
       if (!d.configured) {
         status.className = 'link-status bad';
@@ -135,7 +135,7 @@
   async function loadCacheStats() {
     const desc = document.getElementById('cache-stats-desc');
     try {
-      const res = await fetch('/api/cache/stats', { headers: authHeaders() });
+      const res = await authFetch('/api/cache/stats', { headers: authHeaders() });
       const data = await res.json();
       desc.textContent = data.count > 0
         ? `${data.count} entrée${data.count > 1 ? 's' : ''} en cache (${data.success || 0} succès · ${data.failures || 0} échec${data.failures === 1 ? '' : 's'})`
@@ -151,7 +151,7 @@
       ? 'Vider uniquement les échecs en cache ? Les titres qui échouaient seront re-testés à la prochaine requête, les succès sont conservés.'
       : 'Vider tout le cache des bandes-annonces ? Les prochaines requêtes re-vérifieront auprès de TMDB.')) return;
     try {
-      const res = await fetch('/api/cache' + (only === 'failures' ? '?only=failures' : ''), { method: 'DELETE', headers: authHeaders() });
+      const res = await authFetch('/api/cache' + (only === 'failures' ? '?only=failures' : ''), { method: 'DELETE', headers: authHeaders() });
       if (res.ok) { toast('✅ ' + (only === 'failures' ? 'Échecs vidés' : 'Cache vidé')); loadCacheStats(); }
       else toast('❌ Erreur');
     } catch (e) { toast('❌ ' + e.message); }
@@ -169,7 +169,7 @@
     };
     try {
       if (force) { desc.textContent = 'Vérification en cours...'; setVal('db', '…', null); setVal('tmdbkey', '…', null); setVal('svc-tmdb', '…', null); setVal('svc-youtube', '…', null); setVal('svc-allocine', '…', null); setVal('svc-netflix-catalogue', '…', null); setVal('cache', '…', null); }
-      const res = await fetch('/api/diagnostics', { headers: authHeaders() });
+      const res = await authFetch('/api/diagnostics', { headers: authHeaders() });
       const d = await res.json();
       setVal('db', d.db ? '✓ Connectée' : '✗ Indisponible', d.db, d.db ? 'SQLite opérationnelle' : 'Vérifie que DATA_DIR est accessible en écriture');
       if (d.tmdbKey && d.tmdbKey.present) {
@@ -197,7 +197,7 @@
   async function resetBehaviorDefaults() {
     if (!confirm('Réinitialiser tous les réglages de comportement aux valeurs par défaut ?')) return;
     try {
-      const res = await fetch('/api/settings/behavior/reset', { method: 'POST', headers: authHeaders() });
+      const res = await authFetch('/api/settings/behavior/reset', { method: 'POST', headers: authHeaders() });
       if (res.ok) { toast('✅ Réinitialisé'); await loadBehaviorSettings(); }
       else toast('❌ Erreur');
     } catch (e) { toast('❌ ' + e.message); }

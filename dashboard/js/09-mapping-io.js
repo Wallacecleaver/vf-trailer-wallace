@@ -43,7 +43,7 @@
         const hasLink = (item.ytId && item.ytId.trim()) || (item.url && item.url.trim()) || (Array.isArray(item.links) && item.links.some(l => l && (l.ytId || l.url)));
         if (!item.imdbId || (!hasLink && !isHidden)) { fail++; continue; }
         try {
-          const res = await fetch('/api/overrides', {
+          const res = await authFetch('/api/overrides', {
             method: 'POST', headers: authHeaders({ 'Content-Type': 'application/json' }),
             body: JSON.stringify({ imdbId: item.imdbId, season: item.season || null, ytId: item.ytId || null, url: item.ytId ? null : (item.url || null), links: Array.isArray(item.links) && item.links.length ? item.links : undefined, title: item.title || null, hidden: isHidden, mediaType: item.mediaType || null, notes: item.notes || null }),
           });

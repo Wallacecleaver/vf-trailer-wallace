@@ -19,8 +19,9 @@ async function main() {
     // La base SQLite est locale : si elle ne s'ouvre pas (dossier de données absent ou non inscriptible), on s'arrête.
     try {
         if (await ensureSchema()) console.log('Base de données prête (schema.sql appliqué).');
+        if (process.env.DASHBOARD_PASSWORD) require('../lib/session-secret').getTokenSecret();
     } catch (err) {
-        console.error('Impossible d’ouvrir la base ni d’appliquer schema.sql :', err.message);
+        console.error('Impossible de préparer la base ou la clé de session persistante :', err.message);
         console.error('Vérifie que DATA_DIR est accessible en écriture (volume monté sur /data avec Docker).');
         process.exit(1);
     }
@@ -38,7 +39,6 @@ async function main() {
         const { weakPasswordReason } = require('../lib/auth');
         const weak = weakPasswordReason();
         if (weak) console.warn(`⚠️  Connexion au dashboard désactivée : ${weak}. Définis un DASHBOARD_PASSWORD fort (12+ caractères aléatoires).`);
-        if (!process.env.TOKEN_SECRET) console.warn('⚠️  TOKEN_SECRET non défini : sessions invalidées à chaque redémarrage (recommandé en production).');
         if (!process.env.APP_BASE_URL) console.warn('⚠️  APP_BASE_URL non défini : les liens/logo pointeront vers http://localhost.');
     });
 

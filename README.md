@@ -93,7 +93,7 @@ Ouvre `APP_BASE_URL` dans ton navigateur, renseigne ta clé TMDB, puis clique su
 | Variable | Obligatoire | Description |
 |---|:--:|---|
 | `DASHBOARD_PASSWORD` | ✅ | Mot de passe du dashboard, **12 caractères minimum** et aléatoire. La connexion est refusée si le mot de passe est absent, trop court ou `change-moi`. |
-| `TOKEN_SECRET` | conseillé | Secret aléatoire de signature des sessions, indépendant du mot de passe. Absent = secret généré au démarrage (sessions perdues à chaque redémarrage). |
+| `TOKEN_SECRET` | non | Secret de signature des sessions, indépendant du mot de passe. Si absent, une clé aléatoire est créée dans `DATA_DIR/dashboard-session-secret` et conservée entre les redémarrages. Une valeur explicitement configurée garde la priorité. |
 | `APP_BASE_URL` | ✅ | URL publique de l'addon, sans slash final (logo, liens `/proposer`…). |
 | `TMDB_API_KEY` | conseillé | Clé TMDB du testeur de flux du dashboard. |
 | `TVDB_API_KEY` | non | Clé API TheTVDB v4 partagée par défaut ; une clé personnelle sans PIN peut la remplacer dans `/configure`. |
@@ -104,6 +104,8 @@ Ouvre `APP_BASE_URL` dans ton navigateur, renseigne ta clé TMDB, puis clique su
 | `SESSION_VERSION` | non | Changer cette valeur révoque immédiatement toutes les sessions du dashboard. |
 | `ALLOW_PRIVATE_UPSTREAM` | non | `1` pour autoriser une instance « Stockage BD » sur une adresse privée (réseau Docker). Désactivé par défaut (anti-SSRF). |
 | `DASHBOARD_NO_CACHE` | non | `1` pour désactiver le cache de rendu du dashboard pendant que tu le modifies. |
+
+Les sessions du dashboard durent huit heures et sont renouvelées pendant l'utilisation, avant leur expiration. Une erreur réseau ou une indisponibilité du serveur ne déconnecte pas l'utilisateur. Conserve le volume `DATA_DIR` lors des mises à jour : il contient aussi la clé de session si `TOKEN_SECRET` n'est pas défini. Changer `SESSION_VERSION` ou la clé de signature révoque les sessions. Après la première mise à jour depuis l'ancien secret aléatoire non persistant, une reconnexion peut être nécessaire.
 
 > **Note sécurité — identifiants dans le lien d'installation.** La configuration utilisateur (clé TMDB, et éventuellement clé API TheTVDB) est encodée en base64 dans l'URL `/<config>/manifest.json`. Le base64 n'est pas du chiffrement : ne partage pas ce lien publiquement, et sache qu'il peut apparaître dans l'historique du navigateur ou les journaux d'un proxy. L'en-tête `Referrer-Policy: no-referrer` limite les fuites par référent. La clé TheTVDB n'est pas mémorisée dans le stockage local du navigateur.
 

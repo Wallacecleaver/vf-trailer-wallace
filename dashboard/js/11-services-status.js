@@ -25,7 +25,7 @@
     const desc = document.getElementById('svc-status-desc');
     if (forceRefreshFeedback) desc.textContent = 'Vérification en cours...';
     try {
-      const res = await fetch('/api/services-status', { headers: authHeaders() });
+      const res = await authFetch('/api/services-status', { headers: authHeaders() });
       if (!res.ok) throw new Error('Requête échouée');
       const data = await res.json();
       grid.innerHTML = SERVICES.map(service => {
@@ -70,8 +70,8 @@
   async function loadLogs() {
     if (logsPaused) return;
     try {
-      const res = await fetch('/api/logs', { headers: authHeaders() });
-      if (!res.ok) { logout(); return; }
+      const res = await authFetch('/api/logs', { headers: authHeaders() });
+      if (!res.ok) return;
       allLogs = await res.json(); // le plus récent en premier (base SQLite)
       renderLogs();
       refreshLogsBadgeFrom(allLogs);
@@ -144,7 +144,7 @@
 
   async function refreshLogsBadge() {
     try {
-      const res = await fetch('/api/logs', { headers: authHeaders() });
+      const res = await authFetch('/api/logs', { headers: authHeaders() });
       refreshLogsBadgeFrom(await res.json());
     } catch (e) { /* silencieux */ }
   }
@@ -172,7 +172,7 @@
   async function clearLogs() {
     if (!confirm('Vider tous les logs ? Cette action est irréversible.')) return;
     try {
-      const res = await fetch('/api/logs', { method: 'DELETE', headers: authHeaders() });
+      const res = await authFetch('/api/logs', { method: 'DELETE', headers: authHeaders() });
       if (res.ok) { toast('✅ Logs vidés'); await loadLogs(); }
       else toast('❌ Erreur lors du reset');
     } catch (e) { toast('❌ ' + e.message); }
