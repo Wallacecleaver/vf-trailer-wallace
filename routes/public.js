@@ -60,7 +60,7 @@ module.exports = function registerPublicRoutes(app) {
         try {
             const prev = await getCached('system:health:last');
             if (prev) {
-                for (const svc of ['tmdb', 'youtube', 'allocine']) {
+                for (const svc of ['tmdb', 'youtube', 'allocine', 'tvdb', 'anilist', 'jikan']) {
                     if (prev[svc] !== current[svc]) {
                         await logEvent({
                             level: current[svc] ? 'info' : 'warn',
