@@ -165,6 +165,19 @@ CREATE TABLE IF NOT EXISTS configure_settings (
 );
 INSERT INTO configure_settings (id) VALUES (1) ON CONFLICT (id) DO NOTHING;
 
+-- Maintenance de la page publique, séparée des anciens textes personnalisés.
+CREATE TABLE IF NOT EXISTS configure_maintenance (
+    id            INTEGER PRIMARY KEY,
+    enabled       INTEGER NOT NULL DEFAULT 0,
+    title         TEXT NOT NULL DEFAULT 'Maintenance en cours',
+    message       TEXT NOT NULL DEFAULT '',
+    link_url      TEXT NOT NULL DEFAULT '',
+    link_label    TEXT NOT NULL DEFAULT 'En savoir plus',
+    block_install INTEGER NOT NULL DEFAULT 0,
+    updated_at    TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))
+);
+INSERT INTO configure_maintenance (id) VALUES (1) ON CONFLICT (id) DO NOTHING;
+
 CREATE TABLE IF NOT EXISTS behavior_settings (
     id                             INTEGER PRIMARY KEY,
     youtube_enabled                INTEGER, -- interrupteur général YouTube (vidéos TMDB + recherche)

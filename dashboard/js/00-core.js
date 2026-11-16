@@ -120,7 +120,7 @@
     if (name === 'users') loadInstallStats();
     if (name === 'mapping') loadMapping();
     if (name === 'requests') loadRequests();
-    if (name === 'configure') loadConfigureSettings();
+    if (name === 'configure') loadMaintenanceSettings();
     if (name === 'settings') loadBehaviorSettings();
     if (name === 'logs') initLogsPage();
     else if (logsInterval) { clearInterval(logsInterval); logsInterval = null; } // pas de polling hors de la page logs

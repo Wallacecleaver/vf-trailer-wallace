@@ -4,7 +4,8 @@ const { renderDashboardShell } = require('../lib/dashboard-view');
 const { renderConfigureHtml } = require('../lib/configure-view');
 const { renderContributeHtml } = require('../lib/contribute-view');
 const { getConfigureSettings } = require('../lib/settings');
-const { requireAuth } = require('../lib/auth');
+const { getMaintenanceSettings } = require('../lib/maintenance');
+const { renderMaintenancePage } = require('../lib/maintenance-view');
 const { DISPLAY_MODES } = require('../lib/stream-format');
 const { resolvePreview } = require('../lib/preview');
 const { rateLimit } = require('../lib/security');
@@ -24,10 +25,17 @@ module.exports = function registerPageRoutes(app) {
         res.redirect(302, '/configure');
     });
 
-    app.get(['/configure', '/:config/configure'], async (req, res) => {
-        const settings = await getConfigureSettings();
-        res.setHeader('Content-Type', 'text/html; charset=utf-8');
-        res.send(renderConfigureHtml(settings));
+    app.get(['/configure', '/:config/configure'], async (req, res, next) => {
+        res.setHeader('Cache-Control', 'no-store');
+        try {
+            const [settings, maintenance] = await Promise.all([getConfigureSettings(), getMaintenanceSettings()]);
+            res.setHeader('Content-Type', 'text/html; charset=utf-8');
+            if (maintenance.enabled && maintenance.blockInstall) {
+                res.setHeader('Retry-After', '300');
+                return res.status(503).send(renderMaintenancePage(settings, maintenance));
+            }
+            res.send(renderConfigureHtml(settings, maintenance));
+        } catch (error) { next(error); }
     });
 
     // Recherche réelle, en lecture seule. GET reste accepté pour les pages déjà ouvertes.
@@ -60,20 +68,6 @@ module.exports = function registerPageRoutes(app) {
     app.get('/api/preview-streams', previewLimit, preview);
     app.post('/api/preview-streams', previewLimit, preview);
 
-    // Aperçu en direct pour le dashboard : rend /configure à partir du payload en cours
-    // d'édition (non encore enregistré), pour que l'admin voie le résultat sans quitter la page.
-    app.post('/api/configure-preview', requireAuth, async (req, res) => {
-        const body = req.body || {};
-        const current = await getConfigureSettings();
-        const merged = { ...current };
-        ['brandName','navLinkText','navLinkUrl','heroTitleWhite','heroTitleRed','heroSubtitle',
-         'accentColor','sectionConfigLabel','sectionProfileLabel','sectionLinksLabel','tmdbKeyHint','pseudoHint',
-         'externalToggleTitle','externalToggleDesc','maxLinksLabel','maxLinksHint','extrasSelectLabel','extrasSelectHint',
-         'installAppLabel','installWebLabel','installCopyLabel']
-            .forEach(f => { if (typeof body[f] === 'string') merged[f] = body[f]; });
-        res.setHeader('Content-Type', 'application/json');
-        res.json({ html: renderConfigureHtml(merged) });
-    });
 
     // ---- Dashboard ----
     app.get('/dashboard', (req, res) => {

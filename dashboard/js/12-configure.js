@@ -1,227 +1,127 @@
-  // ---- CONFIGURE ----
-  const CFG_FIELDS = ['brandName','navLinkText','navLinkUrl','heroTitleWhite','heroTitleRed','heroSubtitle',
-    'accentColor','sectionConfigLabel','sectionProfileLabel','sectionLinksLabel','tmdbKeyHint','pseudoHint',
-    'externalToggleTitle','externalToggleDesc','maxLinksLabel','maxLinksHint','extrasSelectLabel','extrasSelectHint',
-    'installAppLabel','installWebLabel','installCopyLabel'];
+  // ---- MAINTENANCE DE LA PAGE CONFIGURE ----
+  const MNT_FIELDS = ['enabled', 'title', 'message', 'linkUrl', 'linkLabel', 'blockInstall'];
+  const MNT_FLAGS = ['enabled', 'blockInstall'];
+  let mntLoaded = false, mntLoading = false, mntSaving = false;
+  let mntSaved = null, mntError = '', mntLoadError = false;
 
-  let cfgPreviewTimer = null;
-  let cfgPreviewRequest = 0;
-  let cfgPreviewMode = 'desktop';
-  let cfgLoaded = false;
-  let cfgLoading = false;
-  let cfgSaving = false;
-  let cfgResetting = false;
-  let cfgSavedPayload = null;
-  let cfgLoadError = '';
-  let cfgSaveError = '';
-
-  function setAccentInputs(hex) {
-    if (!/^#[0-9a-fA-F]{6}$/.test(hex || '')) return;
-    const color = document.getElementById('cfg-accentColor');
-    const text = document.getElementById('cfg-accentColorText');
-    if (color) color.value = hex;
-    if (text) text.value = hex;
-    validateConfigureAccent();
-  }
-
-  function validateConfigureAccent() {
-    const text = document.getElementById('cfg-accentColorText');
-    const valid = /^#[0-9a-fA-F]{6}$/.test(text.value.trim());
-    text.setCustomValidity(valid ? '' : 'Utilise une couleur au format #RRGGBB, par exemple #e53e3e.');
-    text.setAttribute('aria-invalid', String(!valid));
-    return valid;
-  }
-
-  function collectConfigurePayload() {
+  function collectMaintenancePayload() {
     const payload = {};
-    CFG_FIELDS.forEach(f => { const el = document.getElementById('cfg-' + f); if (el) payload[f] = el.value; });
+    MNT_FIELDS.forEach(key => {
+      const el = document.getElementById('mnt-' + key);
+      payload[key] = MNT_FLAGS.includes(key) ? el.checked : el.value.trim();
+    });
     return payload;
   }
 
-  function configureHasChanges() {
-    return cfgLoaded && (JSON.stringify(collectConfigurePayload()) !== cfgSavedPayload
-      || !/^#[0-9a-fA-F]{6}$/.test(document.getElementById('cfg-accentColorText').value.trim()));
+  function maintenanceHasChanges() {
+    return mntLoaded && JSON.stringify(collectMaintenancePayload()) !== mntSaved;
   }
 
-  function updateConfigureSaveState() {
-    const dirty = configureHasChanges();
-    const status = document.getElementById('cfg-save-state');
-    let state = 'saved', message = 'Toutes les modifications sont enregistrées';
-    if (cfgLoading) { state = 'saving'; message = 'Chargement des réglages…'; }
-    else if (cfgResetting) { state = 'saving'; message = 'Réinitialisation…'; }
-    else if (cfgSaving) { state = 'saving'; message = 'Enregistrement…'; }
-    else if (cfgLoadError || cfgSaveError) { state = 'dirty'; message = cfgLoadError || cfgSaveError; }
-    else if (!cfgLoaded) { state = 'saving'; message = 'Chargement des réglages…'; }
-    else if (dirty) { state = 'dirty'; message = 'Modifications non enregistrées'; }
-    status.className = 'save-state ' + state;
-    status.textContent = message;
-    document.getElementById('cfg-fields').disabled = !cfgLoaded || cfgLoading || cfgResetting;
-    document.getElementById('cfg-save').disabled = !cfgLoaded || cfgLoading || cfgSaving || cfgResetting || !dirty;
-    document.getElementById('cfg-save').textContent = cfgSaving ? 'Enregistrement…' : 'Enregistrer les modifications';
-    document.getElementById('cfg-reset').disabled = !cfgLoaded || cfgLoading || cfgSaving || cfgResetting;
-    document.getElementById('cfg-load-retry').hidden = !cfgLoadError;
-  }
-
-  function setConfigurePreviewStatus(message, error = false) {
-    const status = document.getElementById('cfg-preview-status');
-    status.textContent = message;
-    status.classList.toggle('error', error);
-  }
-
-  function resizeConfigurePreview() {
-    const stage = document.getElementById('cfg-preview-stage');
-    const frame = document.getElementById('cfg-preview');
-    if (!stage || !frame || !stage.clientWidth) return;
-    const width = cfgPreviewMode === 'mobile' ? 390 : 1200;
-    const scale = Math.min(1, stage.clientWidth / width);
-    frame.style.width = width + 'px';
-    frame.style.height = (stage.clientHeight / scale) + 'px';
-    frame.style.transform = 'scale(' + scale + ')';
-    frame.style.marginLeft = Math.max(0, (stage.clientWidth - width * scale) / 2) + 'px';
-    document.getElementById('cfg-preview-width').textContent = width + ' px';
-  }
-
-  function setConfigurePreviewDevice(mode) {
-    if (mode !== 'desktop' && mode !== 'mobile') return;
-    cfgPreviewMode = mode;
-    ['desktop', 'mobile'].forEach(device => {
-      document.getElementById('cfg-device-' + device).setAttribute('aria-pressed', String(device === mode));
-    });
-    resizeConfigurePreview();
-  }
-
-  function refreshConfigurePreview(immediate = false) {
-    clearTimeout(cfgPreviewTimer);
-    // Invalider dès la frappe : une ancienne réponse ne doit pas remplacer le prochain aperçu.
-    const request = ++cfgPreviewRequest;
-    if (!cfgLoaded) return;
-    setConfigurePreviewStatus('Mise à jour de l’aperçu…');
-    cfgPreviewTimer = setTimeout(async () => {
-      try {
-        const res = await authFetch('/api/configure-preview', {
-          method: 'POST', headers: authHeaders({ 'Content-Type': 'application/json' }),
-          body: JSON.stringify(collectConfigurePayload()),
-        });
-        if (!res.ok) throw new Error('preview');
-        const data = await res.json();
-        if (typeof data.html !== 'string' || !data.html) throw new Error('preview');
-        if (request !== cfgPreviewRequest) return;
-        const frame = document.getElementById('cfg-preview');
-        frame.srcdoc = data.html;
-        resizeConfigurePreview();
-        setConfigurePreviewStatus('Aperçu à jour · les modifications restent privées jusqu’à l’enregistrement.');
-      } catch (e) {
-        if (request === cfgPreviewRequest) {
-          setConfigurePreviewStatus('Aperçu indisponible. Clique sur Actualiser pour réessayer.', true);
-        }
-      }
-    }, immediate ? 0 : 300);
-  }
-
-  async function loadConfigureSettings() {
-    if (cfgLoading || cfgSaving || cfgResetting) return;
-    // La navigation entre onglets ne doit pas effacer un brouillon en cours.
-    if (configureHasChanges()) { updateConfigureSaveState(); return; }
-    cfgLoading = true;
-    cfgLoadError = '';
-    updateConfigureSaveState();
+  function validMaintenanceLink(value) {
+    if (!value) return true;
     try {
-      const res = await authFetch('/api/settings/configure', { headers: authHeaders() });
-      if (!res.ok) throw new Error('load');
-      const data = await res.json();
-      if (!CFG_FIELDS.every(f => typeof data[f] === 'string')) throw new Error('load');
-      CFG_FIELDS.forEach(f => { document.getElementById('cfg-' + f).value = data[f]; });
-      setAccentInputs(data.accentColor);
-      cfgSavedPayload = JSON.stringify(collectConfigurePayload());
-      cfgLoaded = true;
-      cfgSaveError = '';
-      refreshConfigurePreview();
-    } catch (e) {
-      cfgLoadError = 'Chargement impossible. Les champs ont été conservés.';
-      toast('❌ Impossible de charger les réglages de la page.');
+      const url = new URL(value);
+      return /^https:\/\//i.test(value) && url.protocol === 'https:' && !url.username && !url.password && !/[\s"'<>]/.test(value);
+    } catch { return false; }
+  }
+
+  function updateMaintenanceEditor() {
+    const payload = collectMaintenancePayload(), dirty = maintenanceHasChanges();
+    document.getElementById('mnt-preview-title').textContent = payload.title || 'Maintenance en cours';
+    const message = document.getElementById('mnt-preview-message');
+    message.textContent = payload.message;
+    message.hidden = !payload.message;
+    const link = document.getElementById('mnt-preview-link');
+    const validLink = validMaintenanceLink(payload.linkUrl);
+    link.hidden = !payload.linkUrl || !validLink;
+    link.href = validLink && payload.linkUrl ? payload.linkUrl : '';
+    link.textContent = (payload.linkLabel || 'En savoir plus') + ' ↗';
+    document.getElementById('mnt-linkUrl').setCustomValidity(validLink ? '' : 'Utilise une adresse HTTPS valide, sans identifiants.');
+    document.getElementById('mnt-preview-lock').hidden = !payload.blockInstall;
+    document.getElementById('mnt-preview-state').textContent = !payload.enabled ? 'Bandeau masqué sur la page publique.'
+      : payload.blockInstall ? 'Bandeau visible et configuration suspendue.' : 'Bandeau visible ; configuration accessible.';
+    const status = document.getElementById('mnt-save-state');
+    status.className = 'save-state ' + (mntLoading || mntSaving || !mntLoaded ? 'saving' : mntError || dirty ? 'dirty' : 'saved');
+    status.textContent = mntLoading ? 'Chargement…' : mntSaving ? 'Enregistrement…' : mntError
+      || (!mntLoaded ? 'Chargement…' : dirty ? 'Modifications non enregistrées' : 'Maintenance enregistrée');
+    document.getElementById('mnt-fields').disabled = !mntLoaded || mntLoading;
+    document.getElementById('mnt-save').disabled = !mntLoaded || mntLoading || mntSaving || !dirty;
+    document.getElementById('mnt-save').textContent = mntSaving ? 'Enregistrement…' : 'Enregistrer la maintenance';
+    document.getElementById('mnt-retry').hidden = !mntLoadError || dirty;
+  }
+
+  async function loadMaintenanceSettings() {
+    if (mntLoading || mntSaving) return;
+    if (maintenanceHasChanges()) { updateMaintenanceEditor(); return; }
+    mntLoading = true;
+    mntError = '';
+    mntLoadError = false;
+    updateMaintenanceEditor();
+    try {
+      const response = await authFetch('/api/settings/maintenance', { headers: authHeaders() });
+      if (!response.ok) throw new Error('load');
+      const data = await response.json();
+      if (!MNT_FIELDS.every(key => typeof data[key] === (MNT_FLAGS.includes(key) ? 'boolean' : 'string'))) throw new Error('load');
+      MNT_FIELDS.forEach(key => {
+        const el = document.getElementById('mnt-' + key);
+        if (MNT_FLAGS.includes(key)) el.checked = data[key];
+        else el.value = data[key];
+      });
+      mntSaved = JSON.stringify(collectMaintenancePayload());
+      mntLoaded = true;
+    } catch {
+      mntLoadError = true;
+      mntError = 'Chargement impossible. Les champs ont été conservés.';
+      toast('❌ Impossible de charger la maintenance.');
     } finally {
-      cfgLoading = false;
-      updateConfigureSaveState();
+      mntLoading = false;
+      updateMaintenanceEditor();
     }
   }
 
-  async function saveConfigureSettings() {
-    if (!cfgLoaded || cfgLoading || cfgSaving || cfgResetting) return;
-    if (!validateConfigureAccent()) {
-      document.getElementById('cfg-accentColorText').reportValidity();
+  async function saveMaintenanceSettings() {
+    if (!mntLoaded || mntLoading || mntSaving) return;
+    const payload = collectMaintenancePayload();
+    if (!validMaintenanceLink(payload.linkUrl)) {
+      document.getElementById('mnt-linkUrl').reportValidity();
       return;
     }
-    setAccentInputs(document.getElementById('cfg-accentColorText').value.trim());
-    if (!configureHasChanges()) return;
-    const payload = collectConfigurePayload();
-    cfgSaving = true;
-    cfgSaveError = '';
-    updateConfigureSaveState();
+    if (!maintenanceHasChanges()) return;
+    mntSaving = true;
+    mntError = '';
+    updateMaintenanceEditor();
     try {
-      const res = await authFetch('/api/settings/configure', {
+      const response = await authFetch('/api/settings/maintenance', {
         method: 'POST', headers: authHeaders({ 'Content-Type': 'application/json' }), body: JSON.stringify(payload),
       });
-      if (!res.ok || (await res.json()).success !== true) throw new Error('save');
-      // Seul le contenu envoyé est enregistré : une nouvelle frappe reste un brouillon.
-      cfgSavedPayload = JSON.stringify(payload);
-      toast('✅ Page configure mise à jour');
-    } catch (e) {
-      cfgSaveError = 'Enregistrement impossible. Tes modifications sont conservées.';
-      toast('❌ Enregistrement impossible. Réessaie avec le bouton Enregistrer.');
+      if (!response.ok) throw new Error('save');
+      const data = await response.json();
+      if (data.success !== true) throw new Error('save');
+      // Garder toute modification faite après le départ de la requête.
+      mntSaved = JSON.stringify(payload);
+      toast('✅ Maintenance enregistrée');
+    } catch {
+      mntError = 'Enregistrement impossible. Tes modifications sont conservées.';
+      toast('❌ Enregistrement impossible. Réessaie.');
     } finally {
-      cfgSaving = false;
-      updateConfigureSaveState();
+      mntSaving = false;
+      updateMaintenanceEditor();
     }
   }
 
-  async function resetConfigureDefaults() {
-    if (!cfgLoaded || cfgLoading || cfgSaving || cfgResetting) return;
-    if (!confirm('Réinitialiser les textes et l’apparence de la page Configure ? Les personnalisations enregistrées et le brouillon seront remplacés par les valeurs par défaut.')) return;
-    cfgResetting = true;
-    cfgSaveError = '';
-    updateConfigureSaveState();
-    try {
-      const res = await authFetch('/api/settings/configure/reset', { method: 'POST', headers: authHeaders() });
-      if (!res.ok || (await res.json()).success !== true) throw new Error('reset');
-      cfgLoaded = false;
-      cfgSavedPayload = null;
-      cfgResetting = false;
-      await loadConfigureSettings();
-      toast('✅ Page configure réinitialisée');
-    } catch (e) {
-      cfgSaveError = 'Réinitialisation impossible. Tes modifications sont conservées.';
-      toast('❌ Réinitialisation impossible.');
-    } finally {
-      cfgResetting = false;
-      updateConfigureSaveState();
-    }
-  }
-
-  function bindConfigureLivePreview() {
-    CFG_FIELDS.forEach(f => {
-      const el = document.getElementById('cfg-' + f);
-      if (el) el.addEventListener('input', () => {
-        if (f === 'accentColor') setAccentInputs(el.value);
-        cfgSaveError = '';
-        updateConfigureSaveState();
-        refreshConfigurePreview();
+  function bindMaintenanceSettings() {
+    MNT_FIELDS.forEach(key => {
+      const el = document.getElementById('mnt-' + key);
+      el.addEventListener(MNT_FLAGS.includes(key) ? 'change' : 'input', () => {
+        mntError = '';
+        updateMaintenanceEditor();
       });
     });
-    const text = document.getElementById('cfg-accentColorText');
-    text.addEventListener('input', () => {
-      if (validateConfigureAccent()) document.getElementById('cfg-accentColor').value = text.value.trim();
-      cfgSaveError = '';
-      updateConfigureSaveState();
-      refreshConfigurePreview();
-    });
-    const stage = document.getElementById('cfg-preview-stage');
-    if (typeof ResizeObserver !== 'undefined') new ResizeObserver(resizeConfigurePreview).observe(stage);
-    window.addEventListener('resize', resizeConfigurePreview);
     window.addEventListener('beforeunload', event => {
-      if (!configureHasChanges()) return;
+      if (!maintenanceHasChanges()) return;
       event.preventDefault();
       event.returnValue = '';
     });
-    updateConfigureSaveState();
+    updateMaintenanceEditor();
   }
 

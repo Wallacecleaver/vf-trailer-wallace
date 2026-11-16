@@ -15,9 +15,9 @@ const {
     getFailedLog, clearFailedLog, getResolvedLog, clearResolvedLog } = require('../lib/overrides');
 const { getContributions, updateContributionStatus, deleteContribution } = require('../lib/contributions');
 const {
-    getConfigureSettings, setConfigureSettings, resetConfigureSettings,
     getBehaviorSettings, setBehaviorSettings, resetBehaviorSettings,
 } = require('../lib/settings');
+const { getMaintenanceSettings, setMaintenanceSettings } = require('../lib/maintenance');
 const { searchYoutubeRaw } = require('../lib/youtube-search');
 const { probeDirectLink } = require('../lib/media-link');
 const federation = require('../lib/netflix-federation');
@@ -274,20 +274,20 @@ module.exports = function registerDashboardRoutes(app) {
         res.json({ success: await clearResolvedLog() });
     });
 
-    app.get('/api/settings/configure', requireAuth, async (req, res) => {
-        res.json(await getConfigureSettings());
+    app.get('/api/settings/maintenance', requireAuth, async (req, res, next) => {
+        res.setHeader('Cache-Control', 'no-store');
+        try { res.json(await getMaintenanceSettings()); }
+        catch (error) { next(error); }
     });
 
-    app.post('/api/settings/configure', requireAuth, async (req, res) => {
-        const ok = await setConfigureSettings(req.body || {});
-        if (ok) await logEvent({ level: 'info', context: 'SETTINGS', event: 'settings_configure_updated', message: 'Page configure mise à jour' });
-        res.json({ success: ok });
-    });
-
-    app.post('/api/settings/configure/reset', requireAuth, async (req, res) => {
-        const ok = await resetConfigureSettings();
-        if (ok) await logEvent({ level: 'info', context: 'SETTINGS', event: 'settings_configure_reset', message: 'Page configure réinitialisée' });
-        res.json({ success: ok });
+    app.post('/api/settings/maintenance', requireAuth, async (req, res, next) => {
+        res.setHeader('Cache-Control', 'no-store');
+        try {
+            const settings = await setMaintenanceSettings(req.body);
+            await logEvent({ level: 'info', context: 'SETTINGS', event: 'maintenance_updated',
+                message: settings.enabled ? 'Maintenance de la page configure activée' : 'Maintenance de la page configure désactivée' });
+            res.json({ success: true, settings });
+        } catch (error) { next(error); }
     });
 
     app.get('/api/settings/behavior', requireAuth, async (req, res) => {

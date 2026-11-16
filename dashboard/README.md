@@ -19,7 +19,7 @@ Le dashboard est une page unique générée par `lib/dashboard-view.js`, qui **c
 | Mapping des liens   | `pages/mapping.html`    | `js/05-mapping.js`, `js/07-mapping-form.js`, `js/09-mapping-io.js` |
 | Demandes            | `pages/requests.html`   | `js/06-requests.js`                                                |
 | Test des flux       | `pages/test-flux.html`  | `js/08-test-flux.js`                                               |
-| Page Configure      | `pages/configure.html`  | `js/12-configure.js`                                               |
+| Maintenance de Configure | `pages/configure.html` | `js/12-configure.js`                                            |
 | Réglages            | `pages/settings.html`   | `js/13-settings.js`, `js/11-services-status.js`                    |
 | Logs                | `pages/logs.html`       | `js/10-logs.js`                                                    |
 
@@ -40,6 +40,12 @@ Divers : `js/00-core.js` (login, navigation entre pages), `js/01-youtube-player.
   à l'époque où tout vivait dans une chaîne de texte.
 
 ## En local
+
+L’onglet Page Configure gère uniquement la maintenance : bandeau, message, lien facultatif et blocage
+du formulaire d’installation. Les données sont dans `configure_maintenance`, séparées des anciens
+textes personnalisés conservés dans `configure_settings`. La maintenance ne suspend pas les flux
+ni les manifests des addons installés. Son enregistrement passe par `/api/settings/maintenance`
+(authentification administrateur requise).
 
 `DASHBOARD_NO_CACHE=1 node ...` relit les fichiers à chaque requête : on modifie, on rafraîchit, sans redémarrer.
 Sans cette variable, la page est assemblée une fois au démarrage (cas normal en production).

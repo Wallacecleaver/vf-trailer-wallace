@@ -1,106 +1,56 @@
-        <!-- PAGE: CONFIGURE -->
+        <!-- PAGE: CONFIGURE — maintenance de la page publique -->
         <div class="page" id="page-configure">
           <div class="page-header">
-            <div><div class="page-title">Page Configure</div><div class="page-sub">Personnalise la page d’installation de ton addon.</div></div>
-            <div class="header-actions">
-              <a href="/configure" target="_blank" rel="noopener noreferrer" class="btn-outline-sm">↗ Ouvrir la page publique</a>
-              <button id="cfg-reset" class="btn-add" onclick="resetConfigureDefaults()" disabled>↺ Réinitialiser</button>
-            </div>
+            <div><div class="page-title">Page Configure</div><div class="page-sub">Gère la maintenance de la page d’installation.</div></div>
+            <a href="/configure" target="_blank" rel="noopener noreferrer" class="btn-outline-sm">↗ Ouvrir la page publique</a>
           </div>
 
-          <p class="cfg-intro">L’aperçu suit tes modifications. Enregistre-les pour les rendre visibles sur la page publique.</p>
-
-          <div class="cfg-workspace">
-            <form id="cfg-editor" onsubmit="event.preventDefault(); saveConfigureSettings()">
-              <fieldset id="cfg-fields" disabled>
-                <legend class="cfg-sr-only">Personnalisation de la page Configure</legend>
-
-                <details class="card cfg-section" open>
-                  <summary><span class="cfg-section-number">01</span><span><strong>Identité et navigation</strong><small>Le nom de l’addon et le lien de ta communauté</small></span></summary>
-                  <div class="card-body">
-                    <div class="form-field"><label for="cfg-brandName">Nom affiché en haut à gauche</label><input type="text" id="cfg-brandName" placeholder="Bandes-Annonces VF"></div>
-                    <div class="form-grid"><div class="form-field"><label for="cfg-navLinkText">Texte du lien communautaire</label><input type="text" id="cfg-navLinkText" placeholder="Discord"></div><div class="form-field"><label for="cfg-navLinkUrl">Adresse du lien</label><input type="text" id="cfg-navLinkUrl" inputmode="url" placeholder="https://discord.gg/..." aria-describedby="cfg-nav-hint"></div></div>
-                    <p class="cfg-help" id="cfg-nav-hint">Laisse l’adresse vide pour masquer ce lien. Le logo s’affiche automatiquement pour une invitation Discord.</p>
-                  </div>
-                </details>
-
-                <details class="card cfg-section" open>
-                  <summary><span class="cfg-section-number">02</span><span><strong>En-tête et apparence</strong><small>Le titre, la présentation et la couleur de marque</small></span></summary>
-                  <div class="card-body">
-                    <div class="form-grid"><div class="form-field"><label for="cfg-heroTitleWhite">Titre principal</label><input type="text" id="cfg-heroTitleWhite"></div><div class="form-field"><label for="cfg-heroTitleRed">Partie colorée du titre</label><input type="text" id="cfg-heroTitleRed"></div></div>
-                    <div class="form-field"><label for="cfg-heroSubtitle">Texte de présentation</label><textarea id="cfg-heroSubtitle" rows="3" aria-describedby="cfg-subtitle-hint"></textarea></div>
-                    <p class="cfg-help" id="cfg-subtitle-hint">Laisse ce texte vide pour le masquer.</p>
-                    <div class="form-field">
-                      <label for="cfg-accentColorText">Couleur de marque</label>
-                      <div class="color-pick-row">
-                        <input type="color" id="cfg-accentColor" value="#e53e3e" aria-label="Choisir la couleur de marque">
-                        <input type="text" id="cfg-accentColorText" placeholder="#e53e3e" maxlength="7" spellcheck="false" aria-describedby="cfg-color-hint">
-                      </div>
-                      <span class="hint" id="cfg-color-hint">Boutons, titre et accents · format #RRGGBB.</span>
-                    </div>
-                    <p class="cfg-help">Les indicateurs de disponibilité des sources sont automatiques.</p>
-                  </div>
-                </details>
-
-                <details class="card cfg-section">
-                  <summary><span class="cfg-section-number">03</span><span><strong>Profil et clés API</strong><small>Les deux premières étapes du formulaire public</small></span></summary>
-                  <div class="card-body">
-                    <div class="form-field"><label for="cfg-sectionProfileLabel">Titre de la section « Profil »</label><input type="text" id="cfg-sectionProfileLabel"></div>
-                    <div class="form-field"><label for="cfg-pseudoHint">Aide pour le pseudo Discord</label><textarea id="cfg-pseudoHint" rows="3"></textarea></div>
-                    <div class="form-field"><label for="cfg-sectionConfigLabel">Titre du bloc des clés API</label><input type="text" id="cfg-sectionConfigLabel"></div>
-                    <div class="form-field"><label for="cfg-tmdbKeyHint">Aide pour la clé TMDB</label><textarea id="cfg-tmdbKeyHint" rows="3"></textarea></div>
-                    <p class="cfg-help">Le pseudo apparaît en premier. Les clés TMDB et TheTVDB sont regroupées dans le même bloc ; TheTVDB reste facultatif.</p>
-                  </div>
-                </details>
-
-                <details class="card cfg-section">
-                  <summary><span class="cfg-section-number">04</span><span><strong>Affichage des liens</strong><small>Les libellés et les aides des options Stremio</small></span></summary>
-                  <div class="card-body">
-                    <div class="form-field"><label for="cfg-sectionLinksLabel">Titre de la section</label><input type="text" id="cfg-sectionLinksLabel"></div>
-                    <div class="form-field"><label for="cfg-externalToggleTitle">Option « Liens externes »</label><input type="text" id="cfg-externalToggleTitle"></div>
-                    <div class="form-field"><label for="cfg-externalToggleDesc">Aide pour les liens externes</label><textarea id="cfg-externalToggleDesc" rows="3"></textarea></div>
-                    <div class="form-field"><label for="cfg-maxLinksLabel">Option « Nombre maximum de liens »</label><input type="text" id="cfg-maxLinksLabel"></div>
-                    <div class="form-field"><label for="cfg-maxLinksHint">Aide pour le nombre de liens</label><textarea id="cfg-maxLinksHint" rows="3"></textarea></div>
-                    <div class="form-field"><label for="cfg-extrasSelectLabel">Option « Extras »</label><input type="text" id="cfg-extrasSelectLabel"></div>
-                    <div class="form-field"><label for="cfg-extrasSelectHint">Aide pour les extras</label><textarea id="cfg-extrasSelectHint" rows="3"></textarea></div>
-                  </div>
-                </details>
-
-                <details class="card cfg-section">
-                  <summary><span class="cfg-section-number">05</span><span><strong>Installation</strong><small>Les trois boutons de la barre d’installation</small></span></summary>
-                  <div class="card-body">
-                    <div class="form-field"><label for="cfg-installAppLabel">Bouton « Installer dans Stremio »</label><input type="text" id="cfg-installAppLabel"></div>
-                    <div class="form-field"><label for="cfg-installWebLabel">Bouton « Web »</label><input type="text" id="cfg-installWebLabel"></div>
-                    <div class="form-field"><label for="cfg-installCopyLabel">Bouton « Copier le lien »</label><input type="text" id="cfg-installCopyLabel"></div>
-                  </div>
-                </details>
+          <div class="mnt-layout">
+            <form id="mnt-form" class="card" onsubmit="event.preventDefault(); saveMaintenanceSettings()">
+              <div class="card-head"><div><div class="card-title">🛠️ Maintenance</div><div class="card-desc">Un message pour prévenir les utilisateurs</div></div></div>
+              <fieldset id="mnt-fields" class="card-body" disabled>
+                <legend class="mnt-sr-only">Réglages de maintenance</legend>
+                <label class="mnt-option">
+                  <input type="checkbox" id="mnt-enabled">
+                  <span><strong>Afficher le bandeau de maintenance</strong><small>Tu peux le désactiver sans effacer ton message.</small></span>
+                </label>
+                <div class="form-field"><label for="mnt-title">Titre du bandeau</label><input type="text" id="mnt-title" maxlength="70" placeholder="Maintenance en cours"></div>
+                <div class="form-field"><label for="mnt-message">Message aux utilisateurs</label><textarea id="mnt-message" maxlength="300" rows="4" placeholder="Une intervention est en cours. Retour prévu vers 22 h."></textarea><span class="hint">300 caractères maximum.</span></div>
+                <div class="form-grid">
+                  <div class="form-field"><label for="mnt-linkUrl">Lien facultatif</label><input type="url" id="mnt-linkUrl" maxlength="300" placeholder="https://discord.gg/..." aria-describedby="mnt-link-hint"><span class="hint" id="mnt-link-hint">Une adresse HTTPS, par exemple ton Discord.</span></div>
+                  <div class="form-field"><label for="mnt-linkLabel">Texte du lien</label><input type="text" id="mnt-linkLabel" maxlength="30" placeholder="En savoir plus"></div>
+                </div>
+                <label class="mnt-option">
+                  <input type="checkbox" id="mnt-blockInstall">
+                  <span><strong>Bloquer la page de configuration pendant la maintenance</strong><small>Le formulaire et les boutons d’installation sont remplacés par le message. Cette option s’applique seulement quand le bandeau est activé.</small></span>
+                </label>
+                <p class="mnt-help">Les addons déjà installés continuent de fonctionner. La maintenance concerne uniquement la page /configure.</p>
               </fieldset>
             </form>
 
-            <aside class="config-preview-card" aria-label="Aperçu de la page publique">
-              <div class="card-head">
-                <div><div class="card-title">Aperçu en direct</div><div class="card-desc">Tes modifications avant enregistrement</div></div>
-                <button class="small-btn" type="button" onclick="refreshConfigurePreview(true)" aria-label="Actualiser l’aperçu">↻ Actualiser</button>
-              </div>
-              <div class="cfg-preview-toolbar">
-                <div class="cfg-device-switch" role="group" aria-label="Format de l’aperçu">
-                  <button type="button" id="cfg-device-desktop" aria-pressed="true" onclick="setConfigurePreviewDevice('desktop')">Ordinateur</button>
-                  <button type="button" id="cfg-device-mobile" aria-pressed="false" onclick="setConfigurePreviewDevice('mobile')">Mobile</button>
+            <aside class="card mnt-preview" aria-label="Aperçu de la maintenance">
+              <div class="card-head"><div><div class="card-title">Aperçu du bandeau</div><div class="card-desc">Mis à jour pendant la saisie</div></div></div>
+              <div class="card-body">
+                <div class="mnt-notice">
+                  <span class="mnt-icon" aria-hidden="true">🛠️</span>
+                  <div class="mnt-content">
+                    <h2 id="mnt-preview-title">Maintenance en cours</h2>
+                    <p id="mnt-preview-message" hidden></p>
+                    <a id="mnt-preview-link" target="_blank" rel="noopener noreferrer" hidden></a>
+                    <p id="mnt-preview-lock" class="mnt-lock" hidden>La configuration et l’installation depuis cette page sont temporairement suspendues. Les addons déjà installés continuent de fonctionner.</p>
+                  </div>
                 </div>
-                <span id="cfg-preview-width" class="cfg-help">1200 px</span>
+                <p id="mnt-preview-state" class="mnt-help" role="status" aria-live="polite">Bandeau masqué sur la page publique.</p>
+                <p class="mnt-help">Enregistre les réglages pour les appliquer aux visiteurs.</p>
               </div>
-              <div id="cfg-preview-stage" class="cfg-preview-stage">
-                <iframe id="cfg-preview" class="config-preview-frame" title="Aperçu /configure" sandbox="allow-scripts" loading="lazy"></iframe>
-              </div>
-              <div class="cfg-preview-status" id="cfg-preview-status" role="status" aria-live="polite">Chargement de l’aperçu…</div>
             </aside>
           </div>
 
-          <div class="cfg-savebar">
-            <span id="cfg-save-state" class="save-state saving" role="status" aria-live="polite">Chargement des réglages…</span>
+          <div class="mnt-savebar">
+            <span id="mnt-save-state" class="save-state saving" role="status" aria-live="polite">Chargement…</span>
             <div class="header-actions">
-              <button type="button" id="cfg-load-retry" class="btn-outline-sm" onclick="loadConfigureSettings()" hidden>Réessayer le chargement</button>
-              <button type="submit" form="cfg-editor" id="cfg-save" class="btn-save" disabled>Enregistrer les modifications</button>
+              <button type="button" id="mnt-retry" class="btn-outline-sm" onclick="loadMaintenanceSettings()" hidden>Réessayer</button>
+              <button type="submit" form="mnt-form" id="mnt-save" class="btn-save" disabled>Enregistrer la maintenance</button>
             </div>
           </div>
         </div>

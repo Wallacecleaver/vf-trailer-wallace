@@ -4,7 +4,7 @@
   document.documentElement.setAttribute('data-theme', savedTheme);
   document.getElementById('theme-btn').textContent = isDark ? '🌙' : '☀️';
 
-  bindConfigureLivePreview();
+  bindMaintenanceSettings();
   bindSettingsAutosave();
 
   if (token) { showDashboard(); }
