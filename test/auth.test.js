@@ -171,3 +171,32 @@ test('auth : un mot de passe incorrect reste refusé et les tentatives restent l
     }
     assert.equal((await signIn(password)).status, 429);
 });
+
+function loginInNewProcess(configured, supplied) {
+    const script = `
+const fs = require('node:fs');
+console.log = () => {};
+const { login } = require('./lib/auth');
+let status = 200;
+const res = { status(value) { status = value; return this; }, json(data) {
+    process.stdout.write(JSON.stringify({ status, hasToken: typeof data.token === 'string' }));
+    require('./lib/db').close();
+} };
+login({ body: JSON.parse(fs.readFileSync(0, 'utf8')), socket: { remoteAddress: '127.0.0.2' } }, res)
+    .catch(error => { console.error(error.message); process.exitCode = 1; });
+`;
+    return JSON.parse(execFileSync(process.execPath, ['-e', script], { cwd: root,
+        env: { ...process.env, DASHBOARD_PASSWORD: configured }, input: JSON.stringify({ password: supplied }), encoding: 'utf8' }));
+}
+
+test('auth : longueur libre, y compris un caractère et un mot de passe courant', () => {
+    for (const value of ['x', '1234', 'court123', 'admin']) {
+        assert.deepEqual(loginInNewProcess(value, value), { status: 200, hasToken: true });
+    }
+});
+
+test('auth : mot de passe court incorrect, saisie vide et configuration vide toujours refusés', () => {
+    assert.deepEqual(loginInNewProcess('1234', '1235'), { status: 401, hasToken: false });
+    assert.deepEqual(loginInNewProcess('1234', ''), { status: 400, hasToken: false });
+    assert.deepEqual(loginInNewProcess('', ''), { status: 503, hasToken: false });
+});

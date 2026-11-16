@@ -105,11 +105,10 @@ async function main() {
     let password = process.env.DASHBOARD_PASSWORD || '';
     let generated = false;
     if (!password && INTERACTIVE) {
-        say('\n③ Mot de passe du dashboard d\'administration (12 caractères minimum, sans apostrophe).');
+        say('\n③ Mot de passe du dashboard d\'administration (longueur libre, sans apostrophe).');
         for (;;) {
             password = await ask('   Mot de passe (Entrée = en générer un) : ', { hidden: true });
             if (!password) break;
-            if (password.length < 12) { say('   ⚠️  Trop court (12 minimum).'); continue; }
             if (password.includes("'")) { say('   ⚠️  Sans apostrophe, s\'il te plaît.'); continue; }
             const confirm = await ask('   Confirme le mot de passe : ', { hidden: true });
             if (confirm === password) break;
@@ -117,7 +116,6 @@ async function main() {
         }
     }
     if (password) {
-        if (password.length < 12) die('DASHBOARD_PASSWORD : 12 caractères minimum.');
         if (password.includes("'") || /[\r\n]/.test(password)) die('DASHBOARD_PASSWORD ne doit contenir ni apostrophe ni retour à la ligne.');
     } else {
         password = rand(20);

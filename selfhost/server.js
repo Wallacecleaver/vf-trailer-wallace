@@ -36,9 +36,7 @@ async function main() {
 
     const server = app.listen(PORT, HOST, () => {
         console.log(`Addon démarré sur http://${HOST}:${PORT}`);
-        const { weakPasswordReason } = require('../lib/auth');
-        const weak = weakPasswordReason();
-        if (weak) console.warn(`⚠️  Connexion au dashboard désactivée : ${weak}. Définis un DASHBOARD_PASSWORD fort (12+ caractères aléatoires).`);
+        if (!process.env.DASHBOARD_PASSWORD) console.warn('⚠️  Connexion au dashboard désactivée : définis un DASHBOARD_PASSWORD non vide.');
         if (!process.env.APP_BASE_URL) console.warn('⚠️  APP_BASE_URL non défini : les liens/logo pointeront vers http://localhost.');
     });
 

@@ -37,7 +37,7 @@ L'installeur demande :
 
 1. **Ton nom de domaine** (facultatif), si ton reverse proxy HTTPS le sert déjà. Il sert à écrire l'adresse publique de l'addon (`APP_BASE_URL`).
 2. **Ta clé TMDB** (facultatif).
-3. **Ton mot de passe du dashboard** : tu le choisis (8 caractères minimum, saisi masqué et confirmé), ou Entrée pour en générer un.
+3. **Ton mot de passe du dashboard** : tu le choisis (longueur libre, saisi masqué et confirmé), ou Entrée pour en générer un.
 4. **Le port d'écoute** (`3000` par défaut) et, sans domaine, l'adresse du serveur (`localhost` par défaut).
 
 Si un `.env` existe déjà, l'installeur n'y touche pas (supprime-le pour refaire la configuration).
@@ -92,7 +92,7 @@ Ouvre `APP_BASE_URL` dans ton navigateur, renseigne ta clé TMDB, puis clique su
 
 | Variable | Obligatoire | Description |
 |---|:--:|---|
-| `DASHBOARD_PASSWORD` | ✅ | Mot de passe du dashboard, **12 caractères minimum** et aléatoire. La connexion est refusée si le mot de passe est absent, trop court ou `change-moi`. |
+| `DASHBOARD_PASSWORD` | ✅ | Mot de passe du dashboard, **longueur libre et non vide**. La connexion est refusée si le mot de passe est absent ou vide. |
 | `TOKEN_SECRET` | non | Secret de signature des sessions, indépendant du mot de passe. Si absent, une clé aléatoire est créée dans `DATA_DIR/dashboard-session-secret` et conservée entre les redémarrages. Une valeur explicitement configurée garde la priorité. |
 | `APP_BASE_URL` | ✅ | URL publique de l'addon, sans slash final (logo, liens `/proposer`…). |
 | `TMDB_API_KEY` | conseillé | Clé TMDB du testeur de flux du dashboard. |
