@@ -2,6 +2,9 @@
 const { test, before, after } = require('node:test');
 const assert = require('node:assert');
 const http = require('node:http');
+// Ces tests utilisent un serveur local : on autorise explicitement les adresses privées
+// (le garde-fou anti-SSRF les refuse par défaut en production).
+process.env.ALLOW_PRIVATE_UPSTREAM = '1';
 const { probeDirectLink } = require('../lib/media-link');
 
 let server, base;

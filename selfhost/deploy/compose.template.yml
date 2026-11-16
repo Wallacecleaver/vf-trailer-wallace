@@ -23,6 +23,11 @@ services:
     ports:
       # BIND_ADDRESS=127.0.0.1 si ton reverse proxy tourne sur cette même machine (le port n'est alors pas exposé à Internet).
       - "${BIND_ADDRESS:-0.0.0.0}:${HOST_PORT:-3000}:3000"
+    security_opt:
+      - no-new-privileges:true
+    read_only: true
+    tmpfs:
+      - /tmp
 
 volumes:
   data:

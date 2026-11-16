@@ -1,20 +1,27 @@
 // Routes publiques (sans auth) : test de clé TMDB, santé des services, aides de la page /proposer,
 // soumission d'une proposition. Ces routes sont appelables par n'importe quel visiteur.
 
-const { fetchT, checkServices, toUpDown, youtubeOembedUrl } = require('../lib/net');
+const { fetchT, safeFetchT, checkServices, toUpDown, youtubeOembedUrl } = require('../lib/net');
 const { FALLBACK_TMDB_KEY } = require('../lib/config');
 const { fetchConfiguration, getImdbId } = require('../lib/tmdb');
 const { getCached, setCached } = require('../lib/cache');
 const { logEvent } = require('../lib/logs');
 const { addContribution } = require('../lib/contributions');
+const { rateLimit } = require('../lib/security');
 const { tmdbSearch, youtubeTitle } = require('./lookups');
 
 module.exports = function registerPublicRoutes(app) {
+    // Ces routes sont publiques : on les borne pour éviter l'épuisement du quota TMDB
+    // (clé de secours partagée), le spam de contributions et le scan réseau.
+    const lookupLimit = rateLimit({ windowMs: 60_000, max: 30, name: 'lookup' });
+    const linkLimit = rateLimit({ windowMs: 60_000, max: 10, name: 'test-link' });
+    const contributionLimit = rateLimit({ windowMs: 60 * 60_000, max: 5, name: 'contribution' });
+
     // Endpoint public (pas de requireAuth) : utilisé par le bouton "Tester" de la page
     // /configure pour vérifier une clé TMDB perso avant de générer le lien d'installation.
     // On passe par le serveur plutôt qu'un fetch direct depuis le navigateur car la CSP
     // globale (voir plus haut) limite connect-src à 'self'.
-    app.get('/api/test-tmdb', async (req, res) => {
+    app.get('/api/test-tmdb', lookupLimit, async (req, res) => {
         const key = (req.query.key || '').toString().trim();
         if (!key) return res.status(400).json({ valid: false, error: 'Clé manquante' });
         try {
@@ -31,7 +38,7 @@ module.exports = function registerPublicRoutes(app) {
     // ---- Health check des services externes (pour le badge live sur /configure) ----
     // Volontairement public (pas de requireAuth) : c'est juste "le service est joignable ou pas",
     // aucune donnée sensible. On teste le domaine public, pas l'API authentifiée, pour ne pas
-    app.get('/api/health', async (req, res) => {
+    app.get('/api/health', lookupLimit, async (req, res) => {
         res.setHeader('Cache-Control', 'no-store');
         const current = await checkServices();
 
@@ -62,9 +69,9 @@ module.exports = function registerPublicRoutes(app) {
 
     // Variantes PUBLIQUES (sans requireAuth) des helpers TMDB/YouTube du dashboard, pour que la page
     // /proposer puisse chercher un titre et vérifier un lien. Même clé TMDB de secours.
-    app.get('/api/public/tmdb-search', tmdbSearch(' (public)'));
+    app.get('/api/public/tmdb-search', lookupLimit, tmdbSearch(' (public)'));
 
-    app.get('/api/public/tmdb-resolve', async (req, res) => {
+    app.get('/api/public/tmdb-resolve', lookupLimit, async (req, res) => {
         const { id, type } = req.query;
         if (!id || !type) return res.status(400).json({ error: 'id et type requis' });
         const tmdbKey = FALLBACK_TMDB_KEY;
@@ -79,9 +86,9 @@ module.exports = function registerPublicRoutes(app) {
         }
     });
 
-    app.get('/api/public/youtube-title', youtubeTitle(' (public)'));
+    app.get('/api/public/youtube-title', lookupLimit, youtubeTitle(' (public)'));
 
-    app.get('/api/public/test-link', async (req, res) => {
+    app.get('/api/public/test-link', linkLimit, async (req, res) => {
         const ytId = (req.query.ytId || '').toString().trim();
         const url = (req.query.url || '').toString().trim();
 
@@ -117,10 +124,12 @@ module.exports = function registerPublicRoutes(app) {
             }
 
             try {
-                const r = await fetchT(url, { method: 'HEAD', redirect: 'follow' });
+                // URL fournie par un visiteur : safeFetchT refuse le réseau interne
+                // (169.254.169.254, 127.0.0.1, 10.x…) et revalide chaque redirection.
+                const r = await safeFetchT(url, { method: 'HEAD', redirect: 'manual' });
                 return res.json({ ok: r.ok || r.status < 400, kind: 'direct', url });
             } catch (err) {
-                return res.json({ ok: false, error: 'URL injoignable' });
+                return res.json({ ok: false, error: 'URL injoignable ou non autorisée' });
             }
         }
 
@@ -128,7 +137,7 @@ module.exports = function registerPublicRoutes(app) {
     });
 
     // Soumission publique d'une proposition (pseudo obligatoire, pas d'auth).
-    app.post('/api/contributions', async (req, res) => {
+    app.post('/api/contributions', contributionLimit, async (req, res) => {
         const { imdbId, season, title, mediaType, ytId, url, pseudo, notes } = req.body || {};
         const cleanImdb = typeof imdbId === 'string' ? imdbId.trim() : '';
         const cleanPseudo = typeof pseudo === 'string' ? pseudo.trim().slice(0, 40) : '';
@@ -138,6 +147,16 @@ module.exports = function registerPublicRoutes(app) {
         if (!/^tt\d{6,9}$/.test(cleanImdb)) return res.status(400).json({ error: 'IMDB ID invalide' });
         if (!cleanPseudo) return res.status(400).json({ error: 'Pseudo requis' });
         if (!cleanYtId && !cleanUrl) return res.status(400).json({ error: 'Lien requis (YouTube ou URL directe)' });
+        // Validation stricte : sinon n'importe qui stocke du javascript:, du file: ou du texte
+        // arbitraire, qui finira affiché dans le dashboard.
+        if (cleanYtId && !/^[A-Za-z0-9_-]{11}$/.test(cleanYtId)) return res.status(400).json({ error: 'YouTube ID invalide' });
+        if (!cleanYtId) {
+            if (cleanUrl.length > 2048) return res.status(400).json({ error: 'URL trop longue' });
+            let parsed;
+            try { parsed = new URL(cleanUrl); } catch { return res.status(400).json({ error: 'URL invalide' }); }
+            if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') return res.status(400).json({ error: 'URL invalide' });
+            if (parsed.username || parsed.password) return res.status(400).json({ error: 'URL invalide' });
+        }
 
         const item = await addContribution({
             imdbId: cleanImdb,

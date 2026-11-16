@@ -3,6 +3,8 @@
 
 const { test } = require('node:test');
 const assert = require('node:assert');
+// Domaine factice + fetch simulé : on désactive le garde-fou anti-SSRF (activé en production).
+process.env.ALLOW_PRIVATE_UPSTREAM = '1';
 const { normalizeBaseUrl, resolveFederatedTrailer, checkConnection } = require('../lib/netflix-federation');
 
 test('normalizeBaseUrl : protocole ajouté, slash final retiré, vide conservé', () => {
@@ -43,9 +45,10 @@ test('resolveFederatedTrailer : la clé part en x-api-key (absente si aucune cl�
         id: fetchPath, filename: fetchPath, loaded: true,
         exports: async (url, opts) => {
             seen.push({ url, headers: (opts && opts.headers) || {} });
-            return { ok: true, status: 200, text: async () => JSON.stringify({ found: true, trailers: [{ url: 'https://x/y.mp4' }] }) };
+            return { ok: true, status: 200, headers: { get: () => null }, text: async () => JSON.stringify({ found: true, trailers: [{ url: 'https://x/y.mp4' }] }) };
         },
     };
+    delete require.cache[require.resolve('../lib/security')];
     delete require.cache[fedPath];
     try {
         const fed = require('../lib/netflix-federation');

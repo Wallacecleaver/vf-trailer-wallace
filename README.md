@@ -92,14 +92,19 @@ Ouvre `APP_BASE_URL` dans ton navigateur, renseigne ta clé TMDB, puis clique su
 
 | Variable | Obligatoire | Description |
 |---|:--:|---|
-| `DASHBOARD_PASSWORD` | ✅ | Mot de passe du dashboard. Sans lui, le dashboard est inaccessible. |
+| `DASHBOARD_PASSWORD` | ✅ | Mot de passe du dashboard, **12 caractères minimum** et aléatoire. La connexion est refusée si le mot de passe est absent, trop court ou `change-moi`. |
+| `TOKEN_SECRET` | conseillé | Secret aléatoire de signature des sessions, indépendant du mot de passe. Absent = secret généré au démarrage (sessions perdues à chaque redémarrage). |
 | `APP_BASE_URL` | ✅ | URL publique de l'addon, sans slash final (logo, liens `/proposer`…). |
 | `TMDB_API_KEY` | conseillé | Clé TMDB du testeur de flux du dashboard. |
-| `BIND_ADDRESS` | non | `127.0.0.1` pour ne pas exposer le port 3000 sur Internet (défaut `0.0.0.0`). |
+| `BIND_ADDRESS` | non | `127.0.0.1` pour ne pas exposer le port 3000 sur Internet (défaut `127.0.0.1`). |
 | `HOST_PORT` | non | Port exposé sur la machine (défaut `3000`). |
 | `DATA_DIR` | non | Dossier de la base SQLite (`addon.sqlite`) (défaut `/data` dans l'image : à monter en volume). |
-| `TRUST_PROXY` | non | `0` si l'addon est exposé directement sur Internet (ignore `X-Forwarded-For`). L'installeur le règle selon ton choix. |
+| `TRUST_PROXY` | non | Nombre de reverse proxies de confiance devant l'addon (`0` par défaut : `X-Forwarded-For` est ignoré). Mets `1` uniquement derrière un reverse proxy de confiance, sinon le verrouillage anti brute-force est contournable. L'installeur le règle automatiquement. |
+| `SESSION_VERSION` | non | Changer cette valeur révoque immédiatement toutes les sessions du dashboard. |
+| `ALLOW_PRIVATE_UPSTREAM` | non | `1` pour autoriser une instance « Netflix Catalogue » sur une adresse privée (réseau Docker). Désactivé par défaut (anti-SSRF). |
 | `DASHBOARD_NO_CACHE` | non | `1` pour désactiver le cache de rendu du dashboard pendant que tu le modifies. |
+
+> **Note sécurité — clé TMDB dans le lien d'installation.** La configuration utilisateur (dont ta clé TMDB) est encodée en base64 dans l'URL `/<config>/manifest.json`, comme le font la plupart des addons Stremio. Le base64 n'est pas du chiffrement : ne partage pas ce lien publiquement, et sache qu'il peut apparaître dans l'historique du navigateur ou les journaux d'un proxy. L'en-tête `Referrer-Policy: no-referrer` limite les fuites par référent.
 
 ### Ressources utilisées (très légères)
 

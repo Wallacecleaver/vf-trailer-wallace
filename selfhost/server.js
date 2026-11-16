@@ -35,7 +35,10 @@ async function main() {
 
     const server = app.listen(PORT, HOST, () => {
         console.log(`Addon démarré sur http://${HOST}:${PORT}`);
-        if (!process.env.DASHBOARD_PASSWORD) console.warn('⚠️  DASHBOARD_PASSWORD non défini : le dashboard sera inaccessible.');
+        const { weakPasswordReason } = require('../lib/auth');
+        const weak = weakPasswordReason();
+        if (weak) console.warn(`⚠️  Connexion au dashboard désactivée : ${weak}. Définis un DASHBOARD_PASSWORD fort (12+ caractères aléatoires).`);
+        if (!process.env.TOKEN_SECRET) console.warn('⚠️  TOKEN_SECRET non défini : sessions invalidées à chaque redémarrage (recommandé en production).');
         if (!process.env.APP_BASE_URL) console.warn('⚠️  APP_BASE_URL non défini : les liens/logo pointeront vers http://localhost.');
     });
 

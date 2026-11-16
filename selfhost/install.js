@@ -105,11 +105,11 @@ async function main() {
     let password = process.env.DASHBOARD_PASSWORD || '';
     let generated = false;
     if (!password && INTERACTIVE) {
-        say('\n③ Mot de passe du dashboard d\'administration (8 caractères minimum, sans apostrophe).');
+        say('\n③ Mot de passe du dashboard d\'administration (12 caractères minimum, sans apostrophe).');
         for (;;) {
             password = await ask('   Mot de passe (Entrée = en générer un) : ', { hidden: true });
             if (!password) break;
-            if (password.length < 8) { say('   ⚠️  Trop court (8 minimum).'); continue; }
+            if (password.length < 12) { say('   ⚠️  Trop court (12 minimum).'); continue; }
             if (password.includes("'")) { say('   ⚠️  Sans apostrophe, s\'il te plaît.'); continue; }
             const confirm = await ask('   Confirme le mot de passe : ', { hidden: true });
             if (confirm === password) break;
@@ -117,7 +117,7 @@ async function main() {
         }
     }
     if (password) {
-        if (password.length < 8) die('DASHBOARD_PASSWORD : 8 caractères minimum.');
+        if (password.length < 12) die('DASHBOARD_PASSWORD : 12 caractères minimum.');
         if (password.includes("'") || /[\r\n]/.test(password)) die('DASHBOARD_PASSWORD ne doit contenir ni apostrophe ni retour à la ligne.');
     } else {
         password = rand(20);
@@ -142,11 +142,20 @@ async function main() {
     const env = [
         '# Généré par l\'installeur — modifie puis relance : docker compose up -d',
         `DASHBOARD_PASSWORD='${password}'`,
+        `TOKEN_SECRET=${process.env.TOKEN_SECRET || rand(48)}`,
         `APP_BASE_URL=${baseUrl}`,
     ];
     if (tmdb) env.push(`TMDB_API_KEY=${tmdb}`);
-    // Sans domaine, l'addon est joint directement : on ignore X-Forwarded-For (falsifiable).
-    if (!domain) env.push('TRUST_PROXY=0');
+    if (domain) {
+        // Avec un domaine, un reverse proxy HTTPS est devant : il ajoute X-Forwarded-For
+        // (on lui fait confiance) et il est le seul à devoir joindre l'addon.
+        env.push('TRUST_PROXY=1');
+        env.push('BIND_ADDRESS=127.0.0.1');
+    } else {
+        // Sans domaine, l'addon est joint directement : on ignore X-Forwarded-For (falsifiable).
+        env.push('TRUST_PROXY=0');
+        env.push('BIND_ADDRESS=0.0.0.0');
+    }
     if (port !== '3000') env.push(`HOST_PORT=${port}`);
     fs.writeFileSync(envPath, env.join('\n') + '\n', { mode: 0o600 });
 

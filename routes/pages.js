@@ -8,6 +8,7 @@ const { requireAuth } = require('../lib/auth');
 const { DISPLAY_MODES, buildPreviewStreams } = require('../lib/stream-format');
 const { getPlatform } = require('../lib/tmdb');
 const { FALLBACK_TMDB_KEY } = require('../lib/config');
+const { rateLimit } = require('../lib/security');
 
 module.exports = function registerPageRoutes(app) {
     // Favicon embarqué en base64 -> évite les 404
@@ -39,7 +40,7 @@ module.exports = function registerPageRoutes(app) {
 
     // Aperçu des liens pour /configure : même code de présentation que le vrai /stream, sur un
     // film d'exemple. Public, sans donnée utilisateur ; les paramètres sont validés un par un.
-    app.get('/api/preview-streams', async (req, res) => {
+    app.get('/api/preview-streams', rateLimit({ windowMs: 60_000, max: 30, name: 'preview' }), async (req, res) => {
         const q = req.query || {};
         const n = Number(q.maxLinks);
         const config = {

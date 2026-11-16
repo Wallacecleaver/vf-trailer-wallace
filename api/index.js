@@ -10,12 +10,37 @@
 const express = require('express');
 
 const app = express();
+app.disable('x-powered-by');
+// Nombre de reverse proxies de confiance : req.ip devient l'IP réelle du client, utilisée
+// par la limitation de débit. 0 par défaut (accès direct) : on ne croit pas X-Forwarded-For.
+app.set('trust proxy', (() => {
+    const raw = process.env.TRUST_PROXY;
+    const n = Number(raw);
+    return Number.isInteger(n) && n > 0 ? n : false;
+})());
 app.use(express.json({ limit: '64kb' })); // limite les corps de requête (anti-abus)
-app.use((req, res, next) => { res.setHeader('Access-Control-Allow-Origin', '*'); next(); });
+// CORS uniquement là où Stremio en a besoin (manifest/streams/meta). Les routes /api/*
+// (dashboard, contributions, tests de liens) restent même-origine : une page tierce ne
+// peut donc pas les appeler ni lire leurs réponses.
+const ADDON_PATH = /(^\/manifest\.json$|\/manifest\.json$|\/(stream|meta|catalog)\/)/;
+app.use((req, res, next) => {
+    if (ADDON_PATH.test(req.path)) {
+        res.setHeader('Access-Control-Allow-Origin', '*');
+        if (req.method === 'OPTIONS') {
+            res.setHeader('Access-Control-Allow-Methods', 'GET,HEAD,OPTIONS');
+            res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
+            return res.status(204).end();
+        }
+    }
+    next();
+});
 app.use((req, res, next) => {
     res.setHeader('X-Content-Type-Options', 'nosniff');
     res.setHeader('X-Frame-Options', 'DENY');
-    res.setHeader('Referrer-Policy', 'strict-origin-when-cross-origin');
+    res.setHeader('Referrer-Policy', 'no-referrer');
+    // CSP : `unsafe-inline` reste nécessaire pour les scripts inline générés par les pages
+    // (dashboard/configure). Les autres directives sont verrouillées ; frame-ancestors 'none'
+    // empêche l'encadrement de l'interface.
     res.setHeader('Content-Security-Policy',
         "default-src 'self'; script-src 'self' 'unsafe-inline' https://www.youtube.com https://s.ytimg.com; " +
         "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; " +
@@ -42,7 +67,10 @@ app.use((err, req, res, next) => {
         res.status(413).json({ error: 'Payload too large' });
         return;
     }
-    res.status(err && err.statusCode || 500).json({ error: err && err.message || 'Internal Server Error' });
+    res.status(err && err.statusCode || 500).json({
+        // Ne jamais exposer le détail d'une erreur interne au client.
+        error: err && err.statusCode ? err.message : 'Internal Server Error',
+    });
 });
 
 module.exports = app;

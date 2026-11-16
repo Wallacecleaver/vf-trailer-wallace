@@ -16,7 +16,14 @@ services:
     volumes:
       - data:/data
     ports:
-      - "${BIND_ADDRESS:-0.0.0.0}:${HOST_PORT:-3000}:3000"
+      # 127.0.0.1 par défaut : l'addon est censé être derrière un reverse proxy HTTPS.
+      # Pour un accès direct, mets BIND_ADDRESS=0.0.0.0 dans .env (déconseillé).
+      - "${BIND_ADDRESS:-127.0.0.1}:${HOST_PORT:-3000}:3000"
+    security_opt:
+      - no-new-privileges:true
+    read_only: true
+    tmpfs:
+      - /tmp
     logging:
       driver: json-file
       options:
