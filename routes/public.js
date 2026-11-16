@@ -2,7 +2,8 @@
 // soumission d'une proposition. Ces routes sont appelables par n'importe quel visiteur.
 
 const { fetchT, safeFetchT, checkServices, toUpDown, youtubeOembedUrl } = require('../lib/net');
-const { FALLBACK_TMDB_KEY } = require('../lib/config');
+const { FALLBACK_TMDB_KEY, TVDB_API_KEY } = require('../lib/config');
+const { authenticateTvdb } = require('../lib/tvdb');
 const { fetchConfiguration, getImdbId } = require('../lib/tmdb');
 const { getCached, setCached } = require('../lib/cache');
 const { logEvent } = require('../lib/logs');
@@ -33,6 +34,18 @@ module.exports = function registerPublicRoutes(app) {
             await logEvent({ level: 'error', context: 'SYSTEM', event: 'tmdb_unreachable', message: 'Impossible de joindre TMDB depuis le serveur', meta: { error: err.message } });
             res.status(502).json({ valid: false, error: 'Erreur réseau côté serveur, réessaie.' });
         }
+    });
+
+    // Vérification des identifiants TheTVDB depuis /configure.
+    // POST (jamais query string) pour éviter d'exposer clé et PIN dans l'URL / les logs d'accès.
+    app.post('/api/test-tvdb', lookupLimit, async (req, res) => {
+        const body = req.body || {};
+        const key = typeof body.key === 'string' && body.key.trim() ? body.key.trim() : TVDB_API_KEY;
+        const pin = typeof body.pin === 'string' ? body.pin.trim() : '';
+        if (!key) return res.status(400).json({ valid: false, error: 'Aucune clé de projet TheTVDB disponible. Demande à l’administrateur de configurer TVDB_API_KEY ou renseigne ta propre clé de projet.' });
+        const result = await authenticateTvdb(key, pin);
+        res.setHeader('Cache-Control', 'no-store');
+        res.json({ valid: result.valid, error: result.valid ? null : result.error });
     });
 
     // ---- Health check des services externes (pour le badge live sur /configure) ----
