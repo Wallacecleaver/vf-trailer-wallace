@@ -68,3 +68,15 @@ test('Configure : le panneau comporte une barre et une checklist accessible', ()
     assert.ok(html.includes('data-check="' + id + '"'));
   }
 });
+
+test('Configure : TheTVDB reste affiché dans les étapes même si aucune clé n’est donnée', () => {
+  assert.match(html, /data-check="tvdb-test" class="is-optional"/);
+  assert.doesNotMatch(html, /data-check="tvdb-test" hidden/);
+  assert.match(script, /if \(item\.dataset\.check === 'tvdb-test' && !step\)/);
+  assert.match(html, /TheTVDB — clé facultative, à renseigner ou ignorer/);
+});
+
+test('Configure : retire le long avertissement sous la clé TheTVDB', () => {
+  assert.doesNotMatch(html, /Garde ce lien privé : elle n'est pas enregistrée/);
+  assert.doesNotMatch(html, /La clé est intégrée au lien d'installation Stremio/);
+});
