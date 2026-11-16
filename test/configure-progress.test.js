@@ -17,14 +17,20 @@ test('Configure : le JavaScript embarqué reste syntaxiquement valide', () => {
   assert.doesNotThrow(() => new vm.Script(script));
 });
 
-test('Configure : sections obligatoires avant les options', () => {
-  const tmdb = html.indexOf('data-step="tmdb"');
-  const pseudo = html.indexOf('data-step="pseudo"');
-  const tvdb = html.indexOf('Sources complémentaires');
-  const links = html.indexOf('Affichage des liens');
-  assert.ok(tmdb >= 0 && pseudo > tmdb && tvdb > pseudo && links > tvdb);
+test('Configure : pseudo en premier, clés API regroupées avant les options', () => {
+  const sections = [...html.matchAll(/<section class="config-card"[^>]*>[\s\S]*?<\/section>/g)].map(match => match[0]);
+  assert.equal(sections.length, 3);
+  const [profile, keys, options] = sections;
+  assert.match(profile, /data-step="pseudo"/);
+  assert.match(profile, /id="step-pseudo-badge">1</);
+  assert.match(profile, /id="cfg-pseudo"/);
+  assert.match(keys, /id="step-tmdb-badge">2</);
+  assert.match(keys, /id="cfg-tmdbkey"/);
+  assert.match(keys, /id="cfg-tvdbkey"/);
+  assert.match(keys, /Ta clé API TheTVDB \(facultatif\)/);
+  assert.match(options, /Affichage des liens/);
   assert.equal((html.match(/class="step-type">Obligatoire/g) || []).length, 2);
-  assert.equal((html.match(/class="step-num optional">Option/g) || []).length, 2);
+  assert.equal((html.match(/class="step-num optional">Option/g) || []).length, 1);
 });
 
 const fnMatch = script.match(/function computeSetupProgress\(data\) \{[\s\S]*?\n    \}/);
@@ -36,13 +42,14 @@ test('Configure : 3 actions de base lorsque rien n’est rempli', () => {
   assert.equal(p.total, 3);
   assert.equal(p.completed, 0);
   assert.equal(p.remaining, 3);
+  assert.equal(p.steps.find(step => !step.done).field, 'cfg-pseudo');
 });
 
 test('Configure : une clé TMDB entrée mais non testée ne suffit pas', () => {
   const p = compute({ pseudo: '', tmdbKey: 'abc', tmdbValidated: false, tvdbKey: '', tvdbValidated: false });
   assert.equal(p.completed, 1);
   assert.equal(p.remaining, 2);
-  assert.equal(p.steps[1].done, false);
+  assert.equal(p.steps.find(step => step.id === 'tmdb-test').done, false);
 });
 
 test('Configure : la vérification TMDB et le pseudo rendent le lien installable', () => {
@@ -67,6 +74,8 @@ test('Configure : le panneau comporte une barre et une checklist accessible', ()
   for (const id of ['tmdb-key', 'tmdb-test', 'pseudo', 'tvdb-test']) {
     assert.ok(html.includes('data-check="' + id + '"'));
   }
+  const checklist = [...html.matchAll(/data-check="([^"]+)"/g)].map(match => match[1]);
+  assert.deepEqual(checklist, ['pseudo', 'tmdb-key', 'tmdb-test', 'tvdb-test']);
 });
 
 test('Configure : TheTVDB reste affiché dans les étapes même si aucune clé n’est donnée', () => {
