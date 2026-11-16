@@ -11,7 +11,8 @@ const stub = (name, exports) => {
     require.cache[lib(name)] = { id: lib(name), filename: lib(name), loaded: true, exports };
 };
 
-const calls = { urls: [], allocine: 0, federation: 0, youtubeSearch: 0 };
+const calls = { urls: [], order: [], allocine: 0, federation: 0, youtubeSearch: 0 };
+let tmdbHasTrailer = true;
 
 const json = body => ({ json: async () => body });
 stub('net', {
@@ -25,19 +26,19 @@ stub('net', {
         return json({ title: 'Film Test', original_title: 'Film Test', release_date: '2026-01-01' });
     },
 });
-stub('allocine', { getAllocineTrailerStreams: async () => { calls.allocine++; return []; } });
+stub('allocine', { getAllocineTrailerStreams: async () => { calls.order.push('allocine'); calls.allocine++; return []; } });
 stub('netflix-federation', {
     resolveFederatedTrailer: async () => {
         calls.federation++;
         return { found: true, title: { name: 'Film Test' }, trailers: [{ title: 'Trailer', url: 'https://netflix.exemple.fr/trailer/1.mp4' }] };
     },
 });
-stub('youtube-search', { searchYoutubeTrailer: async () => { calls.youtubeSearch++; return { videoId: 'zzzzzzzzzzz' }; } });
+stub('youtube-search', { searchYoutubeTrailer: async () => { calls.order.push('youtube'); calls.youtubeSearch++; return { videoId: 'zzzzzzzzzzz' }; } });
 
 const { resolveViaApis } = require('../lib/resolve-apis');
 const { DEFAULT_BEHAVIOR } = require('../lib/settings');
 
-const reset = () => { calls.urls = []; calls.allocine = 0; calls.federation = 0; calls.youtubeSearch = 0; };
+const reset = () => { calls.urls = []; calls.order = []; calls.allocine = 0; calls.federation = 0; calls.youtubeSearch = 0; tmdbHasTrailer = true; };
 const behavior = extra => ({ ...DEFAULT_BEHAVIOR, netflixCatalogueUrl: 'https://netflix.exemple.fr', ...extra });
 
 test('YouTube activé (défaut) : TMDB fournit la bande-annonce YouTube, Netflix jamais consulté', async () => {
@@ -70,4 +71,24 @@ test('YouTube désactivé et rien ailleurs : liste vide, jamais de recherche You
     const r = await fresh('movie', 'tt1234567', null, behavior({ youtubeEnabled: false }), 'KEY');
     assert.deepStrictEqual(r.streams, []);
     assert.strictEqual(calls.youtubeSearch, 0);
+});
+
+
+test('Sans bande-annonce TMDB : recherche YouTube avant Allociné et Netflix Catalogue', async () => {
+    reset();
+    tmdbHasTrailer = false;
+    const r = await resolveViaApis('movie', 'tt1234567', null, behavior(), 'KEY');
+    assert.strictEqual(r.source, 'youtube_search');
+    assert.strictEqual(r.streams[0].ytId, 'zzzzzzzzzzz');
+    assert.deepStrictEqual(calls.order, ['youtube'], 'les sources suivantes ne sont pas consultées si YouTube trouve une vidéo');
+    assert.strictEqual(calls.allocine, 0);
+    assert.strictEqual(calls.federation, 0);
+});
+
+test('Recherche YouTube indépendante du réglage de repli Allociné', async () => {
+    reset();
+    tmdbHasTrailer = false;
+    const r = await resolveViaApis('movie', 'tt1234567', null, behavior({ allocineFallback: false }), 'KEY');
+    assert.strictEqual(r.source, 'youtube_search');
+    assert.deepStrictEqual(calls.order, ['youtube']);
 });
