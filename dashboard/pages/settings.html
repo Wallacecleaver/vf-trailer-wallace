@@ -42,12 +42,12 @@
                 <label>Clé API <span class="hint">(vide si l'instance amont est ouverte)</span></label>
                 <input type="password" id="set-netflixCatalogueKey" placeholder="clé générée dans Paramètres → API de fédération" spellcheck="false" autocomplete="off">
               </div>
-              <div class="info-box">Source utilisée en dernier recours, après TMDB, Allociné et YouTube — et aussi quand TMDB ne connaît pas le titre. Sur l'instance amont, la clé se génère en un clic : <b>Paramètres → API de fédération → Générer une clé</b>. Envoyée en en-tête <code>x-api-key</code>.</div>
+              <div class="info-box">Source de dernier recours, après TMDB, la recherche YouTube et Allociné — également utilisée quand TMDB ne connaît pas le titre. Sur l'instance amont, la clé se génère en un clic : <b>Paramètres → API de fédération → Générer une clé</b>. Envoyée en en-tête <code>x-api-key</code>.</div>
             </div>
           </div>
 
           <div class="card">
-            <div class="card-head"><div><div class="card-title">🔗 Sources de résolution</div><div class="card-desc">Ordre de repli : TMDB d'abord, puis Allociné, puis l'instance Netflix Catalogue (si configurée), puis la recherche YouTube en dernier recours</div></div></div>
+            <div class="card-head"><div><div class="card-title">🔗 Sources de résolution</div><div class="card-desc">Ordre de résolution : TMDB d'abord, puis recherche YouTube directe, Allociné, et Netflix Catalogue en dernier recours</div></div></div>
             <div class="toggle-row">
               <div><div class="label">YouTube</div><div class="desc">Interrupteur général. Désactivé : les vidéos YouTube de TMDB et la recherche YouTube sont ignorées, seuls Allociné et l'instance Netflix Catalogue fournissent des bandes-annonces (liens directs, plus aucun lien YouTube). Les overrides manuels avec un ID YouTube restent appliqués</div></div>
               <label class="switch"><input type="checkbox" id="set-youtubeEnabled"><span class="slider"></span></label>
@@ -57,7 +57,7 @@
               <label class="switch"><input type="checkbox" id="set-allocineFallback"><span class="slider"></span></label>
             </div>
             <div class="toggle-row">
-              <div><div class="label">Repli sur recherche YouTube</div><div class="desc">Dernier recours : si ni TMDB, ni Allociné, ni l'instance Netflix Catalogue n'ont de bande-annonce, chercher directement sur YouTube (scraping, pas d'API/quota — la source la moins fiable, filtrée mais pas curatée). Nécessite que le repli Allociné soit activé</div></div>
+              <div><div class="label">Repli sur recherche YouTube</div><div class="desc">Après TMDB : si aucune bande-annonce pertinente n'est trouvée dans les vidéos référencées, rechercher directement sur YouTube (scraping, sans API ni quota — résultats filtrés par langue et pertinence). Indépendant du repli Allociné.</div></div>
               <label class="switch"><input type="checkbox" id="set-youtubeSearchFallback"><span class="slider"></span></label>
             </div>
             <div class="toggle-row">
