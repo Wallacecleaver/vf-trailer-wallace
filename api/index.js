@@ -22,13 +22,13 @@ app.use(express.json({ limit: '64kb' })); // limite les corps de requête (anti-
 // CORS uniquement là où Stremio en a besoin (manifest/streams/meta). Les routes /api/*
 // (dashboard, contributions, tests de liens) restent même-origine : une page tierce ne
 // peut donc pas les appeler ni lire leurs réponses.
-const ADDON_PATH = /(^\/manifest\.json$|\/manifest\.json$|\/(stream|meta|catalog)\/)/;
+const ADDON_PATH = /(^\/manifest\.json$|\/manifest\.json$|\/(stream|meta|catalog)\/|^\/youtube\/)/;
 app.use((req, res, next) => {
     if (ADDON_PATH.test(req.path)) {
         res.setHeader('Access-Control-Allow-Origin', '*');
         if (req.method === 'OPTIONS') {
             res.setHeader('Access-Control-Allow-Methods', 'GET,HEAD,OPTIONS');
-            res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
+            res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Range');
             return res.status(204).end();
         }
     }
