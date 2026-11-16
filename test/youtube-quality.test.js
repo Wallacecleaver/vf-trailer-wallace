@@ -35,7 +35,7 @@ test('qualité YouTube : conserve le lecteur natif si l’extraction échoue', a
 });
 
 test('qualité YouTube : indique notWebReady pour un format non MP4', async () => {
-    const original = { name: '🎬 VF', title: 'Bande-annonce\nBelow', ytId: 'webm123' };
+    const original = { name: '🎬 VF', title: 'Bande-annonce\nBelow', ytId: 'webm1234567' };
     const out = await applyYoutubeQualityToStreams([original], async () => ({
                 height: 720,
         container: 'webm',
