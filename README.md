@@ -2,7 +2,7 @@
 
 Addon [Stremio](https://www.stremio.com/) qui affiche la **bande-annonce officielle française** (et le teaser quand il existe) de n'importe quel film ou série, directement dans la fiche du titre.
 
-- **Sources** : TMDB en premier, puis **TheTVDB** pour les séries/saisons, **AniList** pour identifier les animés, puis YouTube pour leurs bandes-annonces VF, puis recherche YouTube, Allociné et instance **Netflix Catalogue** en dernier recours. Les trailers AniList ne sont retenus que si YouTube confirme explicitement VF/VOSTFR ; sinon la recherche YouTube VF prend le relais.
+- **Sources** : TMDB en premier, puis **TheTVDB** pour les séries/saisons, **AniList** pour identifier les animés, recherche YouTube VF, Allociné et instance **Netflix Catalogue** en dernier recours. Les trailers AniList ne sont retenus que si YouTube confirme explicitement VF/VOSTFR ; sinon la recherche YouTube VF prend le relais. L'API publique Jikan a été arrêtée le 1er octobre 2026 et n'est plus utilisée.
 - **Stremio** : teaser (si dispo) puis bande-annonce. Compatible avec l'option « A trailer addon » d'**AIOMetadata** (mode `aiom` : un seul lien `ytId`/`url`, avec délai maximum réglable).
 - **Dashboard d'administration** : stats, utilisateurs, mapping manuel des liens, journal des échecs, test des flux, logs, réglages, cache…
 - **Pages publiques** : configuration de l'addon (`/`), proposition de liens par la communauté (`/proposer`).
@@ -96,7 +96,7 @@ Ouvre `APP_BASE_URL` dans ton navigateur, renseigne ta clé TMDB, puis clique su
 | `TOKEN_SECRET` | conseillé | Secret aléatoire de signature des sessions, indépendant du mot de passe. Absent = secret généré au démarrage (sessions perdues à chaque redémarrage). |
 | `APP_BASE_URL` | ✅ | URL publique de l'addon, sans slash final (logo, liens `/proposer`…). |
 | `TMDB_API_KEY` | conseillé | Clé TMDB du testeur de flux du dashboard. |
-| `TVDB_API_KEY` | non | Clé de projet TheTVDB v4 partagée par défaut ; une clé personnelle peut la remplacer dans `/configure`. |
+| `TVDB_API_KEY` | non | Clé API TheTVDB v4 partagée par défaut ; une clé personnelle sans PIN peut la remplacer dans `/configure`. |
 | `BIND_ADDRESS` | non | `127.0.0.1` pour ne pas exposer le port 3000 sur Internet (défaut `127.0.0.1`). |
 | `HOST_PORT` | non | Port exposé sur la machine (défaut `3000`). |
 | `DATA_DIR` | non | Dossier de la base SQLite (`addon.sqlite`) (défaut `/data` dans l'image : à monter en volume). |
@@ -105,7 +105,7 @@ Ouvre `APP_BASE_URL` dans ton navigateur, renseigne ta clé TMDB, puis clique su
 | `ALLOW_PRIVATE_UPSTREAM` | non | `1` pour autoriser une instance « Netflix Catalogue » sur une adresse privée (réseau Docker). Désactivé par défaut (anti-SSRF). |
 | `DASHBOARD_NO_CACHE` | non | `1` pour désactiver le cache de rendu du dashboard pendant que tu le modifies. |
 
-> **Note sécurité — identifiants dans le lien d'installation.** La configuration utilisateur (clé TMDB, et éventuellement clé API TheTVDB) est encodée en base64 dans l'URL `/<config>/manifest.json`. Le base64 n'est pas du chiffrement : ne partage pas ce lien publiquement, et sache qu'il peut apparaître dans l'historique du navigateur ou les journaux d'un proxy. L'en-tête `Referrer-Policy: no-referrer` limite les fuites par référent. Les champs TheTVDB ne sont pas mémorisés dans le stockage local du navigateur.
+> **Note sécurité — identifiants dans le lien d'installation.** La configuration utilisateur (clé TMDB, et éventuellement clé API TheTVDB) est encodée en base64 dans l'URL `/<config>/manifest.json`. Le base64 n'est pas du chiffrement : ne partage pas ce lien publiquement, et sache qu'il peut apparaître dans l'historique du navigateur ou les journaux d'un proxy. L'en-tête `Referrer-Policy: no-referrer` limite les fuites par référent. La clé TheTVDB n'est pas mémorisée dans le stockage local du navigateur.
 
 ### Ressources utilisées (très légères)
 
