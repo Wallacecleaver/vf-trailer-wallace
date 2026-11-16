@@ -77,7 +77,7 @@ test('plateforme : détection Netflix / Apple TV d\'après la fiche TMDB', () =>
     assert.strictEqual(detectPlatform({ production_companies: [{ name: 'Netflix Animation' }] }), 'netflix');
     assert.strictEqual(detectPlatform({ networks: [{ name: 'Apple TV+' }] }), 'apple');
     assert.strictEqual(detectPlatform({ production_companies: [{ name: 'Apple Original Films' }, { name: 'Skydance' }] }), 'apple');
-    assert.strictEqual(detectPlatform({ networks: [{ name: 'HBO' }], production_companies: [{ name: 'Legendary' }] }), null);
+    assert.strictEqual(detectPlatform({ networks: [{ name: 'HBO' }], production_companies: [{ name: 'Legendary' }] }), 'max');
     assert.strictEqual(detectPlatform({}), null);
 });
 
