@@ -23,7 +23,10 @@ test('display : detailed ajoute langue, source, lecture et lien', () => {
     const out = applyDisplayMode(streams, { display: 'detailed' }, 'allocine');
     assert.match(out[0].title, /VF ✓ • 🔎 Allociné/);
     assert.match(out[0].title, /Lecteur intégré/);
-    assert.match(out[0].title, /youtube\.com\/watch\?v=abc123/);
+    assert.match(out[0].title, /🔗 YouTube/);
+    assert.ok(!out[0].title.includes('watch?v='));
+    assert.match(out[1].title, /🔗 YouTube/);
+    assert.ok(!out[1].title.includes('watch?v='));
     assert.match(out[1].title, /Ouverture externe/);
 });
 
