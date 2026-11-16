@@ -21,7 +21,7 @@ stub('net', {
         if (url.includes('/find/')) return json({ movie_results: [{ id: 42, title: 'Film Test' }] });
         if (url.includes('/alternative_titles')) return json({ titles: [] });
         if (url.includes('/videos')) {
-            return json({ results: [{ site: 'YouTube', type: 'Trailer', name: 'Film Test - Bande-annonce VF', key: 'abcdefghijk', official: true, published_at: '2026-01-01' }] });
+            return json({ results: tmdbHasTrailer ? [{ site: 'YouTube', type: 'Trailer', name: 'Film Test - Bande-annonce VF', key: 'abcdefghijk', official: true, published_at: '2026-01-01' }] : [] });
         }
         return json({ title: 'Film Test', original_title: 'Film Test', release_date: '2026-01-01' });
     },
@@ -29,6 +29,7 @@ stub('net', {
 stub('allocine', { getAllocineTrailerStreams: async () => { calls.order.push('allocine'); calls.allocine++; return []; } });
 stub('netflix-federation', {
     resolveFederatedTrailer: async () => {
+        calls.order.push('netflix');
         calls.federation++;
         return { found: true, title: { name: 'Film Test' }, trailers: [{ title: 'Trailer', url: 'https://netflix.exemple.fr/trailer/1.mp4' }] };
     },
@@ -58,8 +59,9 @@ test('YouTube désactivé : aucune vidéo TMDB demandée, pas de recherche YouTu
     assert.ok(r.streams.length > 0 && r.streams.every(s => !s.ytId && /^https:\/\/netflix\.exemple\.fr/.test(s.url)));
     assert.strictEqual(calls.urls.filter(u => u.includes('/videos')).length, 0, 'aucune requête /videos');
     assert.strictEqual(calls.youtubeSearch, 0);
-    assert.strictEqual(calls.allocine, 1, 'Allociné reste consulté en premier');
+    assert.strictEqual(calls.allocine, 1, 'Allociné est consulté après YouTube');
     assert.strictEqual(calls.federation, 1);
+    assert.deepStrictEqual(calls.order, ['allocine', 'netflix']);
     assert.ok(trace.some(t => t.step === 'tmdb-videos' && /YouTube désactivé/.test(t.detail)));
 });
 
