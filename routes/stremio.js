@@ -8,17 +8,8 @@ const { logFailure } = require('../lib/overrides');
 const { manifest, decodeConfig } = require('../lib/config');
 const { resolveStreams, getBehaviorSettingsFast, buildMetaObject } = require('../lib/resolver');
 const { aiomTimeoutMs, withDeadline, aiomOutcome, resolveStreamsSingleFlight, logAiomRequest } = require('../lib/aiom');
-const { handleYoutubeProxyRequest } = require('../lib/youtube-quality');
-const { rateLimit } = require('../lib/security');
 
 module.exports = function registerStremioRoutes(app) {
-    // Relais des bandes-annonces YouTube en meilleure qualité progressive.
-    // Limite le débit et le nombre de lectures simultanées pour protéger le VPS.
-    const youtubeProxyLimit = rateLimit({ windowMs: 60_000, max: 120, name: 'youtube-proxy' });
-    app.get('/youtube/:token', youtubeProxyLimit, async (req, res) => {
-        await handleYoutubeProxyRequest(req, res, req.params.token);
-    });
-
     // Manifest et stream acceptent un segment de config optionnel en tête d'URL.
     app.get('/:config?/manifest.json', async (req, res) => {
         let hasValidConfig = false;
