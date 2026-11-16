@@ -1,13 +1,11 @@
   // ---- Statut des services de métadonnées et de vidéos, vérifié côté serveur toutes les 6h ----
   const SERVICES = [
-    { key: 'tmdb', name: 'TMDB', icon: '🎬', description: 'Films et séries' },
-    { key: 'tvdb', name: 'TheTVDB', icon: '📺', description: 'Séries et saisons' },
-    { key: 'youtube', name: 'YouTube', icon: '▶️', description: 'Vidéos et liens' },
-    { key: 'allocine', name: 'Allociné', icon: '🇫🇷', description: 'Bandes-annonces françaises' },
-    { key: 'anilist', name: 'AniList', icon: '🌸', description: 'Identification des animés' },
-    { key: 'jikan', name: 'Jikan', icon: '🎌', description: 'Vidéos promotionnelles' },
-  ];
-  function timeAgoFr(iso) {
+    { key: 'tmdb', name: 'TMDB', logo: '/logos/tmdb.svg', description: 'Films, séries et vidéos' },
+    { key: 'tvdb', name: 'TheTVDB', logo: 'https://www.thetvdb.com/images/attribution/logo1.png', description: 'Séries, saisons et bandes-annonces' },
+    { key: 'youtube', name: 'YouTube', logo: '/logos/youtube.svg', description: 'Bandes-annonces VF, films et animés' },
+    { key: 'allocine', name: 'Allociné', logo: 'https://assets.allocine.fr/skin/img/allocine/logo-main-grey.5de8867c.svg', description: 'Recherche de bandes-annonces françaises' },
+    { key: 'anilist', name: 'AniList', logo: '/logos/anilist.svg', description: 'Identification et titres alternatifs des animés' },
+  ];  function timeAgoFr(iso) {
     const diffMin = Math.round((Date.now() - new Date(iso).getTime()) / 60000);
     if (diffMin < 1) return "à l'instant";
     if (diffMin < 60) return `il y a ${diffMin} min`;
@@ -32,7 +30,7 @@
         const up = data[service.key] === 'up';
         const state = up ? 'Disponible' : 'Indisponible';
         return `<div class="svc-card ${up ? 'svc-up' : 'svc-down'}" title="${service.name} : ${state}">
-          <div class="svc-card-icon">${service.icon}</div>
+          <div class="svc-card-logo"><img src="${service.logo}" alt="${service.name}" loading="lazy" referrerpolicy="no-referrer"></div>
           <div class="svc-card-content"><b>${service.name}</b><small>${service.description}</small></div>
           <span class="svc-card-state">${up ? 'En ligne' : 'Hors ligne'}</span>
           <i class="svc-dot"></i>
