@@ -109,9 +109,10 @@ test('aperçu réel : repli Stockage BD, même résultat que le dashboard, aucun
     assert.equal(response.headers.get('cache-control'), 'no-store');
     assert.equal(data.source, 'netflix_catalogue');
     assert.equal(data.streams.length, 1);
-    assert.match(data.streams[0].title, /Stockage BD/);
+    assert.equal((data.streams[0].title.match(/Stockage BD/g) || []).length, 1);
     assert.match(data.streams[0].title, /Lien vidéo direct/);
-    assert.match(data.streams[0].title, /🔗 Vidéo · Stockage BD/);
+    assert.doesNotMatch(data.streams[0].title, /🔗/);
+    assert.equal(data.streams[0].title.split('\n').length, 3);
     assert.doesNotMatch(data.streams[0].title, /stockage\.exemple\.fr|\.mp4/);
     assert.doesNotMatch(data.streams[0].title, /YouTube|1080p|Teaser/);
     assert.deepEqual(state.order, ['youtube', 'allocine', 'stockage']);
