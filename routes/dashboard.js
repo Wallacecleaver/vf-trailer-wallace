@@ -125,7 +125,7 @@ module.exports = function registerDashboardRoutes(app) {
     // Contrairement à /api/health (public, live, pour le badge de /configure), celui-ci est
     // authentifié et volontairement mis en cache 6h en base : pas besoin de re-pinguer TMDB/
     // YouTube/Allociné à chaque ouverture de la page Logs, un statut par demi-journée suffit.
-    const SERVICES_STATUS_CACHE_KEY = 'system:services-status';
+    const SERVICES_STATUS_CACHE_KEY = 'system:services-status:v2';
     const SERVICES_STATUS_TTL_MS = 6 * 60 * 60 * 1000; // 6h
 
     app.get('/api/services-status', requireAuth, async (req, res) => {
