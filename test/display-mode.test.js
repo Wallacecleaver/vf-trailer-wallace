@@ -100,6 +100,6 @@ test('disponibilité : Netflix / Apple TV+ en abonnement uniquement', () => {
     // achat / location (« Apple TV » store) : ne compte pas
     assert.strictEqual(platformFromProviders({ rent: [{ provider_name: 'Apple TV' }], buy: [{ provider_name: 'Apple TV' }] }), null);
     assert.strictEqual(platformFromProviders({ rent: [{ provider_name: 'Apple TV Store' }], buy: [{ provider_name: 'Apple TV Store' }] }), null);
-    assert.strictEqual(platformFromProviders({ flatrate: [{ provider_name: 'Canal+' }] }), null);
+    assert.strictEqual(platformFromProviders({ flatrate: [{ provider_name: 'Canal+' }] }), 'canal');
     assert.strictEqual(platformFromProviders(undefined), null);
 });
