@@ -1,5 +1,12 @@
-  // ---- Statut des services (TMDB/YouTube/Allociné), vérifié côté serveur toutes les 6h ----
-  const SVC_LABELS = { tmdb: 'TMDB', youtube: 'YouTube', allocine: 'Allociné' };
+  // ---- Statut des services de métadonnées et de vidéos, vérifié côté serveur toutes les 6h ----
+  const SERVICES = [
+    { key: 'tmdb', name: 'TMDB', icon: '🎬', description: 'Films et séries' },
+    { key: 'tvdb', name: 'TheTVDB', icon: '📺', description: 'Séries et saisons' },
+    { key: 'youtube', name: 'YouTube', icon: '▶️', description: 'Vidéos et liens' },
+    { key: 'allocine', name: 'Allociné', icon: '🇫🇷', description: 'Bandes-annonces françaises' },
+    { key: 'anilist', name: 'AniList', icon: '🌸', description: 'Identification des animés' },
+    { key: 'jikan', name: 'Jikan', icon: '🎌', description: 'Vidéos promotionnelles' },
+  ];
   function timeAgoFr(iso) {
     const diffMin = Math.round((Date.now() - new Date(iso).getTime()) / 60000);
     if (diffMin < 1) return "à l'instant";
@@ -21,9 +28,15 @@
       const res = await fetch('/api/services-status', { headers: authHeaders() });
       if (!res.ok) throw new Error('Requête échouée');
       const data = await res.json();
-      grid.innerHTML = ['tmdb', 'youtube', 'allocine'].map(svc => {
-        const up = data[svc] === 'up';
-        return `<div class="svc-pill ${up ? 'svc-up' : 'svc-down'}"><span class="svc-dot"></span>${SVC_LABELS[svc]} — ${up ? 'OK' : 'HS'}</div>`;
+      grid.innerHTML = SERVICES.map(service => {
+        const up = data[service.key] === 'up';
+        const state = up ? 'Disponible' : 'Indisponible';
+        return `<div class="svc-card ${up ? 'svc-up' : 'svc-down'}" title="${service.name} : ${state}">
+          <div class="svc-card-icon">${service.icon}</div>
+          <div class="svc-card-content"><b>${service.name}</b><small>${service.description}</small></div>
+          <span class="svc-card-state">${up ? 'En ligne' : 'Hors ligne'}</span>
+          <i class="svc-dot"></i>
+        </div>`;
       }).join('');
       desc.textContent = `Vérifié ${timeAgoFr(data.checkedAt)} — prochaine vérification ${timeUntilFr(data.nextCheckAt)}`;
     } catch (e) {
