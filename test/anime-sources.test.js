@@ -4,7 +4,7 @@ const {
     normalizeAnimeTitle,
     animeTitleMatches,
     isFrenchAnimeVideo,
-    getJikanVideoCandidates,
+    getAniListTrailerCandidate,
 } = require('../lib/anime-sources');
 
 test('Animés : normalisation des titres et accents', () => {
@@ -30,14 +30,10 @@ test('Animés : VF/VOSTFR uniquement, sans confondre avec la VO', () => {
     assert.strictEqual(isFrenchAnimeVideo('Bande-annonce VF', 'both'), true);
 });
 
-test('Animés : récupération des bandes-annonces et promos Jikan', () => {
-    const candidates = getJikanVideoCandidates({
-        data: {
-            trailer: { title: 'Official Trailer', url: 'https://youtu.be/abcdefghijk' },
-            promo: [{ title: 'PV 1', trailer: { title: 'French Trailer VF', youtube_id: 'lmnopqrstuv' } }],
-        },
-    });
-    assert.strictEqual(candidates.length, 2);
-    assert.strictEqual(candidates[0].url, 'https://youtu.be/abcdefghijk');
-    assert.strictEqual(candidates[1].url, 'lmnopqrstuv');
+test('Animés : extraction du trailer YouTube depuis AniList', () => {
+    const anime = { trailer: { site: 'youtube', id: 'abcdefghijk' } };
+    assert.deepStrictEqual(getAniListTrailerCandidate(anime), { ytId: 'abcdefghijk' });
+    assert.strictEqual(getAniListTrailerCandidate({ trailer: { site: 'dailymotion', id: 'abcdefghijk' } }), null);
+    assert.strictEqual(getAniListTrailerCandidate({ trailer: { site: 'youtube', id: 'invalid' } }), null);
+    assert.strictEqual(getAniListTrailerCandidate({}), null);
 });
