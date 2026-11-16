@@ -240,4 +240,4 @@ Chaque push sur `main` déclenche `.github/workflows/docker.yml` : tests, puis c
 
 ## Sources de données
 
-TMDB (principal) · Allociné (repli) · instance Netflix Catalogue (optionnel, par URL) · YouTube (recherche, dernier recours). Ce produit utilise l'API TMDB mais n'est ni approuvé ni certifié par TMDB.
+TMDB (principal) · TheTVDB (séries et saisons) · AniList (identification des animés) · YouTube (recherche VF) · Allociné (repli) · instance Netflix Catalogue (optionnelle, par URL). Ce produit utilise l'API TMDB mais n'est ni approuvé ni certifié par TMDB.
