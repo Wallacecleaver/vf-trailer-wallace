@@ -91,15 +91,15 @@ test('plateforme : le nom du flux suit la plateforme, VF par défaut', () => {
     assert.match(out[1].name, /YouTube/);
 });
 
-test('disponibilité : Netflix / Apple TV+ en abonnement uniquement', () => {
+test('disponibilité : marque pour les abonnements, VOD pour l’achat et la location', () => {
     assert.strictEqual(platformFromProviders({ flatrate: [{ provider_name: 'Netflix' }] }), 'netflix');
     assert.strictEqual(platformFromProviders({ flatrate: [{ provider_name: 'Netflix Standard with Ads' }] }), 'netflix');
     assert.strictEqual(platformFromProviders({ flatrate: [{ provider_name: 'Apple TV Plus' }] }), 'apple');
     assert.strictEqual(platformFromProviders({ flatrate: [{ provider_name: 'Apple TV' }] }), 'apple');
     assert.strictEqual(platformFromProviders({ flatrate: [{ provider_name: 'Disney Plus' }, { provider_name: 'Apple TV+' }] }), 'disney');
-    // achat / location (« Apple TV » store) : ne compte pas
-    assert.strictEqual(platformFromProviders({ rent: [{ provider_name: 'Apple TV' }], buy: [{ provider_name: 'Apple TV' }] }), null);
-    assert.strictEqual(platformFromProviders({ rent: [{ provider_name: 'Apple TV Store' }], buy: [{ provider_name: 'Apple TV Store' }] }), null);
+    // Les boutiques n'attribuent pas la marque d'un service par abonnement.
+    assert.strictEqual(platformFromProviders({ rent: [{ provider_name: 'Apple TV' }], buy: [{ provider_name: 'Apple TV' }] }), 'vod');
+    assert.strictEqual(platformFromProviders({ rent: [{ provider_name: 'Apple TV Store' }], buy: [{ provider_name: 'Apple TV Store' }] }), 'vod');
     assert.strictEqual(platformFromProviders({ flatrate: [{ provider_name: 'Canal+' }] }), 'canal');
     assert.strictEqual(platformFromProviders(undefined), null);
 });

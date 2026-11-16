@@ -1,7 +1,7 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const { detectPlatform, platformFromProviders } = require('../lib/tmdb');
-const { formatStreamName } = require('../lib/stream-format');
+const { formatStreamName, buildPreviewStreams } = require('../lib/stream-format');
 
 // Noms des services et variantes TMDB/JustWatch, y compris les anciennes marques.
 const platforms = {
@@ -101,7 +101,7 @@ for (const [platform, names] of Object.entries(platforms)) {
         for (const name of names) {
             assert.equal(detectPlatform({ networks: [{ name }] }), platform, name);
             assert.equal(platformFromProviders({ flatrate: [{ provider_name: name }] }), platform, name);
-            assert.equal(platformFromProviders({ buy: [{ provider_name: name }], rent: [{ provider_name: name }] }), null, name);
+            assert.equal(platformFromProviders({ buy: [{ provider_name: name }], rent: [{ provider_name: name }] }), 'vod', name);
         }
         assert.notEqual(formatStreamName(platform), '🎬 VF');
     });
@@ -162,4 +162,47 @@ test('plateformes : ordre des abonnements et valeur absente conservés', () => {
     assert.equal(platformFromProviders({ flatrate: [{ provider_name: 'Inconnu' }, { provider_name: 'Canal+' }] }), 'canal');
     assert.equal(platformFromProviders(undefined), null);
     assert.equal(detectPlatform({}), null);
+});
+
+test('VOD : achat et location affichent un badge générique, quelle que soit la boutique', () => {
+    for (const entry of [
+        { rent: [{ provider_name: 'Apple TV Store' }] },
+        { buy: [{ provider_name: 'Rakuten TV' }] },
+        { rent: [{ provider_name: 'Canal VOD' }], buy: [{ provider_name: 'Amazon Video' }] },
+        { buy: [{ provider_name: 'Une autre boutique' }] },
+    ]) {
+        const platform = platformFromProviders(entry);
+        assert.equal(platform, 'vod');
+        for (const display of ['default', 'compact', 'detailed']) {
+            const streams = buildPreviewStreams({ display }, 'Film disponible en VOD', platform);
+            assert.ok(streams.length > 0);
+            assert.ok(streams.every(stream => stream.name.split('\n')[0] === '🎬 VOD'));
+        }
+    }
+});
+
+test('VOD : un abonnement reconnu reste prioritaire sur les boutiques', () => {
+    assert.equal(platformFromProviders({
+        flatrate: [{ provider_name: 'Netflix' }],
+        rent: [{ provider_name: 'Apple TV Store' }],
+    }), 'netflix');
+    assert.equal(platformFromProviders({
+        flatrate: [{ provider_name: 'Inconnu' }, { provider_name: 'Canal+' }],
+        buy: [{ provider_name: 'Amazon Video' }],
+    }), 'canal');
+    assert.equal(platformFromProviders({
+        flatrate: [{ provider_name: 'Inconnu' }],
+        rent: [{ provider_name: 'Rakuten TV' }],
+    }), 'vod');
+});
+
+test('VOD : aucun badge sans offre d’achat ou de location exploitable', () => {
+    for (const entry of [
+        undefined, {}, { buy: [], rent: [] },
+        { rent: [null, {}, { provider_name: '   ' }] },
+        { buy: null, rent: {} },
+        { free: [{ provider_name: 'Arte' }], ads: [{ provider_name: 'Pluto TV' }] },
+    ]) {
+        assert.equal(platformFromProviders(entry), null);
+    }
 });
