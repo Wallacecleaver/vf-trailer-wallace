@@ -13,8 +13,9 @@ function editor() {
     const nodes = new Map(), listeners = {};
     for (const [, id] of html.matchAll(/id="([^"]+)"/g)) {
         nodes.set(id, {
-            value: '', checked: false, textContent: '', disabled: false, hidden: false, events: {},
+            value: '', checked: false, textContent: '', disabled: false, hidden: false, events: {}, attributes: {},
             addEventListener(name, callback) { this.events[name] = callback; },
+            setAttribute(name, value) { this.attributes[name] = value; },
             setCustomValidity(message) { this.validationMessage = message; },
             reportValidity() { this.validityReported = true; },
         });
@@ -68,8 +69,16 @@ test('maintenance dashboard : aperçu immédiat en texte et indication claire du
     assert.equal(ui.node('preview-message').textContent, '<img src=x onerror=alert(1)>');
     ui.input('enabled', true);
     assert.match(ui.node('preview-state').textContent, /configuration accessible/);
+    assert.equal(ui.node('preview').attributes['data-mode'], 'banner');
+    assert.equal(ui.node('preview-refresh').hidden, true);
+    assert.equal(ui.node('preview-banner-icon').hidden, false);
     ui.input('blockInstall', true);
     assert.match(ui.node('preview-state').textContent, /configuration suspendue/);
+    assert.equal(ui.node('preview').attributes['data-mode'], 'locked');
+    assert.equal(ui.node('preview-mode').textContent, 'Page de maintenance');
+    assert.equal(ui.node('preview-refresh').hidden, false);
+    assert.equal(ui.node('preview-availability').hidden, false);
+    assert.equal(ui.node('preview-banner-icon').hidden, true);
     ui.input('enabled', false);
     assert.match(ui.node('preview-state').textContent, /masqué/);
     assert.equal(ui.node('message').value, '<img src=x onerror=alert(1)>');

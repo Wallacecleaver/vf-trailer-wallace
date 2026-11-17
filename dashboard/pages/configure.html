@@ -1,45 +1,73 @@
         <!-- PAGE: CONFIGURE — maintenance de la page publique -->
         <div class="page" id="page-configure">
           <div class="page-header">
-            <div><div class="page-title">Page Configure</div><div class="page-sub">Gère la maintenance de la page d’installation.</div></div>
+            <div><div class="page-title">Page Configure</div><div class="page-sub">Préviens les utilisateurs et gère l’accès à la configuration.</div></div>
             <a href="/configure" target="_blank" rel="noopener noreferrer" class="btn-outline-sm">↗ Ouvrir la page publique</a>
           </div>
 
           <div class="mnt-layout">
-            <form id="mnt-form" class="card" onsubmit="event.preventDefault(); saveMaintenanceSettings()">
-              <div class="card-head"><div><div class="card-title">🛠️ Maintenance</div><div class="card-desc">Un message pour prévenir les utilisateurs</div></div></div>
+            <form id="mnt-form" class="card mnt-editor" onsubmit="event.preventDefault(); saveMaintenanceSettings()">
+              <div class="card-head">
+                <div class="mnt-editor-heading"><span class="mnt-heading-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0L21.47 5.53a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94z"/></svg></span><div><div class="card-title">Maintenance</div><div class="card-desc">Ton message, au bon moment</div></div></div>
+              </div>
               <fieldset id="mnt-fields" class="card-body" disabled>
                 <legend class="mnt-sr-only">Réglages de maintenance</legend>
-                <label class="mnt-option">
-                  <input type="checkbox" id="mnt-enabled">
-                  <span><strong>Afficher le bandeau de maintenance</strong><small>Tu peux le désactiver sans effacer ton message.</small></span>
+                <div class="mnt-section-label"><span>01</span> Diffusion</div>
+                <label class="mnt-option mnt-option-primary">
+                  <span><strong>Activer la maintenance</strong><small>Affiche ton message sur la page publique. Tu peux le désactiver sans l’effacer.</small></span>
+                  <input type="checkbox" id="mnt-enabled" class="mnt-switch">
                 </label>
-                <div class="form-field"><label for="mnt-title">Titre du bandeau</label><input type="text" id="mnt-title" maxlength="70" placeholder="Maintenance en cours"></div>
-                <div class="form-field"><label for="mnt-message">Message aux utilisateurs</label><textarea id="mnt-message" maxlength="300" rows="4" placeholder="Une intervention est en cours. Retour prévu vers 22 h."></textarea><span class="hint">300 caractères maximum.</span></div>
-                <div class="form-grid">
-                  <div class="form-field"><label for="mnt-linkUrl">Lien facultatif</label><input type="url" id="mnt-linkUrl" maxlength="300" placeholder="https://discord.gg/..." aria-describedby="mnt-link-hint"><span class="hint" id="mnt-link-hint">Une adresse HTTPS, par exemple ton Discord.</span></div>
-                  <div class="form-field"><label for="mnt-linkLabel">Texte du lien</label><input type="text" id="mnt-linkLabel" maxlength="30" placeholder="En savoir plus"></div>
+
+                <div class="mnt-form-section">
+                  <div class="mnt-section-label"><span>02</span> Message aux utilisateurs</div>
+                  <div class="form-field"><label for="mnt-title">Titre du message</label><input type="text" id="mnt-title" maxlength="70" placeholder="Maintenance en cours"></div>
+                  <div class="form-field"><label for="mnt-message">Message</label><textarea id="mnt-message" maxlength="300" rows="4" placeholder="Une intervention est en cours. Retour prévu vers 22 h."></textarea><span class="hint">300 caractères maximum.</span></div>
+                  <div class="form-grid">
+                    <div class="form-field"><label for="mnt-linkUrl">Lien facultatif</label><input type="url" id="mnt-linkUrl" maxlength="300" placeholder="https://discord.gg/..." aria-describedby="mnt-link-hint"><span class="hint" id="mnt-link-hint">Une adresse HTTPS, par exemple ton Discord.</span></div>
+                    <div class="form-field"><label for="mnt-linkLabel">Texte du lien</label><input type="text" id="mnt-linkLabel" maxlength="30" placeholder="En savoir plus"></div>
+                  </div>
                 </div>
-                <label class="mnt-option">
-                  <input type="checkbox" id="mnt-blockInstall">
-                  <span><strong>Bloquer la page de configuration pendant la maintenance</strong><small>Le formulaire et les boutons d’installation sont remplacés par le message. Cette option s’applique seulement quand le bandeau est activé.</small></span>
-                </label>
-                <p class="mnt-help">Les addons déjà installés continuent de fonctionner. La maintenance concerne uniquement la page /configure.</p>
+
+                <div class="mnt-form-section">
+                  <div class="mnt-section-label"><span>03</span> Accès à la configuration</div>
+                  <label class="mnt-option">
+                    <span><strong>Mettre la configuration en pause</strong><small>Remplace le formulaire et les boutons d’installation par la page de maintenance. S’applique quand la maintenance est activée.</small></span>
+                    <input type="checkbox" id="mnt-blockInstall" class="mnt-switch">
+                  </label>
+                  <p class="mnt-help mnt-preserved"><span aria-hidden="true"></span>Les profils déjà installés restent disponibles.</p>
+                </div>
               </fieldset>
             </form>
 
-            <aside class="card mnt-preview" aria-label="Aperçu de la maintenance">
-              <div class="card-head"><div><div class="card-title">Aperçu du bandeau</div><div class="card-desc">Mis à jour pendant la saisie</div></div></div>
-              <div class="card-body">
-                <div class="mnt-notice">
-                  <span class="mnt-icon" aria-hidden="true">🛠️</span>
-                  <div class="mnt-content">
-                    <h2 id="mnt-preview-title">Maintenance en cours</h2>
-                    <p id="mnt-preview-message" hidden></p>
-                    <a id="mnt-preview-link" target="_blank" rel="noopener noreferrer" hidden></a>
-                    <p id="mnt-preview-lock" class="mnt-lock" hidden>La configuration et l’installation depuis cette page sont temporairement suspendues. Les addons déjà installés continuent de fonctionner.</p>
+            <aside id="mnt-preview" class="card mnt-preview" data-mode="banner" aria-label="Aperçu de la maintenance">
+              <div class="card-head"><div><div class="card-title">Aperçu en direct</div><div class="card-desc">Mis à jour pendant la saisie</div></div><span id="mnt-preview-mode" class="mnt-mode-label">Bandeau d’information</span></div>
+              <div class="mnt-preview-stage">
+                <div id="mnt-preview-brand" class="mnt-preview-brand" hidden><img src="/logo_transparent_check.png" alt="" width="28" height="28"><span>Page de configuration</span><span class="mnt-preview-badge">Maintenance</span></div>
+                <section class="mnt-preview-panel" aria-labelledby="mnt-preview-title">
+                  <div id="mnt-preview-emblem" class="mnt-preview-emblem" hidden><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0L21.47 5.53a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94z"/></svg></div>
+                  <p id="mnt-preview-eyebrow" class="mnt-preview-eyebrow" hidden>Configuration en pause</p>
+                  <div class="mnt-preview-heading">
+                    <span id="mnt-preview-banner-icon" class="mnt-preview-banner-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0L21.47 5.53a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94z"/></svg></span>
+                    <div class="mnt-content">
+                      <h2 id="mnt-preview-title">Maintenance en cours</h2>
+                      <p id="mnt-preview-message" hidden></p>
+                    </div>
                   </div>
-                </div>
+                  <div id="mnt-preview-lock" class="mnt-preview-info" hidden>
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 11v6m0-10v.01"/></svg>
+                    <div><strong>La configuration est temporairement suspendue.</strong><p>Tu pourras installer ou modifier ton addon dès la fin de l’intervention.</p></div>
+                  </div>
+                  <div class="mnt-preview-actions">
+                    <span id="mnt-preview-refresh" class="mnt-preview-refresh" aria-hidden="true" hidden>
+                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M20 7v5h-5M4 17v-5h5"/><path d="M6.1 6.1A8 8 0 0 1 19.7 10M4.3 14A8 8 0 0 0 17.9 17.9"/></svg>Vérifier à nouveau
+                    </span>
+                    <a id="mnt-preview-link" target="_blank" rel="noopener noreferrer" hidden></a>
+                  </div>
+                  <div id="mnt-preview-availability" class="mnt-preview-availability" hidden><span aria-hidden="true"></span>Les profils déjà installés restent disponibles.</div>
+                </section>
+                <p id="mnt-preview-thanks" class="mnt-preview-thanks" hidden>Merci pour ta patience.</p>
+              </div>
+              <div class="mnt-preview-footer">
                 <p id="mnt-preview-state" class="mnt-help" role="status" aria-live="polite">Bandeau masqué sur la page publique.</p>
                 <p class="mnt-help">Enregistre les réglages pour les appliquer aux visiteurs.</p>
               </div>

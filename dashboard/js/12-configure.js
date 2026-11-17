@@ -27,6 +27,12 @@
 
   function updateMaintenanceEditor() {
     const payload = collectMaintenancePayload(), dirty = maintenanceHasChanges();
+    document.getElementById('mnt-preview').setAttribute('data-mode', payload.blockInstall ? 'locked' : 'banner');
+    document.getElementById('mnt-preview-mode').textContent = payload.blockInstall ? 'Page de maintenance' : 'Bandeau d’information';
+    ['brand', 'emblem', 'eyebrow', 'lock', 'refresh', 'availability', 'thanks'].forEach(part => {
+      document.getElementById('mnt-preview-' + part).hidden = !payload.blockInstall;
+    });
+    document.getElementById('mnt-preview-banner-icon').hidden = payload.blockInstall;
     document.getElementById('mnt-preview-title').textContent = payload.title || 'Maintenance en cours';
     const message = document.getElementById('mnt-preview-message');
     message.textContent = payload.message;
@@ -37,7 +43,6 @@
     link.href = validLink && payload.linkUrl ? payload.linkUrl : '';
     link.textContent = (payload.linkLabel || 'En savoir plus') + ' ↗';
     document.getElementById('mnt-linkUrl').setCustomValidity(validLink ? '' : 'Utilise une adresse HTTPS valide, sans identifiants.');
-    document.getElementById('mnt-preview-lock').hidden = !payload.blockInstall;
     document.getElementById('mnt-preview-state').textContent = !payload.enabled ? 'Bandeau masqué sur la page publique.'
       : payload.blockInstall ? 'Bandeau visible et configuration suspendue.' : 'Bandeau visible ; configuration accessible.';
     const status = document.getElementById('mnt-save-state');
