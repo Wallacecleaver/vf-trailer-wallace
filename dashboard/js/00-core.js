@@ -107,7 +107,7 @@
   });
 
   let ovInterval = null;
-  const DASHBOARD_PAGES = ['overview', 'users', 'mapping', 'requests', 'teststream', 'configure', 'settings', 'logs'];
+  const DASHBOARD_PAGES = ['overview', 'users', 'mapping', 'requests', 'teststream', 'configure', 'settings', 'logs', 'aiom'];
 
   function showPage(name) {
     if (location.hash.slice(1) !== name) history.pushState(null, '', '#' + name);
@@ -121,6 +121,7 @@
     if (name === 'mapping') loadMapping();
     if (name === 'requests') loadRequests();
     if (name === 'configure') loadMaintenanceSettings();
+    if (name === 'aiom') loadAiomSettings();
     if (name === 'settings') loadBehaviorSettings();
     if (name === 'logs') initLogsPage();
     else if (logsInterval) { clearInterval(logsInterval); logsInterval = null; } // pas de polling hors de la page logs

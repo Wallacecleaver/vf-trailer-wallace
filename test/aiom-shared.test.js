@@ -1,41 +1,171 @@
-// Lien AIOMetadata partagé : /aiom/manifest.json (sans config dans l'URL).
-process.env.DATA_DIR = process.env.DATA_DIR || require('node:os').tmpdir() + '/vf-aiom-test';
-require('node:fs').mkdirSync(process.env.DATA_DIR, { recursive: true });
-process.env.DASHBOARD_PASSWORD = process.env.DASHBOARD_PASSWORD || 'test';
-delete process.env.TMDB_API_KEY;
+const { test, before, beforeEach, after } = require('node:test');
+const assert = require('node:assert/strict');
+const fs = require('node:fs');
+const os = require('node:os');
+const path = require('node:path');
+const { execFileSync } = require('node:child_process');
 
-const test = require('node:test');
-const assert = require('node:assert');
-const http = require('node:http');
-const app = require('../api/index.js');
+const dataDir = fs.mkdtempSync(path.join(os.tmpdir(), 'vf-aiom-shared-'));
+const serverKey = 'a'.repeat(32);
+process.env.DATA_DIR = dataDir;
+process.env.TMDB_API_KEY = serverKey;
+const state = { calls: [], kind: 'youtube', delay: 0, fail: false };
+const apiPath = require.resolve('../lib/resolve-apis');
+require.cache[apiPath] = { id: apiPath, filename: apiPath, loaded: true, exports: {
+    resolveViaApis: async (type, imdbId, season, behavior, key) => {
+        const { kind, delay, fail } = state;
+        state.calls.push({ type, imdbId, season, key });
+        if (delay) await new Promise(resolve => setTimeout(resolve, delay));
+        if (fail) throw new Error('Upstream api_key=' + key);
+        return { officialTitle: 'Film de test', platform: 'apple',
+            source: kind === 'direct' ? 'netflix_catalogue' : 'tmdb',
+            streams: kind === 'none' ? [] : kind === 'direct'
+                ? [{ title: 'Bande-annonce\nFilm de test', url: 'https://stockage.example/trailer.mp4' }]
+                : [{ title: 'Teaser\nFilm de test', ytId: 'teaser00000' },
+                    { title: 'Bande-annonce\nFilm de test', ytId: 'trailer0000' }] };
+    },
+} };
+const sql = require('../lib/db');
+const { ensureSchema } = require('../lib/migrate');
+const { manifest } = require('../lib/config');
+const app = require('../api');
+let server, base;
+const get = pathname => fetch(base + pathname);
 
-function withServer(fn) {
-    return new Promise((resolve, reject) => {
-        const srv = http.createServer(app).listen(0, async () => {
-            try { await fn(`http://127.0.0.1:${srv.address().port}`); resolve(); }
-            catch (e) { reject(e); } finally { srv.close(); }
+before(async () => {
+    await ensureSchema();
+    await sql(["UPDATE behavior_settings SET aiom_timeout_seconds = 1 WHERE id = 1"]);
+    server = app.listen(0, '127.0.0.1');
+    await new Promise(resolve => server.once('listening', resolve));
+    base = 'http://127.0.0.1:' + server.address().port;
+});
+beforeEach(() => { state.calls = []; state.kind = 'youtube'; state.delay = 0; state.fail = false; });
+after(async () => {
+    if (server) { server.closeAllConnections(); await new Promise(resolve => server.close(resolve)); }
+    sql.close();
+    fs.rmSync(dataDir, { recursive: true, force: true });
+});
+
+test('AIOM partagé : manifest 200, CORS *, stream uniquement et aucun behaviorHints', async () => {
+    const response = await get('/aiom/manifest.json');
+    assert.equal(response.status, 200);
+    assert.equal(response.headers.get('access-control-allow-origin'), '*');
+    const data = await response.json();
+    assert.deepEqual(data.resources, ['stream']);
+    assert.deepEqual(data.types, ['movie', 'series']);
+    assert.deepEqual(data.catalogs, []);
+    assert.equal(Object.hasOwn(data, 'behaviorHints'), false);
+    assert.ok(!JSON.stringify(data).includes(serverKey));
+    const preflight = await fetch(base + '/aiom/manifest.json', { method: 'OPTIONS' });
+    assert.equal(preflight.status, 204);
+    assert.equal(preflight.headers.get('access-control-allow-origin'), '*');
+});
+
+test('AIOM partagé : manifest classique inchangé, configuration toujours requise', async () => {
+    const data = await get('/manifest.json').then(response => response.json());
+    assert.deepEqual(data, manifest);
+    assert.equal(data.behaviorHints.configurationRequired, true);
+    const config = Buffer.from(JSON.stringify({ tmdbKey: 'person-key' })).toString('base64url');
+    const configured = await get('/' + config + '/manifest.json').then(response => response.json());
+    assert.equal(configured.behaviorHints.configurationRequired, false);
+    assert.deepEqual(configured.resources, manifest.resources);
+});
+
+test('AIOM partagé : sans TMDB_API_KEY, réponse vide et manifest toujours disponible', () => {
+    const childDir = fs.mkdtempSync(path.join(os.tmpdir(), 'vf-aiom-no-key-'));
+    const child = [
+        "const app = require('./api');",
+        "const sql = require('./lib/db');",
+        "const { ensureSchema } = require('./lib/migrate');",
+        "(async () => {",
+        " await ensureSchema();",
+        " const server = app.listen(0, '127.0.0.1');",
+        " await new Promise(resolve => server.once('listening', resolve));",
+        " const base = 'http://127.0.0.1:' + server.address().port;",
+        " try {",
+        "  const response = await fetch(base + '/aiom/stream/movie/tt0900099.json');",
+        "  const manifest = await fetch(base + '/aiom/manifest.json');",
+        "  const normal = await fetch(base + '/manifest.json').then(r => r.json());",
+        "  console.log(JSON.stringify({ status: response.status, streams: await response.json(), manifestStatus: manifest.status, manifest: await manifest.json(), normal }));",
+        " } finally { server.closeAllConnections(); await new Promise(resolve => server.close(resolve)); sql.close(); }",
+        "})().catch(error => { console.error(error); process.exitCode = 1; });",
+    ].join('\n');
+    try {
+        const output = execFileSync(process.execPath, ['-e', child], {
+            cwd: path.join(__dirname, '..'), env: { ...process.env, DATA_DIR: childDir, TMDB_API_KEY: '' },
+            encoding: 'utf8', timeout: 10000,
         });
-    });
-}
+        const data = JSON.parse(output.trim().split('\n').pop());
+        assert.equal(data.status, 200);
+        assert.deepEqual(data.streams, { streams: [] });
+        assert.equal(data.manifestStatus, 200);
+        assert.equal(Object.hasOwn(data.manifest, 'behaviorHints'), false);
+        assert.equal(data.normal.behaviorHints.configurationRequired, true);
+    } finally { fs.rmSync(childDir, { recursive: true, force: true }); }
+});
 
-test('manifest AIOM partagé : statique, sans config, resource stream uniquement', () => withServer(async base => {
-    const r = await fetch(`${base}/aiom/manifest.json`);
-    assert.strictEqual(r.status, 200);
-    assert.strictEqual(r.headers.get('access-control-allow-origin'), '*');
-    const m = await r.json();
-    assert.deepStrictEqual(m.resources, ['stream']);
-    assert.deepStrictEqual(m.catalogs, []);
-    assert.ok(!m.behaviorHints, 'pas de bouton Configure : un seul lien pour tous');
-}));
+test('AIOM partagé : clé serveur, un seul trailer et pas de statistiques Stremio supplémentaires', async () => {
+    const previous = await sql(["SELECT * FROM request_stats_global"]);
+    const response = await get('/aiom/stream/movie/tt0900001.json');
+    const { streams } = await response.json();
+    assert.equal(response.status, 200);
+    assert.equal(response.headers.get('access-control-allow-origin'), '*');
+    assert.equal(streams.length, 1);
+    assert.equal(streams[0].ytId, 'trailer0000');
+    assert.ok(!streams[0].externalUrl);
+    assert.ok(!('__external' in streams[0]) && !('__quality' in streams[0]));
+    assert.equal(state.calls[0].key, serverKey);
+    assert.deepEqual(await sql(["SELECT * FROM request_stats_global"]), previous);
+});
 
-test('stream AIOM partagé : liste vide (sans erreur) si TMDB_API_KEY serveur absente', () => withServer(async base => {
-    const r = await fetch(`${base}/aiom/stream/movie/tt0111161.json`);
-    assert.strictEqual(r.status, 200);
-    assert.deepStrictEqual(await r.json(), { streams: [] });
-}));
+test('AIOM partagé : Stockage BD et saison conservés, liste vide sans bande-annonce', async () => {
+    state.kind = 'direct';
+    const direct = await get('/aiom/stream/series/tt0900002:2:4.json').then(response => response.json());
+    assert.equal(direct.streams.length, 1);
+    assert.equal(direct.streams[0].url, 'https://stockage.example/trailer.mp4');
+    assert.equal(state.calls[0].season, '2');
+    state.kind = 'none';
+    const empty = await get('/aiom/stream/movie/tt0900003.json').then(response => response.json());
+    assert.deepEqual(empty, { streams: [] });
+});
 
-test("l'ancien lien /<config>/manifest.json continue de fonctionner", () => withServer(async base => {
-    const m = await (await fetch(`${base}/manifest.json`)).json();
-    assert.strictEqual(m.id, 'org.vftrailers');
-    assert.strictEqual(m.behaviorHints.configurationRequired, true);
-}));
+test('AIOM partagé : demandes simultanées regroupées et cache réutilisé', async () => {
+    state.delay = 80;
+    const results = await Promise.all([get('/aiom/stream/movie/tt0900004.json'), get('/aiom/stream/movie/tt0900004.json')]);
+    assert.equal(state.calls.length, 1);
+    for (const response of results) assert.equal((await response.json()).streams.length, 1);
+    await get('/aiom/stream/movie/tt0900004.json');
+    assert.equal(state.calls.length, 1);
+});
+
+test('AIOM partagé : délai du dashboard puis résultat disponible dans le cache', async () => {
+    state.delay = 1200;
+    const response = await get('/aiom/stream/movie/tt0900005.json');
+    assert.deepEqual(await response.json(), { streams: [] });
+    assert.equal(response.headers.get('cache-control'), 'no-store');
+    await new Promise(resolve => setTimeout(resolve, 300));
+    const next = await get('/aiom/stream/movie/tt0900005.json').then(response => response.json());
+    assert.equal(next.streams.length, 1);
+    assert.equal(state.calls.length, 1);
+});
+
+test('AIOM partagé : ancien profil AIOM avec clé personnelle inchangé', async () => {
+    const personalKey = 'b'.repeat(32);
+    const config = Buffer.from(JSON.stringify({ aiom: true, tmdbKey: personalKey, pseudo: 'Ancien profil' })).toString('base64url');
+    const response = await get('/' + config + '/stream/movie/tt0900006.json');
+    assert.equal(response.headers.get('cache-control'), 'public, max-age=600');
+    assert.equal((await response.json()).streams.length, 1);
+    assert.equal(state.calls[0].key, personalKey);
+});
+
+test('AIOM partagé : paramètres invalides et erreur réseau renvoient vide sans exposer la clé', async () => {
+    for (const pathname of ['/aiom/stream/tv/tt0900007.json', '/aiom/stream/movie/bad.json', '/aiom/stream/movie/tt0900007:2.json']) {
+        assert.deepEqual(await get(pathname).then(response => response.json()), { streams: [] });
+    }
+    assert.equal(state.calls.length, 0);
+    state.fail = true;
+    const response = await get('/aiom/stream/movie/tt0900007.json');
+    assert.deepEqual(await response.json(), { streams: [] });
+    const logs = JSON.stringify(await sql(["SELECT * FROM event_logs"]));
+    assert.ok(!logs.includes(serverKey) && !logs.includes('api_key='));
+});

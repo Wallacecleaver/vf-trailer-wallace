@@ -1,0 +1,33 @@
+        <!-- PAGE: LIEN AIOMETADATA PARTAGÉ -->
+        <div class="page" id="page-aiom">
+          <div class="page-header">
+            <div><div class="page-title">AIOMetadata</div><div class="page-sub">Le lien commun à partager comme fournisseur de bandes-annonces VF.</div></div>
+          </div>
+          <div class="card" style="max-width:1000px">
+            <div class="card-head"><div><div class="card-title">🧩 Lien AIOMetadata partagé</div><div class="card-desc">Un seul trailer VF par film ou série, YouTube ou vidéo directe</div></div></div>
+            <div class="card-body">
+              <div class="form-field">
+                <label for="aiom-manifest-url">Manifest à coller dans AIOMetadata</label>
+                <input type="text" id="aiom-manifest-url" readonly aria-describedby="aiom-link-hint">
+                <span class="hint" id="aiom-link-hint">Ce lien est commun aux utilisateurs et ne contient aucune clé TMDB.</span>
+              </div>
+              <div class="header-actions">
+                <button type="button" id="aiom-copy" class="btn-save" onclick="copyAiomManifest()">Copier le lien .json</button>
+                <a id="aiom-open" class="btn-outline-sm" target="_blank" rel="noopener noreferrer">Ouvrir le .json ↗</a>
+                <button type="button" class="btn-outline-sm" onclick="showPage('settings')">Régler le délai</button>
+              </div>
+              <p class="card-desc" style="margin-top:18px;line-height:1.7">Le fournisseur utilise <strong>TMDB_API_KEY</strong>, configurée sur ton serveur. Sans cette clé, il renvoie une liste vide pour laisser AIOMetadata utiliser son propre trailer.</p>
+            </div>
+          </div>
+          <div class="card" style="max-width:1000px">
+            <div class="card-head"><div class="card-title">Dans AIOMetadata</div></div>
+            <div class="card-body">
+              <ol style="padding-left:20px;font-size:13px;line-height:2;color:var(--text2)">
+                <li>Ouvre <strong>Meta Providers → Trailers</strong>.</li>
+                <li>Choisis <strong>A trailer addon</strong> et colle le lien du manifest.</li>
+                <li>Enregistre la configuration AIOMetadata.</li>
+              </ol>
+              <p class="card-desc" style="margin-top:14px;line-height:1.7">Le délai est commun au lien partagé et aux anciens liens AIOMMetadata. Les installations Stremio classiques conservent leur configuration personnelle.</p>
+            </div>
+          </div>
+        </div>

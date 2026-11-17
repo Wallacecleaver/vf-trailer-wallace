@@ -11,22 +11,20 @@ Tout tourne sur ton serveur (VPS, Raspberry Pi, NAS…), avec Docker.
 
 ---
 
+## Lien AIOMetadata partagé
 
-## Lien AIOMetadata partagé (un seul lien pour tout le monde)
+Partage `https://ton-domaine/aiom/manifest.json` comme **A trailer addon** dans
+**AIOMetadata → Meta Providers → Trailers**. Le dashboard propose ce lien dans **AIOM → AIOM**.
 
-Pour l'option « A trailer addon » d'AIOMetadata (Meta Providers > Trailers), l'addon expose un manifest
-fixe, sans configuration dans l'URL, que tu peux donner à tout le monde :
+Ce fournisseur utilise la clé **`TMDB_API_KEY` du serveur**, définie dans WDock ou dans `.env`.
+La clé n’est ni dans le lien ni dans le manifest. Sans clé serveur, les streams répondent
+`{ "streams": [] }` pour laisser AIOMetadata utiliser son propre trailer.
 
-```
-https://TON-DOMAINE/aiom/manifest.json
-```
-
-- Il renvoie toujours un seul flux (`ytId` en priorité, sinon `url`) ; liste vide si rien n'est trouvé,
-  AIOMetadata garde alors le trailer de son fournisseur.
-- La clé TMDB utilisée est celle du serveur (`TMDB_API_KEY` dans `.env`) : sans elle, la route répond vide.
-- Le délai maximum de réponse se règle dans le dashboard (Réglages > AIOMetadata). Les requêtes
-  apparaissent dans Logs (contexte AIOM) et dans les compteurs AIOM.
-- Les liens personnels `/<config>/manifest.json` (avec `aiom: true`) continuent de fonctionner.
+Le manifest ne déclare que la ressource `stream`, pour les films et séries. Une seule
+bande-annonce YouTube ou vidéo directe est renvoyée, sans lien externe ni bouton Proposer.
+Le délai est réglable dans **Réglages → AIOMetadata** (1 à 12 s, 5 par défaut) et s’applique
+aussi aux anciens liens AIOMMetadata. La recherche continue en arrière-plan après un timeout.
+Les manifests classiques et les anciens liens avec configuration conservent leur comportement.
 
 ## 🏠 Installation (Docker)
 
@@ -112,7 +110,7 @@ Ouvre `APP_BASE_URL` dans ton navigateur, renseigne ta clé TMDB, puis clique su
 | `DASHBOARD_PASSWORD` | ✅ | Mot de passe du dashboard, **longueur libre et non vide**. La connexion est refusée si le mot de passe est absent ou vide. |
 | `TOKEN_SECRET` | non | Secret de signature des sessions, indépendant du mot de passe. Si absent, une clé aléatoire est créée dans `DATA_DIR/dashboard-session-secret` et conservée entre les redémarrages. Une valeur explicitement configurée garde la priorité. |
 | `APP_BASE_URL` | ✅ | URL publique de l'addon, sans slash final (logo, liens `/proposer`…). |
-| `TMDB_API_KEY` | conseillé | Clé TMDB du testeur de flux du dashboard. |
+| `TMDB_API_KEY` | conseillé | Clé TMDB du testeur admin et du lien AIOMetadata partagé. |
 | `TVDB_API_KEY` | non | Clé API TheTVDB v4 partagée par défaut ; une clé personnelle sans PIN peut la remplacer dans `/configure`. |
 | `BIND_ADDRESS` | non | `127.0.0.1` pour ne pas exposer le port 3000 sur Internet (défaut `127.0.0.1`). |
 | `HOST_PORT` | non | Port exposé sur la machine (défaut `3000`). |

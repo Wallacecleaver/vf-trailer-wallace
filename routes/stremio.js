@@ -55,21 +55,23 @@ module.exports = function registerStremioRoutes(app) {
     });
 
     app.get('/aiom/stream/:type/:idWithExt', async (req, res) => {
+        const config = sharedAiomConfig();
+        if (!config.tmdbKey) return res.json({ streams: [] });
+        const { type } = req.params;
+        const id = req.params.idWithExt.replace(/\.json$/, '');
+        const match = id.match(/^(tt\d{6,9})(?::(\d{1,3})(?::\d{1,4})?)?$/);
+        if (!['movie', 'series'].includes(type) || !match || (type === 'movie' && match[2])) {
+            return res.json({ streams: [] });
+        }
         try {
-            const { type } = req.params;
-            const id = decodeURIComponent(req.params.idWithExt).replace(/\.json$/, '');
-            const [imdbId, season] = id.split(':');
-            if (!sharedAiomConfig().tmdbKey) {
-                // Pas de TMDB_API_KEY côté serveur : on répond vide (AIOMetadata garde son trailer).
-                return res.json({ streams: [] });
-            }
-            return await respondAiom(req, res, sharedAiomConfig(), type, imdbId, season);
-        } catch (err) {
-            console.error('Erreur /aiom/stream:', err);
-            await logEvent({ level: 'error', context: 'STREAM', event: 'aiom_shared_error', message: err.message, meta: { path: req.path } });
+            return await respondAiom(req, res, config, type, match[1], match[2] || null);
+        } catch {
+            await logEvent({ level: 'error', context: 'AIOM', event: 'aiom_shared_error',
+                message: 'Résolution AIOMetadata partagée impossible', meta: { type, imdbId: match[1] } });
             res.json({ streams: [] });
         }
     });
+
     // Manifest et stream acceptent un segment de config optionnel en tête d'URL.
     app.get('/:config?/manifest.json', async (req, res) => {
         let hasValidConfig = false;
