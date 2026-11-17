@@ -182,7 +182,7 @@ Ouvre `APP_BASE_URL` dans ton navigateur (page `/configure`), renseigne ta clé 
 | `NETFLIX_CATALOGUE_URL` / `NETFLIX_CATALOGUE_KEY` | non | Instance Stockage BD (voir plus bas). Réglable aussi dans le dashboard. |
 | `DASHBOARD_NO_CACHE` | non | `1` pour relire le dashboard à chaque requête pendant que tu le modifies. |
 
-Les sessions du dashboard durent huit heures et sont renouvelées pendant l'utilisation ; une panne réseau ne déconnecte pas l'utilisateur. Conserve le volume `DATA_DIR` lors des mises à jour : il contient aussi la clé de session si `TOKEN_SECRET` n'est pas défini.
+Les sessions du dashboard durent 30 jours et sont renouvelées automatiquement pendant l'utilisation (et tant que l'onglet reste ouvert) ; une panne réseau ou un redéploiement ne déconnecte pas l'utilisateur.
 
 > **Sécurité — identifiants dans le lien d'installation.** La configuration utilisateur (clé TMDB, éventuellement clé TheTVDB) est encodée en base64 dans l'URL `/<config>/manifest.json`. Le base64 n'est pas du chiffrement : ne partage pas ce lien publiquement. Il peut apparaître dans l'historique du navigateur ou les journaux d'un proxy.
 

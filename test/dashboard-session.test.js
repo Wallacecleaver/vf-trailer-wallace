@@ -145,3 +145,26 @@ test('dashboard : erreur temporaire du testeur affichée sans fermer le dashboar
     assert.equal(ui.node('ts-preview-display').disabled, true);
     assert.equal(ui.node('ts-btn').disabled, false);
 });
+
+test('dashboard : keepalive /api/session renouvelle aussi via le corps JSON et envoie Bearer', async () => {
+    const ui = dashboard();
+    let authHeader;
+    ui.context.fetch = async (url, options) => {
+        authHeader = options.headers.get('authorization');
+        return new Response(JSON.stringify({ ok: true, token: 'body-renewed-token' }), { status: 200 });
+    };
+    await ui.context.pingDashboardSession();
+    assert.equal(authHeader, 'Bearer initial-token');
+    assert.equal(ui.storage.get('vftrailers_token'), 'body-renewed-token');
+});
+
+test('dashboard : échec écriture localStorage ne vide pas le jeton en mémoire', async () => {
+    const ui = dashboard(new Map());
+    ui.context.localStorage.setItem = () => { throw new Error('QuotaExceededError'); };
+    ui.context.saveDashboardToken('in-memory-token');
+    let sent;
+    ui.context.fetch = async (url, options) => { sent = options.headers.get('x-admin-token'); return response(200); };
+    await ui.context.authFetch('/api/overrides');
+    assert.equal(sent, 'in-memory-token');
+});
+

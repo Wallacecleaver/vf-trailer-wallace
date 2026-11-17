@@ -1,17 +1,27 @@
+  let storageWritable = true;
+
   function readDashboardToken() {
+    if (!storageWritable) return undefined;
     try { return localStorage.getItem('vftrailers_token') || ''; }
     catch (e) { return undefined; }
   }
 
   let token = readDashboardToken() || '';
   let isDark = true;
+  let sessionInterval = null;
+  let lastSessionCheckAt = 0;
+  const SESSION_KEEPALIVE_MS = 30 * 60 * 1000;
+  const SESSION_FOCUS_MIN_MS = 5 * 60 * 1000;
 
   function saveDashboardToken(value) {
     token = value;
     try {
       if (value) localStorage.setItem('vftrailers_token', value);
       else localStorage.removeItem('vftrailers_token');
-    } catch (e) { /* la session reste utilisable dans cet onglet */ }
+      storageWritable = true;
+    } catch (e) {
+      storageWritable = false; // la session reste utilisable dans cet onglet
+    }
   }
 
   async function doLogin() {
@@ -42,6 +52,7 @@
   }
 
   function showLogin(message) {
+    if (sessionInterval) { clearInterval(sessionInterval); sessionInterval = null; }
     if (ovInterval) { clearInterval(ovInterval); ovInterval = null; }
     if (typeof logsInterval !== 'undefined' && logsInterval) { clearInterval(logsInterval); logsInterval = null; }
     document.getElementById('dashboard').style.display = 'none';
@@ -56,9 +67,28 @@
     showLogin(message);
   }
 
+  async function pingDashboardSession() {
+    if (!token) return;
+    lastSessionCheckAt = Date.now();
+    const before = token;
+    try {
+      const res = await authFetch('/api/session');
+      if (!res.ok) return;
+      const data = await res.json().catch(() => null);
+      if (data && typeof data.token === 'string' && data.token && token && (token === before || token === data.token)) {
+        saveDashboardToken(data.token);
+      }
+    } catch (e) { /* panne réseau ignorée : la session est conservée */ }
+  }
+
   async function showDashboard() {
     document.getElementById('login-screen').style.display = 'none';
     document.getElementById('dashboard').style.display = 'block';
+    lastSessionCheckAt = Date.now();
+    if (sessionInterval) clearInterval(sessionInterval);
+    if (typeof setInterval === 'function') {
+      sessionInterval = setInterval(pingDashboardSession, SESSION_KEEPALIVE_MS);
+    }
     const initialPage = DASHBOARD_PAGES.includes(location.hash.slice(1)) ? location.hash.slice(1) : 'overview';
     showPage(initialPage);
     await refreshFailedBadge();
@@ -83,6 +113,7 @@
     const sentToken = token;
     const headers = new Headers(options.headers || {});
     headers.set('x-admin-token', sentToken);
+    if (sentToken && !headers.has('authorization')) headers.set('authorization', 'Bearer ' + sentToken);
     const response = await fetch(url, Object.assign({}, options, { headers }));
     const latest = readDashboardToken();
     // Une réponse ancienne ne doit ni effacer une nouvelle connexion, ni la remplacer.
@@ -94,6 +125,17 @@
       }
     }
     return response;
+  }
+
+  function checkSessionOnWake() {
+    if (!token) return;
+    if (document.visibilityState === 'hidden') return;
+    if (Date.now() - lastSessionCheckAt >= SESSION_FOCUS_MIN_MS) pingDashboardSession();
+  }
+
+  window.addEventListener('focus', checkSessionOnWake);
+  if (typeof document.addEventListener === 'function') {
+    document.addEventListener('visibilitychange', checkSessionOnWake);
   }
 
   window.addEventListener('storage', event => {
@@ -129,6 +171,7 @@
 
   // Bouton précédent/suivant du navigateur : resynchronise la page affichée sur le hash.
   window.addEventListener('popstate', () => {
+    if (!token) return;
     const page = DASHBOARD_PAGES.includes(location.hash.slice(1)) ? location.hash.slice(1) : 'overview';
     showPage(page);
   });

@@ -16,7 +16,7 @@ delete process.env.TOKEN_SECRET;
 delete process.env.SESSION_VERSION;
 const sql = require('../lib/db');
 const { ensureSchema } = require('../lib/migrate');
-const { login, requireAuth } = require('../lib/auth');
+const { login, requireAuth, SESSION_DURATION_MS } = require('../lib/auth');
 const { getTokenSecret } = require('../lib/session-secret');
 const root = path.join(__dirname, '..');
 let server, base, token;
@@ -32,9 +32,11 @@ before(async () => {
     base = 'http://127.0.0.1:' + server.address().port;
     const response = await signIn(password);
     assert.equal(response.status, 200);
+    assert.equal(response.headers.get('cache-control'), 'no-store');
     const data = await response.json();
     token = data.token;
-    assert.equal(data.expiresIn, 8 * 60 * 60 * 1000);
+    assert.equal(data.expiresIn, 30 * 24 * 60 * 60 * 1000);
+    assert.equal(SESSION_DURATION_MS, 30 * 24 * 60 * 60 * 1000);
 });
 beforeEach(() => {
     delete process.env.TOKEN_SECRET;
@@ -51,8 +53,10 @@ function signIn(value) {
     return fetch(base + '/api/login', { method: 'POST', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ password: value }) });
 }
-function protectedRequest(value = token) {
-    return fetch(base + '/api/protected', { headers: value ? { 'x-admin-token': value } : {} });
+function protectedRequest(value = token, headerName = 'x-admin-token') {
+    const headers = {};
+    if (value) headers[headerName] = headerName === 'authorization' ? 'Bearer ' + value : value;
+    return fetch(base + '/api/protected', { headers });
 }
 function payload(value) { return JSON.parse(Buffer.from(value.split('.')[1], 'base64url')); }
 function signed(body, secret = getTokenSecret()) {
@@ -69,7 +73,7 @@ const { requireAuth } = require('./lib/auth');
 let status = 200;
 const res = { status(value) { status = value; return this; },
     setHeader() {}, json() { process.stdout.write(JSON.stringify({ status })); } };
-requireAuth({ header: () => input.token }, res, () => process.stdout.write(JSON.stringify({ status: 200 })));
+requireAuth({ header: name => name === 'x-admin-token' ? input.token : null }, res, () => process.stdout.write(JSON.stringify({ status: 200 })));
 `;
 function checkInNewProcess(value, dir = dataDir) {
     return JSON.parse(execFileSync(process.execPath, ['-e', childCheck], {
@@ -77,13 +81,19 @@ function checkInNewProcess(value, dir = dataDir) {
     }));
 }
 
-test('auth : session conservée après redémarrage, secret aléatoire persistant et privé', async () => {
+test('auth : session conservée après redémarrage, recréation sans volume partagé et via Bearer', async () => {
     const file = path.join(dataDir, 'dashboard-session-secret');
     const original = fs.readFileSync(file, 'utf8');
     assert.match(original.trim(), /^[a-f0-9]{64}$/);
     assert.equal(fs.statSync(file).mode & 0o777, 0o600);
-    assert.equal((await protectedRequest()).status, 200);
+    const res = await protectedRequest();
+    assert.equal(res.status, 200);
+    assert.equal(res.headers.get('cache-control'), 'no-store');
+    assert.equal((await protectedRequest(token, 'authorization')).status, 200);
     assert.equal(checkInNewProcess(token).status, 200);
+    // Simule un nouveau conteneur Docker/WDock avec un DATA_DIR vierge (déploiement sans coupure ou sans volume).
+    const freshContainerDir = fs.mkdtempSync(path.join(dataDir, 'redeploy-'));
+    assert.equal(checkInNewProcess(token, freshContainerDir).status, 200);
     assert.equal(fs.readFileSync(file, 'utf8'), original);
 });
 
@@ -106,15 +116,15 @@ test('auth : une heure ne termine pas la session', async t => {
     assert.equal(response.headers.get('x-admin-token'), null);
 });
 
-test('auth : renouvellement pendant l’utilisation, ancien jeton expiré toujours refusé', async t => {
+test('auth : renouvellement glissant dès 2h et ancien jeton expiré toujours refusé', async t => {
     let now = payload(token).iat + 7 * 3600000;
     t.mock.method(Date, 'now', () => now);
     const response = await protectedRequest();
     assert.equal(response.status, 200);
     const renewed = response.headers.get('x-admin-token');
     assert.ok(renewed);
-    assert.equal(payload(renewed).exp, now + 8 * 3600000);
-    now = payload(token).iat + 9 * 3600000;
+    assert.equal(payload(renewed).exp, now + SESSION_DURATION_MS);
+    now = payload(token).exp + 3600000;
     assert.equal((await protectedRequest(renewed)).status, 200);
     const expired = await protectedRequest(token);
     assert.equal(expired.status, 401);

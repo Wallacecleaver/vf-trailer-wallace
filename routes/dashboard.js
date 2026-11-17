@@ -151,6 +151,11 @@ module.exports = function registerDashboardRoutes(app) {
 
     app.post('/api/login', login);
 
+    app.get('/api/session', requireAuth, (req, res) => {
+        const renewed = res.getHeader('X-Admin-Token');
+        res.json(renewed ? { ok: true, token: String(renewed) } : { ok: true });
+    });
+
     app.get('/api/dashboard-stats', requireAuth, async (req, res) => {
         const stats = await getStats();
         res.json(stats ? { configured: true, ...stats } : { configured: false });
