@@ -9,8 +9,9 @@ test('extractExplicitSeason : détecte toutes les formes explicites de saison sa
     assert.equal(extractExplicitSeason('Le Problème à 3 corps | Saison 2 Bande-annonce VF'), 2);
     assert.equal(extractExplicitSeason('Stranger Things - Season 4 Official Trailer VF'), 4);
     assert.equal(extractExplicitSeason('La Chronique des Bridgerton : Partie 2 | Bande-annonce VF'), 2);
+    assert.equal(extractExplicitSeason('Partie 2 (Bande-annonce) : La Chronique des Bridgerton - Saison 4'), 4);
+    assert.equal(extractExplicitSeason('Volume 2 | Stranger Things : Saison 4 Bande-annonce VF'), 4);
     assert.equal(extractExplicitSeason('Lupin - Partie 3 | Bande-annonce officielle VF'), 3);
-    assert.equal(extractExplicitSeason('Stranger Things 4 - Volume 2 Bande-annonce VF'), 2);
     assert.equal(extractExplicitSeason('The Mandalorian S03 Bande-annonce VF'), 3);
     assert.equal(extractExplicitSeason('Arcane S2E1 Extrait VF'), 2);
     assert.equal(extractExplicitSeason('Saison II - Bande-annonce VF'), 2);
