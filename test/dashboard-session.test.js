@@ -11,7 +11,10 @@ function dashboard(storage = new Map([['vftrailers_token', 'initial-token']])) {
     const nodes = new Map(), listeners = {}, cleared = [];
     function node(id) {
         if (!nodes.has(id)) nodes.set(id, { style: {}, textContent: '', innerHTML: '', value: '', checked: false,
-            disabled: false, classList: { add() {}, remove() {}, toggle() {} } });
+            disabled: false, attributes: {},
+            setAttribute(name, value) { this.attributes[name] = value; },
+            removeAttribute(name) { delete this.attributes[name]; },
+            classList: { add() {}, remove() {}, toggle() {} } });
         return nodes.get(id);
     }
     node('dashboard').style.display = 'block';
@@ -130,6 +133,7 @@ test('dashboard : vue d’ensemble, utilisateurs et logs ne déconnectent plus s
 
 test('dashboard : erreur temporaire du testeur affichée sans fermer le dashboard', async () => {
     const ui = dashboard();
+    vm.runInContext(script('14-utils'), ui.context);
     vm.runInContext(script('08-test-flux'), ui.context);
     ui.node('ts-imdb').value = 'tt42767924';
     ui.node('ts-type').value = 'series';
@@ -137,5 +141,7 @@ test('dashboard : erreur temporaire du testeur affichée sans fermer le dashboar
     await ui.context.runStreamTest();
     assert.equal(ui.storage.get('vftrailers_token'), 'initial-token');
     assert.match(ui.node('ts-result').innerHTML, /temporairement indisponible/);
+    assert.match(ui.node('ts-preview-list').innerHTML, /indisponible/);
+    assert.equal(ui.node('ts-preview-display').disabled, true);
     assert.equal(ui.node('ts-btn').disabled, false);
 });
