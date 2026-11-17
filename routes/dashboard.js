@@ -179,7 +179,8 @@ module.exports = function registerDashboardRoutes(app) {
         if (!stats) return res.json({ configured: false });
         const behavior = await getBehaviorSettings();
         const logs = (await getLogs()).filter(l => l.context === 'AIOM').slice(0, 30);
-        res.json({ configured: true, ...stats, timeoutSeconds: behavior.aiomTimeoutSeconds, recent: logs });
+        res.json({ configured: true, ...stats, tmdbConfigured: !!FALLBACK_TMDB_KEY,
+            timeoutSeconds: behavior.aiomTimeoutSeconds, recent: logs });
     });
 
     app.post('/api/aiom-stats/reset', requireAuth, async (req, res) => {

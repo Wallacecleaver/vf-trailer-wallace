@@ -1,33 +1,89 @@
-        <!-- PAGE: LIEN AIOMETADATA PARTAGÉ -->
+        <!-- PAGE: AIOMETADATA -->
         <div class="page" id="page-aiom">
           <div class="page-header">
-            <div><div class="page-title">AIOMetadata</div><div class="page-sub">Le lien commun à partager comme fournisseur de bandes-annonces VF.</div></div>
-          </div>
-          <div class="card" style="max-width:1000px">
-            <div class="card-head"><div><div class="card-title">🧩 Lien AIOMetadata partagé</div><div class="card-desc">Un seul trailer VF par film ou série, YouTube ou vidéo directe</div></div></div>
-            <div class="card-body">
-              <div class="form-field">
-                <label for="aiom-manifest-url">Manifest à coller dans AIOMetadata</label>
-                <input type="text" id="aiom-manifest-url" readonly aria-describedby="aiom-link-hint">
-                <span class="hint" id="aiom-link-hint">Ce lien est commun aux utilisateurs et ne contient aucune clé TMDB.</span>
-              </div>
-              <div class="header-actions">
-                <button type="button" id="aiom-copy" class="btn-save" onclick="copyAiomManifest()">Copier le lien .json</button>
-                <a id="aiom-open" class="btn-outline-sm" target="_blank" rel="noopener noreferrer">Ouvrir le .json ↗</a>
-                <button type="button" class="btn-outline-sm" onclick="showPage('settings')">Régler le délai</button>
-              </div>
-              <p class="card-desc" style="margin-top:18px;line-height:1.7">Le fournisseur utilise <strong>TMDB_API_KEY</strong>, configurée sur ton serveur. Sans cette clé, il renvoie une liste vide pour laisser AIOMetadata utiliser son propre trailer.</p>
+            <div><div class="aiom-eyebrow">Bandes-annonces VF · Fournisseur partagé</div><div class="page-title">AIOMetadata</div><div class="page-sub">Ton lien de partage et l’activité du mode AIOM, au même endroit.</div></div>
+            <div class="header-actions">
+              <span class="ov-updated" id="aiom-updated" role="status">Chargement des statistiques…</span>
+              <button type="button" id="aiom-refresh" class="btn-outline-sm" onclick="loadAiomStats()">↻ Actualiser</button>
             </div>
           </div>
-          <div class="card" style="max-width:1000px">
-            <div class="card-head"><div class="card-title">Dans AIOMetadata</div></div>
-            <div class="card-body">
-              <ol style="padding-left:20px;font-size:13px;line-height:2;color:var(--text2)">
-                <li>Ouvre <strong>Meta Providers → Trailers</strong>.</li>
-                <li>Choisis <strong>A trailer addon</strong> et colle le lien du manifest.</li>
-                <li>Enregistre la configuration AIOMetadata.</li>
-              </ol>
-              <p class="card-desc" style="margin-top:14px;line-height:1.7">Le délai est commun au lien partagé et aux anciens liens AIOMMetadata. Les installations Stremio classiques conservent leur configuration personnelle.</p>
+
+          <div id="aiom-stats-error" class="aiom-warning" role="status" hidden></div>
+          <div class="aiom-section-heading"><span>Activité AIOM</span><span>14 derniers jours · Lien partagé et anciens liens</span></div>
+          <div class="aiom-stats" id="aiom-stats" aria-label="Statistiques AIOM sur 14 jours" aria-busy="true">
+            <div class="aiom-metric">
+              <span class="aiom-metric-label">Demandes reçues</span>
+              <strong id="aiom-total">—</strong>
+              <span class="aiom-metric-note" id="aiom-today">Aujourd’hui : —</span>
             </div>
+            <div class="aiom-metric aiom-metric-green">
+              <span class="aiom-metric-label">Bandes-annonces VF</span>
+              <strong id="aiom-hit-rate">—</strong>
+              <span class="aiom-metric-note" id="aiom-found">— renvoyée(s)</span>
+            </div>
+            <div class="aiom-metric aiom-metric-blue">
+              <span class="aiom-metric-label">Temps moyen</span>
+              <strong id="aiom-avg-ms">—</strong>
+              <span class="aiom-metric-note" id="aiom-cache-rate">Servies par le cache : —</span>
+            </div>
+            <div class="aiom-metric aiom-metric-amber">
+              <span class="aiom-metric-label">Délais dépassés</span>
+              <strong id="aiom-timeouts">—</strong>
+              <span class="aiom-metric-note">Repli sur le trailer d’AIOMetadata</span>
+            </div>
+          </div>
+
+          <div class="aiom-grid">
+            <div class="card aiom-link-card">
+              <div class="card-head">
+                <div class="aiom-card-heading"><span class="aiom-brandmark" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg></span><div><div class="card-title">Ton lien AIOMetadata</div><div class="card-desc">Le même manifest pour tous les utilisateurs</div></div></div>
+                <span class="aiom-badge" id="aiom-key-status" data-state="pending" title="Indique la présence de TMDB_API_KEY sur le serveur, sans tester sa validité.">Vérification de la clé…</span>
+              </div>
+              <div class="card-body">
+                <div class="form-field">
+                  <label for="aiom-manifest-url">Manifest à partager</label>
+                  <input type="text" id="aiom-manifest-url" readonly spellcheck="false" aria-describedby="aiom-link-hint">
+                  <span class="hint" id="aiom-link-hint">Aucune clé dans l’URL. Aucun réglage à ajouter au lien.</span>
+                </div>
+                <div class="header-actions aiom-link-actions">
+                  <button type="button" id="aiom-copy" class="btn-save" onclick="copyAiomManifest()">Copier le lien .json</button>
+                  <a id="aiom-open" class="btn-outline-sm" target="_blank" rel="noopener noreferrer">Ouvrir le manifest ↗</a>
+                </div>
+                <div id="aiom-key-warning" class="aiom-warning" hidden><strong>La clé TMDB du serveur est absente.</strong> Renseigne <code>TMDB_API_KEY</code> dans WDock, puis redéploie l’addon. Sans elle, le lien partagé ne renvoie aucune bande-annonce.</div>
+                <div class="aiom-link-details">
+                  <div><span>Format de réponse</span><strong>1 bande-annonce VF</strong><small>YouTube ou vidéo directe</small></div>
+                  <div><span>Délai maximum</span><strong id="aiom-timeout">—</strong><button type="button" class="aiom-text-button" onclick="showPage('settings')">Régler le délai ↗</button></div>
+                </div>
+                <p class="aiom-note">Si aucun trailer VF n’est trouvé ou si le délai est dépassé, AIOMetadata peut garder celui de son fournisseur.</p>
+              </div>
+            </div>
+
+            <div class="card aiom-install-card">
+              <div class="card-head"><div><div class="card-title">Prêt à partager</div><div class="card-desc">À renseigner dans la configuration AIOMetadata</div></div><span class="aiom-tag">3 étapes</span></div>
+              <div class="card-body">
+                <ol class="aiom-steps">
+                  <li><span aria-hidden="true">1</span><div><strong>Ouvre les fournisseurs</strong><p>Meta Providers → Trailers</p></div></li>
+                  <li><span aria-hidden="true">2</span><div><strong>Choisis « A trailer addon »</strong><p>Colle le lien du manifest partagé.</p></div></li>
+                  <li><span aria-hidden="true">3</span><div><strong>Enregistre ta configuration</strong><p>Les prochaines fiches utiliseront ce fournisseur.</p></div></li>
+                </ol>
+                <p class="aiom-note aiom-compatibility">Les anciens liens AIOM restent compatibles. Les profils Stremio gardent leur configuration personnelle.</p>
+              </div>
+            </div>
+          </div>
+
+          <div class="aiom-grid">
+            <div class="card">
+              <div class="card-head"><div><div class="card-title">Activité des demandes</div><div class="card-desc">14 derniers jours · Comptage par jour en UTC</div></div><span class="aiom-tag" id="aiom-chart-total">— demandes</span></div>
+              <div class="card-body" id="aiom-activity"><div class="aiom-empty">Chargement de l’activité…</div></div>
+            </div>
+            <div class="card">
+              <div class="card-head"><div><div class="card-title">Résultats des requêtes</div><div class="card-desc">YouTube, vidéo directe et réponses sans trailer</div></div></div>
+              <div class="card-body" id="aiom-outcomes"><div class="aiom-empty">Chargement des résultats…</div></div>
+            </div>
+          </div>
+
+          <div class="card">
+            <div class="card-head"><div><div class="card-title">Derniers événements AIOM</div><div class="card-desc">Journal dédoublonné · Les compteurs comptent chaque requête</div></div><button type="button" class="btn-outline-sm" onclick="openAiomLogs()">Voir les logs AIOM ↗</button></div>
+            <div id="aiom-recent"><div class="aiom-empty">Chargement du journal…</div></div>
           </div>
         </div>

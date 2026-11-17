@@ -707,6 +707,107 @@
     .ts-preview-row { transition:none; }
   }
 
+  /* AIOM — statistiques et partage, sans modifier les autres pages du dashboard. */
+  .main:has(#page-aiom.active) { flex:1; min-width:0; }
+  #page-aiom { width:100%; max-width:1440px; --aiom-amber:#e7ac46; }
+  :root[data-theme="light"] #page-aiom { --aiom-amber:#996011; }
+  #page-aiom [hidden] { display:none!important; }
+  #page-aiom .page-header { margin-bottom:28px; }
+  #page-aiom .page-sub, #page-aiom .card-desc { line-height:1.6; }
+  #page-aiom button:focus-visible, #page-aiom a:focus-visible, .aiom-chart li:focus-visible { outline:2px solid var(--accent); outline-offset:3px; }
+  #page-aiom button:disabled { opacity:.55; cursor:wait; }
+  .aiom-eyebrow { color:var(--accent); font-size:10px; font-weight:800; letter-spacing:1.1px; text-transform:uppercase; margin-bottom:8px; }
+  .aiom-section-heading { display:flex; justify-content:space-between; flex-wrap:wrap; gap:6px 16px; color:var(--text2); font-size:11px; margin-bottom:12px; }
+  .aiom-section-heading > span:first-child { font-weight:800; color:var(--text); }
+  .aiom-stats { display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); margin-bottom:24px; border:1px solid var(--border); border-radius:16px; overflow:hidden; background:var(--surface); }
+  .aiom-metric { padding:22px 24px; display:flex; flex-direction:column; gap:10px; position:relative; min-width:0; }
+  .aiom-metric + .aiom-metric { border-left:1px solid var(--border); }
+  .aiom-metric::before { content:''; position:absolute; left:24px; top:0; width:28px; height:3px; border-radius:0 0 3px 3px; background:var(--accent); }
+  .aiom-metric-green::before { background:var(--green); }
+  .aiom-metric-blue::before { background:#60a5fa; }
+  .aiom-metric-amber::before { background:var(--aiom-amber); }
+  .aiom-metric-label { color:var(--text2); font-size:12px; font-weight:600; }
+  .aiom-metric > strong { color:var(--text); font-family:'Rajdhani',monospace; font-size:34px; font-weight:800; line-height:1.1; font-variant-numeric:tabular-nums; overflow-wrap:anywhere; }
+  .aiom-metric-note { color:var(--text2); font-size:11px; line-height:1.5; }
+  .aiom-grid { display:grid; grid-template-columns:minmax(0,1.3fr) minmax(0,1fr); gap:22px; margin-bottom:22px; }
+  .aiom-grid > .card { margin:0; min-width:0; border-radius:14px; }
+  .aiom-card-heading { display:flex; align-items:center; gap:12px; min-width:0; }
+  .aiom-brandmark { display:grid; place-items:center; width:38px; height:38px; border-radius:11px; background:var(--accent-dim); border:1px solid rgba(229,62,62,.2); color:var(--accent); font-size:16px; flex-shrink:0; }
+  .aiom-brandmark svg { width:22px; height:22px; fill:currentColor; }
+  .aiom-badge { display:inline-flex; align-items:center; gap:7px; padding:6px 9px; border:1px solid var(--border); border-radius:20px; color:var(--text2); background:var(--surface2); font-size:10px; font-weight:700; }
+  .aiom-badge::before { content:''; width:6px; height:6px; border-radius:50%; background:currentColor; flex-shrink:0; }
+  .aiom-badge[data-state="ready"] { color:var(--green); }
+  .aiom-badge[data-state="missing"] { color:var(--aiom-amber); }
+  .aiom-tag { color:var(--text2); background:var(--surface2); padding:5px 9px; border:1px solid var(--border); border-radius:6px; font-size:10px; font-weight:600; }
+  #page-aiom #aiom-manifest-url { font-family:'JetBrains Mono',monospace; font-size:12px; padding:13px; }
+  #page-aiom .form-field .hint { line-height:1.6; }
+  .aiom-link-actions { margin-top:18px; }
+  .aiom-link-details { display:grid; grid-template-columns:1fr 1fr; gap:20px; padding:20px 0; margin-top:22px; border-top:1px solid var(--border); }
+  .aiom-link-details > div { display:flex; flex-direction:column; align-items:flex-start; gap:6px; min-width:0; }
+  .aiom-link-details span, .aiom-link-details small { color:var(--text2); font-size:11px; line-height:1.5; }
+  .aiom-link-details strong { font-size:14px; }
+  .aiom-text-button { color:var(--accent); background:none; border:none; cursor:pointer; font:600 11px 'DM Sans',sans-serif; padding:0; }
+  .aiom-note { color:var(--text2); font-size:11px; line-height:1.8; }
+  .aiom-steps { list-style:none; display:flex; flex-direction:column; gap:22px; }
+  .aiom-steps li { display:flex; gap:12px; }
+  .aiom-steps li > span { display:grid; place-items:center; flex-shrink:0; width:26px; height:26px; border-radius:8px; color:var(--accent); background:var(--accent-dim); font-size:11px; font-weight:800; }
+  .aiom-steps strong { font-size:12px; }
+  .aiom-steps p { margin-top:5px; color:var(--text2); font-size:12px; line-height:1.7; }
+  .aiom-compatibility { padding-top:16px; margin-top:22px; border-top:1px solid var(--border); }
+  .aiom-warning { padding:13px 16px; margin-bottom:20px; border:1px solid rgba(217,154,38,.25); border-radius:10px; background:rgba(217,154,38,.07); color:var(--aiom-amber); font-size:12px; line-height:1.8; overflow-wrap:anywhere; }
+  #aiom-key-warning { margin:18px 0 0; }
+  .aiom-warning strong { display:block; }
+  .aiom-chart { display:flex; gap:8px; list-style:none; height:207px; padding-top:20px; }
+  .aiom-chart li { flex:1; min-width:0; display:flex; flex-direction:column; position:relative; }
+  .aiom-bar-area { flex:1; display:flex; align-items:flex-end; position:relative; border-bottom:1px solid var(--border); }
+  .aiom-bar { width:100%; background:var(--accent); opacity:.45; border-radius:5px 5px 0 0; min-height:2px; }
+  .aiom-bar.is-today, .aiom-chart li:hover .aiom-bar, .aiom-chart li:focus .aiom-bar { opacity:1; }
+  .aiom-bar-tooltip { display:none; position:absolute; bottom:100%; left:50%; transform:translateX(-50%); margin-bottom:5px; color:var(--text); font-size:11px; font-weight:700; }
+  .aiom-chart li:hover .aiom-bar-tooltip, .aiom-chart li:focus .aiom-bar-tooltip { display:block; }
+  .aiom-bar-date { height:28px; padding-top:10px; text-align:center; color:var(--text2); font-size:9px; white-space:nowrap; }
+  .aiom-chart li:first-child .aiom-bar-date { text-align:left; }
+  .aiom-chart li:last-child .aiom-bar-date { text-align:right; }
+  .aiom-outcome + .aiom-outcome { margin-top:15px; }
+  .aiom-outcome > div:first-child { display:flex; align-items:center; justify-content:space-between; gap:12px; font-size:12px; }
+  .aiom-outcome > div:first-child > span { display:flex; align-items:center; gap:8px; color:var(--text2); }
+  .aiom-outcome strong { font-variant-numeric:tabular-nums; font-size:12px; }
+  .aiom-dot { width:7px; height:7px; border-radius:50%; flex-shrink:0; }
+  .aiom-track { height:4px; border-radius:4px; background:var(--surface2); overflow:hidden; margin-top:8px; }
+  .aiom-track span { display:block; height:100%; border-radius:4px; }
+  .aiom-red { background:var(--accent); } .aiom-blue { background:#60a5fa; } .aiom-muted { background:var(--muted); }
+  .aiom-amber { background:var(--aiom-amber); } .aiom-purple { background:#a78bfa; }
+  .aiom-event { display:flex; align-items:center; gap:12px; padding:15px 20px; }
+  .aiom-event + .aiom-event { border-top:1px solid var(--border); }
+  .aiom-event-dot { width:6px; height:6px; flex-shrink:0; border-radius:50%; background:var(--green); }
+  .aiom-event-dot.warn { background:var(--aiom-amber); } .aiom-event-dot.error { background:var(--accent); }
+  .aiom-event p { flex:1; min-width:0; font-size:12px; line-height:1.7; overflow-wrap:anywhere; }
+  .aiom-event time { color:var(--text2); font-size:10px; white-space:nowrap; }
+  .aiom-empty { min-height:190px; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:12px; padding:24px; color:var(--text2); font-size:12px; line-height:1.8; text-align:center; }
+  .aiom-empty small { font-size:11px; }
+  #aiom-recent .aiom-empty { min-height:100px; }
+  @media (max-width:1150px) {
+    .aiom-grid { grid-template-columns:1fr; }
+    .aiom-metric { padding:20px 16px; }
+    .aiom-metric::before { left:16px; }
+  }
+  @media (max-width:1000px) {
+    .aiom-stats { grid-template-columns:repeat(2,minmax(0,1fr)); }
+    .aiom-metric:nth-child(3) { border-left:0; }
+    .aiom-metric:nth-child(n+3) { border-top:1px solid var(--border); }
+  }
+  @media (max-width:480px) {
+    #page-aiom .card-body, #page-aiom .card-head { padding:18px 16px; }
+    .aiom-metric > strong { font-size:28px; }
+    .aiom-metric-label { font-size:11px; }
+    .aiom-link-actions > * { width:100%; justify-content:center; }
+    .aiom-link-details { gap:12px; }
+    .aiom-link-details strong { font-size:12px; }
+    .aiom-chart { gap:5px; }
+    .aiom-bar-date { font-size:8px; }
+    .aiom-event { display:grid; grid-template-columns:6px minmax(0,1fr); gap:6px 12px; padding:13px 16px; }
+    .aiom-event time { grid-column:2; }
+  }
+
   /* ---- Bloc « API Stockage BD » (Réglages) ---- */
   #page-settings .nf-api-row { display:flex; align-items:center; gap:10px; }
   #page-settings .nf-api-row input { flex:1; min-width:0; }
