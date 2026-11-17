@@ -94,3 +94,61 @@ test('Recherche YouTube indépendante du réglage de repli Allociné', async () 
     assert.strictEqual(r.source, 'youtube_search');
     assert.deepStrictEqual(calls.order, ['youtube']);
 });
+
+test('Saison >= 2 absente de TMDB : interroge Stockage BD (strictSeason) avant la BA globale Saison 1 de TMDB', async () => {
+    reset();
+    const fedCalls = [];
+    stub('net', {
+        fetchT: async url => {
+            calls.urls.push(url);
+            if (url.includes('/find/')) return json({ tv_results: [{ id: 108545, name: 'Le Problème à 3 corps' }] });
+            if (url.includes('/alternative_titles')) return json({ results: [] });
+            if (url.includes('/watch/providers')) return json({ results: {} });
+            if (url.includes('/season/2/videos')) return json({ results: [] }); // rien sur TMDB pour la S2
+            if (url.includes('/season/1/videos')) {
+                return json({ results: [{ site: 'YouTube', type: 'Trailer', name: 'Le Problème à 3 corps - Bande-annonce VF', key: 's1youtube00', iso_639_1: 'fr', official: true, published_at: '2024-03-01' }] });
+            }
+            if (url.includes('/videos')) {
+                return json({ results: [{ site: 'YouTube', type: 'Trailer', name: 'Le Problème à 3 corps | Bande-annonce finale VF', key: 's1global000', iso_639_1: 'fr', official: true, published_at: '2024-03-01' }] });
+            }
+            return json({ name: 'Le Problème à 3 corps', original_name: '3 Body Problem', first_air_date: '2024-03-21', networks: [{ name: 'Netflix' }] });
+        },
+    });
+    stub('netflix-federation', {
+        resolveFederatedTrailer: async opts => {
+            fedCalls.push(opts);
+            if (opts.strictSeason && opts.season === 2) {
+                return {
+                    found: true,
+                    title: { name: 'Le Problème à 3 corps' },
+                    trailers: [{ title: 'Saison 2 (Teaser) : Le Problème à 3 corps', url: 'https://netflix.exemple.fr/trailer/81024821/0.mp4', season: 2, kind: 'teaser' }],
+                };
+            }
+            return { found: false, reason: 'aucune vidéo pour cette saison' };
+        },
+    });
+    delete require.cache[lib('tmdb')];
+    delete require.cache[lib('resolve-apis')];
+    const { resolveViaApis: fresh } = require('../lib/resolve-apis');
+
+    // Saison 1 : utilise TMDB normalement sans interroger Stockage BD
+    const s1 = await fresh('series', 'tt13016388', 1, behavior(), 'KEY');
+    assert.strictEqual(s1.source, 'tmdb');
+    assert.strictEqual(s1.streams[0].ytId, 's1youtube00');
+    assert.strictEqual(fedCalls.length, 0);
+
+    // Saison 2 : TMDB S2 est vide -> récupère le Teaser Saison 2 sur Stockage BD au lieu de la BA globale S1
+    const s2 = await fresh('series', 'tt13016388', 2, behavior(), 'KEY');
+    assert.strictEqual(s2.source, 'netflix_catalogue');
+    assert.strictEqual(s2.platform, 'netflix');
+    assert.strictEqual(fedCalls.length, 1);
+    assert.strictEqual(fedCalls[0].strictSeason, true);
+    assert.strictEqual(fedCalls[0].season, 2);
+    assert.strictEqual(s2.streams[0].url, 'https://netflix.exemple.fr/trailer/81024821/0.mp4');
+    assert.strictEqual(s2.streams[0].title, 'Teaser\nLe Problème à 3 corps (Saison 2)');
+
+    // Saison 3 (pas de teaser sur Stockage BD non plus) : retombe proprement sur la BA globale TMDB
+    const s3 = await fresh('series', 'tt13016388', 3, behavior(), 'KEY');
+    assert.strictEqual(s3.source, 'tmdb');
+    assert.strictEqual(s3.streams[0].ytId, 's1global000');
+});
