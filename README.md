@@ -11,6 +11,23 @@ Tout tourne sur ton serveur (VPS, Raspberry Pi, NAS…), avec Docker.
 
 ---
 
+
+## Lien AIOMetadata partagé (un seul lien pour tout le monde)
+
+Pour l'option « A trailer addon » d'AIOMetadata (Meta Providers > Trailers), l'addon expose un manifest
+fixe, sans configuration dans l'URL, que tu peux donner à tout le monde :
+
+```
+https://TON-DOMAINE/aiom/manifest.json
+```
+
+- Il renvoie toujours un seul flux (`ytId` en priorité, sinon `url`) ; liste vide si rien n'est trouvé,
+  AIOMetadata garde alors le trailer de son fournisseur.
+- La clé TMDB utilisée est celle du serveur (`TMDB_API_KEY` dans `.env`) : sans elle, la route répond vide.
+- Le délai maximum de réponse se règle dans le dashboard (Réglages > AIOMetadata). Les requêtes
+  apparaissent dans Logs (contexte AIOM) et dans les compteurs AIOM.
+- Les liens personnels `/<config>/manifest.json` (avec `aiom: true`) continuent de fonctionner.
+
 ## 🏠 Installation (Docker)
 
 Tout tourne chez toi : l'addon et sa base SQLite (un simple fichier), dans un seul conteneur. Aucun compte externe requis.

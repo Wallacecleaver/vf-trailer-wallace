@@ -5,11 +5,71 @@ const { recordInstallActivity } = require('../lib/install-stats');
 const { recordAiomStat } = require('../lib/aiom-stats');
 const { logEvent } = require('../lib/logs');
 const { logFailure } = require('../lib/overrides');
-const { manifest, decodeConfig } = require('../lib/config');
+const { manifest, decodeConfig, FALLBACK_TMDB_KEY, LOGO_URL } = require('../lib/config');
 const { resolveStreams, getBehaviorSettingsFast, buildMetaObject } = require('../lib/resolver');
 const { aiomTimeoutMs, withDeadline, aiomOutcome, resolveStreamsSingleFlight, logAiomRequest } = require('../lib/aiom');
 
+// ---- Lien AIOMetadata PARTAGÉ : /aiom/manifest.json ----------------------------------------
+// Un seul lien identique pour tout le monde (comme https://trailerio.cc/fr/manifest.json) : pas de
+// config dans l'URL, pas de page /configure. La config est fixée ici (mode aiom, un seul flux
+// ytId/url) et la clé TMDB est celle du serveur (TMDB_API_KEY) ; le délai max reste réglable dans
+// le dashboard (Réglages > AIOMetadata). Ces routes DOIVENT être enregistrées avant
+// /:config?/manifest.json, sinon "aiom" serait pris pour un segment de config.
+const aiomManifest = {
+    id: 'org.vftrailers.aiom',
+    version: manifest.version,
+    name: 'W Bandes-Annonces VF (AIOMetadata)',
+    description: 'Bande-annonce VF pour l\'option « A trailer addon » d\'AIOMetadata',
+    logo: LOGO_URL,
+    resources: ['stream'],
+    types: ['movie', 'series'],
+    idPrefixes: ['tt'],
+    catalogs: [],
+};
+function sharedAiomConfig() {
+    return { aiom: true, pseudo: 'AIOMetadata', tmdbKey: FALLBACK_TMDB_KEY || null };
+}
+
+// Mode AIOMetadata : réponse courte et lisible, journalisée dans le dashboard (Logs > AIOM),
+// sans stats globales ni journal "échecs" (voir logAiomRequest).
+async function respondAiom(req, res, config, type, imdbId, season) {
+    const t0 = Date.now();
+    const timeoutMs = aiomTimeoutMs(await getBehaviorSettingsFast()); // réglage du dashboard (cache mémoire 30 s)
+    const work = resolveStreamsSingleFlight(type, imdbId, season, config);
+    work.catch(() => {}); // évite un unhandledRejection si le délai a déjà répondu
+    const result = await withDeadline(work, timeoutMs);
+    const ms = Date.now() - t0;
+    await Promise.all([
+        logAiomRequest({ type, imdbId, season, config, result, ms, timeoutMs }),
+        recordAiomStat({ outcome: aiomOutcome(result), fromCache: !!result.fromCache, ms }),
+    ]);
+    // Cache navigateur/CDN : 10 min, trouvé ou non (un "aucun" ne change pas d'une minute à l'autre) ; un timeout jamais
+    // (la résolution continue en arrière-plan, la requête suivante sera servie par le cache).
+    res.setHeader('Cache-Control', result.timedOut ? 'no-store' : 'public, max-age=600');
+    return res.json({ streams: result.streams });
+}
+
 module.exports = function registerStremioRoutes(app) {
+    app.get('/aiom/manifest.json', (req, res) => {
+        res.json(aiomManifest);
+    });
+
+    app.get('/aiom/stream/:type/:idWithExt', async (req, res) => {
+        try {
+            const { type } = req.params;
+            const id = decodeURIComponent(req.params.idWithExt).replace(/\.json$/, '');
+            const [imdbId, season] = id.split(':');
+            if (!sharedAiomConfig().tmdbKey) {
+                // Pas de TMDB_API_KEY côté serveur : on répond vide (AIOMetadata garde son trailer).
+                return res.json({ streams: [] });
+            }
+            return await respondAiom(req, res, sharedAiomConfig(), type, imdbId, season);
+        } catch (err) {
+            console.error('Erreur /aiom/stream:', err);
+            await logEvent({ level: 'error', context: 'STREAM', event: 'aiom_shared_error', message: err.message, meta: { path: req.path } });
+            res.json({ streams: [] });
+        }
+    });
     // Manifest et stream acceptent un segment de config optionnel en tête d'URL.
     app.get('/:config?/manifest.json', async (req, res) => {
         let hasValidConfig = false;
@@ -61,24 +121,7 @@ module.exports = function registerStremioRoutes(app) {
             const id = decodeURIComponent(req.params.idWithExt).replace(/\.json$/, '');
             const [imdbId, season] = id.split(':');
 
-            // Mode AIOMetadata : réponse courte et lisible, journalisée dans le dashboard (Logs > AIOM),
-            // sans stats globales ni journal "échecs" (voir logAiomRequest).
-            if (config.aiom) {
-                const t0 = Date.now();
-                const timeoutMs = aiomTimeoutMs(await getBehaviorSettingsFast()); // réglage du dashboard (cache mémoire 30 s)
-                const work = resolveStreamsSingleFlight(type, imdbId, season, config);
-                work.catch(() => {}); // évite un unhandledRejection si le délai a déjà répondu
-                const result = await withDeadline(work, timeoutMs);
-                const ms = Date.now() - t0;
-                await Promise.all([
-                    logAiomRequest({ type, imdbId, season, config, result, ms, timeoutMs }),
-                    recordAiomStat({ outcome: aiomOutcome(result), fromCache: !!result.fromCache, ms }),
-                ]);
-                // Cache navigateur/CDN : 10 min, trouvé ou non (un "aucun" ne change pas d'une minute à l'autre) ; un timeout jamais
-                // (la résolution continue en arrière-plan, la requête suivante sera servie par le cache).
-                res.setHeader('Cache-Control', result.timedOut ? 'no-store' : 'public, max-age=600');
-                return res.json({ streams: result.streams });
-            }
+            if (config.aiom) return await respondAiom(req, res, config, type, imdbId, season);
 
             const { streams, officialTitle, hidden } = await resolveStreams(type, imdbId, season, config);
 
