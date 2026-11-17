@@ -1,5 +1,6 @@
 const { test } = require('node:test');
 const assert = require('node:assert/strict');
+const { CHANNELS, VOD_CHANNELS } = require('../lib/youtube-channels');
 const {
     buildRef, matchVideoTitle, videoYearMismatch, publishedYearsAgo, videoTooOld,
     evaluateVideoResult, pickBestVideoResult,
@@ -8,7 +9,7 @@ const {
 const now = new Date('2026-11-17T12:00:00Z');
 const ref = (title = 'Lucky', year = 2026) => buildRef({ allTitles: [title], year });
 const old = { videoId: 'old', title: 'LUCKY Bande Annonce VF (2020)', published: 'il y a 6 ans' };
-const current = { videoId: 'current', title: 'Lucky - Bande-annonce VF (2026) | Apple TV+', published: 'il y a 2 semaines', channel: 'Apple TV France' };
+const current = { videoId: 'current', title: 'Lucky - Bande-annonce VF (2026) | Apple TV+', published: 'il y a 2 semaines', channel: 'Apple TV France', channelId: CHANNELS.apple[0].id };
 
 test('année YouTube : homonyme 2020 rejeté pour 2026 uniquement avec checkYear', () => {
     assert.deepEqual(matchVideoTitle(old.title, ref(), { checkYear: true }), {
@@ -114,13 +115,15 @@ test('recherche YouTube : date et chaîne extraites, requête unique précise et
         }
     });
     const calls = [], order = [];
-    let results = [old, current], officialYear = 2026;
+    let results = [old, current], officialYear = 2026, platform = null;
     global.fetch = async url => {
         calls.push(new URL(url).searchParams.get('search_query'));
         order.push('youtube');
         const contents = results.map(r => ({ videoRenderer: {
             videoId: r.videoId, title: { runs: [{ text: r.title }] },
-            ownerText: { runs: [{ text: r.channel || 'Chaîne de test' }] },
+            ownerText: { runs: [{ text: r.channel || 'FilmsActu', navigationEndpoint: {
+                browseEndpoint: { browseId: r.channelId || VOD_CHANNELS[0].id },
+            } }] },
             ...(r.published ? { publishedTimeText: { simpleText: r.published } } : {}),
         } }));
         const data = { contents: { twoColumnSearchResultsRenderer: { primaryContents: {
@@ -148,7 +151,7 @@ test('recherche YouTube : date et chaîne extraites, requête unique précise et
     stub('tmdb', {
         findByImdb: async () => ({ movie_results: [{ id: 42 }], tv_results: [{ id: 42 }] }),
         getTitleAndYear: async () => ({ title: 'Lucky', year: officialYear }),
-        getAlternativeTitles: async () => [], getWatchPlatform: async () => null,
+        getAlternativeTitles: async () => [], getWatchPlatform: async () => platform,
     });
     stub('tvdb', { getTvdbTrailers: async () => ({ streams: [], reason: 'Aucun trailer de test' }) });
     stub('anime-sources', {});
@@ -159,17 +162,20 @@ test('recherche YouTube : date et chaîne extraites, requête unique précise et
     results = [old]; calls.length = 0; order.length = 0;
     const failureTrace = [];
     assert.deepEqual((await resolveViaApis('series', 'tt1234567', null, behavior, 'fixture', failureTrace)).streams, []);
-    assert.deepEqual(calls, ['Lucky série 2026 bande annonce VF']);
+    assert.deepEqual(calls, ['Lucky série 2026 bande annonce VF FilmsActu']);
     assert.deepEqual(order, ['youtube', 'allocine', 'stockage']);
     assert.match(failureTrace.find(r => r.step === 'youtube-search').detail,
         /Rien de pertinent pour "Lucky série 2026 bande annonce VF" · écarté : "LUCKY Bande Annonce VF \(2020\)" \(année 2020 ≠ 2026\)/);
     results = [current]; calls.length = 0; order.length = 0;
     const successTrace = [];
     assert.equal((await resolveViaApis('movie', 'tt1234567', null, behavior, 'fixture', successTrace)).streams[0].ytId, current.videoId);
-    assert.deepEqual(calls, ['Lucky 2026 bande annonce VF']);
+    assert.deepEqual(calls, ['Lucky 2026 bande annonce VF FilmsActu']);
     assert.deepEqual(order, ['youtube']);
     assert.equal(successTrace.find(r => r.step === 'youtube-search').detail, 'Trouvé: v=current — "' + current.title + '" · ' + current.channel);
     officialYear = null; calls.length = 0;
     await resolveViaApis('series', 'tt1234567', null, behavior, 'fixture');
-    assert.deepEqual(calls, ['Lucky série bande annonce VF']);
+    assert.deepEqual(calls, ['Lucky série bande annonce VF FilmsActu']);
+    platform = 'apple'; calls.length = 0;
+    await resolveViaApis('series', 'tt1234567', null, behavior, 'fixture');
+    assert.deepEqual(calls, ['Lucky série bande annonce VF Apple France']);
 });

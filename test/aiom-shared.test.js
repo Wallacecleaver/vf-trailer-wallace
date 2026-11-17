@@ -169,3 +169,16 @@ test('AIOM partagé : paramètres invalides et erreur réseau renvoient vide san
     const logs = JSON.stringify(await sql(["SELECT * FROM event_logs"]));
     assert.ok(!logs.includes(serverKey) && !logs.includes('api_key='));
 });
+
+test('matching strict : ancien cache conservé mais jamais resservi après changement de politique', async () => {
+    const { TVDB_API_KEY } = require('../lib/config');
+    const scope = TVDB_API_KEY ? require('node:crypto').createHash('sha256').update(TVDB_API_KEY).digest('hex').slice(0, 12) : 'no-tvdb';
+    const key = 'cache:trailers:tt0900008:movie:all:nx:yt:vf:' + scope;
+    const previous = JSON.stringify({ officialTitle: 'Ancien faux positif', source: 'youtube_search', streams: [{ ytId: 'wrong000000' }] });
+    await sql`INSERT INTO kv_cache (cache_key, value, expires_at) VALUES (${key}, ${previous}, ${Date.now() + 3600000})`;
+    const data = await get('/aiom/stream/movie/tt0900008.json').then(response => response.json());
+    assert.equal(data.streams[0].ytId, 'trailer0000');
+    assert.equal(state.calls.length, 1);
+    assert.equal((await sql`SELECT value FROM kv_cache WHERE cache_key = ${key}`)[0].value, previous);
+    assert.equal((await sql`SELECT COUNT(*) AS count FROM kv_cache WHERE cache_key = ${key + ':strict-platform-v1'}`)[0].count, 1);
+});

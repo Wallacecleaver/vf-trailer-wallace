@@ -54,6 +54,29 @@ Chaque vidéo TMDB est jugée en croisant sa **langue** (`iso_639_1`) et son **n
 
 Les mots-clés sont cherchés comme **mots entiers** (`lib/video-filters.js`) : « Substance » ne déclenche pas « sub », « Davis » ne déclenche pas « avis ».
 
+### Matching strict et chaînes YouTube ciblées
+
+Le matcher partagé (`lib/strict-title-match.js`) exige les mêmes mots significatifs et une année
+compatible (±1 an si les deux années sont connues). Les titres de vidéos sont nettoyés pour comparer
+le nom du film ou de la série : mentions de bande-annonce, chaînes et crédits sont séparés du titre.
+« Lucky Luke » ne correspond donc plus à « Lucky », ni « My Happy Ending » à « Happy End ».
+Les nombres qui font partie d’un titre, comme « 1917 » ou « Blade Runner 2049 », sont conservés.
+
+La **recherche YouTube** exige une mention de bande-annonce (« bande-annonce », « trailer » ou « BA »)
+et un signal VF dans le titre, avec exclusion de VO/VOSTFR, réactions et critiques.
+Le ciblage utilise les identifiants des auteurs YouTube, pas leur seul nom affiché.
+
+- Netflix, Apple TV, Prime Video, Disney+, HBO Max, Paramount+, Crunchyroll et MUBI : chaînes officielles répertoriées dans `lib/youtube-channels.js` en priorité.
+- VOD : **FilmsActu**, puis **Allociné | Bandes Annonces** et **Warner Bros. France**.
+- En l’absence de résultat officiel exploitable, les mêmes chaînes cinéma françaises servent de repli.
+  Une plateforme sans chaîne répertoriée utilise également ce repli ; aucun nom de chaîne n’est deviné.
+
+Une seule requête YouTube ciblée est effectuée : la sélection et les replis entre chaînes portent
+sur les résultats de cette requête. Si rien ne convient, la résolution continue vers Allociné puis
+Stockage BD, comme auparavant. Le sélecteur YouTube manuel du dashboard reste non filtré.
+Le cache utilise un nouveau périmètre de matching afin de ne pas resservir les anciens faux positifs ;
+les anciennes entrées expirent normalement, sans purge des mappings ni des réglages.
+
 ---
 
 ## Installation
