@@ -40,11 +40,23 @@ async function main() {
         if (!process.env.APP_BASE_URL) console.warn('⚠️  APP_BASE_URL non défini : les liens/logo pointeront vers http://localhost.');
     });
 
-    // Arrêt propre : ferme la base SQLite (le journal WAL est alors intégré au fichier principal).
-    const stop = () => server.close(() => {
+    // Arrêt propre : ferme la base SQLite (le journal WAL est alors intégré au fichier principal),
+    // sans bloquer indéfiniment sur des connexions keep-alive ouvertes (dashboard live-tail, etc.).
+    let stopping = false;
+    const finalize = () => {
         try { sql.close(); } catch { /* rien à faire */ }
         process.exit(0);
-    });
+    };
+    const stop = () => {
+        if (stopping) return;
+        stopping = true;
+        if (typeof server.closeIdleConnections === 'function') server.closeIdleConnections();
+        setTimeout(() => {
+            if (typeof server.closeAllConnections === 'function') server.closeAllConnections();
+            finalize();
+        }, 5000).unref();
+        server.close(finalize);
+    };
     process.on('SIGTERM', stop);
     process.on('SIGINT', stop);
 }

@@ -8,7 +8,7 @@ const { fetchConfiguration, getImdbId } = require('../lib/tmdb');
 const { getCached, setCached } = require('../lib/cache');
 const { logEvent } = require('../lib/logs');
 const { addContribution } = require('../lib/contributions');
-const { rateLimit } = require('../lib/security');
+const { rateLimit, assertSafeUrl } = require('../lib/security');
 const { tmdbSearch, youtubeTitle } = require('./lookups');
 
 module.exports = function registerPublicRoutes(app) {
@@ -87,8 +87,12 @@ module.exports = function registerPublicRoutes(app) {
     app.get('/api/public/tmdb-search', lookupLimit, tmdbSearch(' (public)'));
 
     app.get('/api/public/tmdb-resolve', lookupLimit, async (req, res) => {
-        const { id, type } = req.query;
+        const id = String(req.query.id || '').trim();
+        const type = String(req.query.type || '').trim();
         if (!id || !type) return res.status(400).json({ error: 'id et type requis' });
+        if (!['movie', 'tv'].includes(type) || !/^\d{1,10}$/.test(id)) {
+            return res.status(400).json({ error: 'id ou type invalide' });
+        }
         const tmdbKey = FALLBACK_TMDB_KEY;
         if (!tmdbKey) return res.status(503).json({ error: "Clé TMDB de secours non configurée côté serveur (TMDB_API_KEY)" });
         try {
@@ -159,23 +163,27 @@ module.exports = function registerPublicRoutes(app) {
         const cleanYtId = typeof ytId === 'string' ? ytId.trim() : '';
         const cleanUrl = typeof url === 'string' ? url.trim() : '';
 
-        if (!/^tt\d{6,9}$/.test(cleanImdb)) return res.status(400).json({ error: 'IMDB ID invalide' });
+        if (!/^tt\d{6,10}$/.test(cleanImdb)) return res.status(400).json({ error: 'IMDB ID invalide' });
         if (!cleanPseudo) return res.status(400).json({ error: 'Pseudo requis' });
         if (!cleanYtId && !cleanUrl) return res.status(400).json({ error: 'Lien requis (YouTube ou URL directe)' });
-        // Validation stricte : sinon n'importe qui stocke du javascript:, du file: ou du texte
-        // arbitraire, qui finira affiché dans le dashboard.
+        let cleanSeason = null;
+        if (season !== null && season !== undefined && String(season).trim() !== '') {
+            const sn = Number(season);
+            if (!Number.isInteger(sn) || sn < 1 || sn > 999) return res.status(400).json({ error: 'Saison invalide' });
+            cleanSeason = sn;
+        }
+        // Validation stricte : sinon n'importe qui stocke du javascript:, du file:, une IP interne ou du texte
+        // arbitraire, qui finira affiché ou testé dans le dashboard.
         if (cleanYtId && !/^[A-Za-z0-9_-]{11}$/.test(cleanYtId)) return res.status(400).json({ error: 'YouTube ID invalide' });
         if (!cleanYtId) {
             if (cleanUrl.length > 2048) return res.status(400).json({ error: 'URL trop longue' });
-            let parsed;
-            try { parsed = new URL(cleanUrl); } catch { return res.status(400).json({ error: 'URL invalide' }); }
-            if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') return res.status(400).json({ error: 'URL invalide' });
-            if (parsed.username || parsed.password) return res.status(400).json({ error: 'URL invalide' });
+            try { assertSafeUrl(cleanUrl); }
+            catch { return res.status(400).json({ error: 'URL invalide ou non autorisée' }); }
         }
 
         const item = await addContribution({
             imdbId: cleanImdb,
-            season: season || null,
+            season: cleanSeason,
             title: typeof title === 'string' ? title.trim().slice(0, 200) || null : null,
             mediaType: mediaType === 'series' ? 'series' : mediaType === 'movie' ? 'movie' : null,
             ytId: cleanYtId || null,

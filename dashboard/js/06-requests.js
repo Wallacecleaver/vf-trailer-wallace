@@ -170,12 +170,16 @@
     document.getElementById('ov-title').value = o.title || '';
     document.getElementById('ov-mediatype').value = o.mediaType || '';
     document.getElementById('ov-notes').value = o.notes || '';
-    // Liens de repli : on exclut le lien principal (déjà dans ov-ytid/ov-url)
+    // Liens de repli : on exclut le lien principal (déjà affiché dans ov-ytid/ov-url)
     const links = Array.isArray(o.links) ? o.links.slice() : [];
-    overrideLinks = links.filter(l => {
-      const isPrimary = (l.ytId && l.ytId === o.ytId) || (l.url && l.url === o.url);
-      return !isPrimary;
-    });
+    if (links.length > 0 && ((links[0].ytId && links[0].ytId === o.ytId) || (links[0].url && links[0].url === o.url))) {
+      overrideLinks = links.slice(1);
+    } else {
+      overrideLinks = links.filter(l => {
+        const isPrimary = (l.ytId && l.ytId === o.ytId) || (l.url && l.url === o.url);
+        return !isPrimary;
+      });
+    }
     renderFallbacks();
     document.getElementById('ov-hidden').checked = !!o.hidden;
     toggleHiddenMode();
@@ -228,17 +232,23 @@
       .map(l => ({ ytId: extractYoutubeId((l.ytId || '').trim()), url: (l.url || '').trim() }))
       .filter(l => (l.ytId && /^[a-zA-Z0-9_-]{11}$/.test(l.ytId)) || l.url);
 
-    if (!imdbId.startsWith('tt')) { toast('❌ IMDB ID invalide (doit commencer par "tt")'); return; }
+    if (!/^tt\d{6,10}$/.test(imdbId)) { toast('❌ IMDB ID invalide (ex: tt1234567)'); return; }
     if (!ytId && !url && !fallbacks.length && !hidden) { toast('❌ Renseigne un YouTube ID, une URL directe, un lien de repli, ou coche "Masquer ce titre"'); return; }
     if (ytId && url) {
       toast('⚠️ YouTube ID ET URL directe remplis : seule la piste YouTube ID est enregistrée (l\'URL est ignorée — mets-la en lien de repli si besoin)');
     }
 
+    // Côté serveur, `links` représente la liste complète par ordre de priorité ([lien principal, ...replis]).
+    const primaryLink = ytId ? { ytId } : (url ? { url } : null);
+    const fullLinks = fallbacks.length
+      ? (primaryLink ? [primaryLink, ...fallbacks] : fallbacks)
+      : undefined;
+
     try {
       const res = await authFetch('/api/overrides', {
         method: 'POST',
         headers: authHeaders({ 'Content-Type': 'application/json' }),
-        body: JSON.stringify({ imdbId, season: season ? Number(season) : null, ytId: ytId || null, url: ytId ? null : (url || null), links: fallbacks.length ? fallbacks : undefined, title: title || null, hidden, mediaType: mediaType || null, notes: notes || null }),
+        body: JSON.stringify({ imdbId, season: season ? Number(season) : null, ytId: ytId || null, url: ytId ? null : (url || null), links: fullLinks, title: title || null, hidden, mediaType: mediaType || null, notes: notes || null }),
       });
       if (res.ok) {
         // En édition, si la saison a changé, l'entrée d'origine devient orpheline -> on la supprime.

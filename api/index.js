@@ -53,6 +53,24 @@ app.use((req, res, next) => {
     next();
 });
 
+// Express 4 n'intercepte pas les promesses rejetées des handlers `async (req, res) => ...`.
+// Envelopper automatiquement l'enregistrement des routes évite qu'une erreur imprévue ne fasse
+// tomber le processus Node 22 sur un `unhandledRejection`.
+const wrapAsync = fn => (typeof fn !== 'function' || fn.length === 4)
+    ? fn
+    : function asyncRouteGuard(req, res, next) {
+        try {
+            const out = fn(req, res, next);
+            if (out && typeof out.catch === 'function') out.catch(next);
+        } catch (err) {
+            next(err);
+        }
+    };
+for (const method of ['get', 'post', 'put', 'delete']) {
+    const orig = app[method].bind(app);
+    app[method] = (routePath, ...handlers) => orig(routePath, ...handlers.map(wrapAsync));
+}
+
 require('../routes/stremio')(app);
 require('../routes/pages')(app);
 require('../routes/public')(app);
@@ -63,11 +81,12 @@ require('../routes/dashboard')(app);
 // doivent aussi être du JSON propre, sans stack trace leakée au client.
 // eslint-disable-next-line no-unused-vars
 app.use((err, req, res, next) => {
-    if (err && (err.type === 'entity.too.large' || err instanceof SyntaxError)) {
+    if (res.headersSent) return next(err);
+    if (err && (err.type === 'entity.too.large' || err.type === 'entity.parse.failed')) {
         res.status(413).json({ error: 'Payload too large' });
         return;
     }
-    res.status(err && err.statusCode || 500).json({
+    res.status((err && err.statusCode) || 500).json({
         // Ne jamais exposer le détail d'une erreur interne au client.
         error: err && err.statusCode ? err.message : 'Internal Server Error',
     });

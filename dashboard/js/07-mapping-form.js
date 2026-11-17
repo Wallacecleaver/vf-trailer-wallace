@@ -20,10 +20,10 @@
       if (!data.length) { box.innerHTML = '<div class="tmdb-empty">Aucun résultat</div>'; return; }
       box.innerHTML = data.map((r, i) => `
         <div class="tmdb-result-item" onclick="pickTmdbResult(${i})">
-          ${r.poster ? `<img class="tmdb-result-poster" src="${r.poster}" alt="">` : '<div class="tmdb-result-poster empty">🎬</div>'}
+          ${r.poster ? `<img class="tmdb-result-poster" src="${escapeHtml(r.poster)}" alt="">` : '<div class="tmdb-result-poster empty">🎬</div>'}
           <div class="tmdb-result-info">
             <div class="tmdb-result-title">${escapeHtml(r.title)}</div>
-            <div class="tmdb-result-meta">${r.mediaType === 'tv' ? 'Série' : 'Film'}${r.year ? ' · ' + r.year : ''}</div>
+            <div class="tmdb-result-meta">${r.mediaType === 'tv' ? 'Série' : 'Film'}${r.year ? ' · ' + escapeHtml(r.year) : ''}</div>
           </div>
         </div>
       `).join('');
@@ -39,11 +39,11 @@
     const box = document.getElementById('tmdb-results');
     box.innerHTML = '<div class="tmdb-loading">Récupération de l\'IMDB ID...</div>';
     try {
-      const res = await authFetch(`/api/tmdb-resolve?id=${r.tmdbId}&type=${r.mediaType}`, { headers: authHeaders() });
+      const res = await authFetch(`/api/tmdb-resolve?id=${encodeURIComponent(r.tmdbId)}&type=${encodeURIComponent(r.mediaType)}`, { headers: authHeaders() });
       const data = await res.json();
       if (!res.ok || !data.imdbId) { toast('❌ IMDB ID introuvable pour ce titre'); box.classList.remove('show'); return; }
       document.getElementById('ov-imdb').value = data.imdbId;
-      document.getElementById('ov-mediatype').value = r.mediaType;
+      document.getElementById('ov-mediatype').value = r.mediaType === 'tv' ? 'series' : r.mediaType;
       if (!document.getElementById('ov-title').value.trim()) document.getElementById('ov-title').value = r.title;
       document.getElementById('tmdb-search').value = `${r.title}${r.year ? ' (' + r.year + ')' : ''}`;
       box.classList.remove('show');
@@ -285,19 +285,19 @@
   // journal des échecs...) et qu'on veut juste que le titre se remplisse tout seul.
   let imdbLookupSeq = 0;
   async function lookupTitleFromImdb(imdbId) {
-    if (!/^tt\d{6,9}$/.test(imdbId)) return;
+    if (!/^tt\d{6,10}$/.test(imdbId)) return;
     const titleEl = document.getElementById('ov-title');
     const mediaTypeEl = document.getElementById('ov-mediatype');
     if (titleEl.value.trim()) return; // un titre déjà tapé à la main ne doit jamais être écrasé
 
     const seq = ++imdbLookupSeq;
     try {
-      const res = await authFetch(`/api/tmdb-lookup?imdbId=${imdbId}`, { headers: authHeaders() });
+      const res = await authFetch(`/api/tmdb-lookup?imdbId=${encodeURIComponent(imdbId)}`, { headers: authHeaders() });
       if (seq !== imdbLookupSeq) return; // un lookup plus récent est parti entre-temps
       if (!res.ok) return; // silencieux : TMDB ne connaît pas ce titre, pas grave, on laisse vide
       const data = await res.json();
       if (!titleEl.value.trim()) titleEl.value = data.title;
-      if (!mediaTypeEl.value) mediaTypeEl.value = data.mediaType;
+      if (!mediaTypeEl.value) mediaTypeEl.value = data.mediaType === 'tv' ? 'series' : data.mediaType;
     } catch (e) { /* silencieux, pas bloquant */ }
   }
 

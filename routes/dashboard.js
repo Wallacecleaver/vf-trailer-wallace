@@ -13,7 +13,7 @@ const { getAiomStats, resetAiomStats } = require('../lib/aiom-stats');
 const {
     getOverrides, setOverride, deleteOverride,
     getFailedLog, clearFailedLog, getResolvedLog, clearResolvedLog } = require('../lib/overrides');
-const { getContributions, updateContributionStatus, deleteContribution } = require('../lib/contributions');
+const { getContributions, getContributionById, updateContributionStatus, deleteContribution } = require('../lib/contributions');
 const {
     getBehaviorSettings, setBehaviorSettings, resetBehaviorSettings,
 } = require('../lib/settings');
@@ -21,12 +21,15 @@ const { getMaintenanceSettings, setMaintenanceSettings } = require('../lib/maint
 const { searchYoutubeRaw } = require('../lib/youtube-search');
 const { probeDirectLink } = require('../lib/media-link');
 const federation = require('../lib/netflix-federation');
-const { testResolve } = require('../lib/resolver');
+const { testResolve, invalidateBehaviorCache } = require('../lib/resolver');
 const { pickRandomTitles, POOLS } = require('../lib/random-titles');
 const { buildStreamPreviewVariants } = require('../lib/stream-format');
+const { assertSafeUrl, rateLimit } = require('../lib/security');
 const { tmdbSearch, youtubeTitle } = require('./lookups');
 
 module.exports = function registerDashboardRoutes(app) {
+    const loginLimit = rateLimit({ windowMs: 60_000, max: 20, name: 'login' });
+
     // ---- Recherche TMDB pour le formulaire "Mapping des liens" du dashboard ----
     // Utilise la clé de secours serveur (réservée à l'admin), jamais celle d'un visiteur.
     app.get('/api/tmdb-search', requireAuth, tmdbSearch());
@@ -35,7 +38,7 @@ module.exports = function registerDashboardRoutes(app) {
     // directement dans le formulaire), retrouve le titre TMDB pour pré-remplir le champ titre.
     app.get('/api/tmdb-lookup', requireAuth, async (req, res) => {
         const imdbId = (req.query.imdbId || '').toString().trim();
-        if (!/^tt\d{6,9}$/.test(imdbId)) return res.status(400).json({ error: 'IMDB ID invalide' });
+        if (!/^tt\d{6,10}$/.test(imdbId)) return res.status(400).json({ error: 'IMDB ID invalide' });
         const tmdbKey = FALLBACK_TMDB_KEY;
         if (!tmdbKey) return res.status(503).json({ error: "Clé TMDB de secours non configurée côté serveur (TMDB_API_KEY)" });
 
@@ -107,14 +110,17 @@ module.exports = function registerDashboardRoutes(app) {
 
     // Récupère l'IMDB ID d'un titre TMDB déjà choisi dans les résultats de recherche.
     app.get('/api/tmdb-resolve', requireAuth, async (req, res) => {
-        const { id, type } = req.query;
+        const id = String(req.query.id || '').trim();
+        const type = String(req.query.type || '').trim();
         if (!id || !type) return res.status(400).json({ error: 'id et type requis' });
+        if (!['movie', 'tv'].includes(type) || !/^\d{1,10}$/.test(id)) {
+            return res.status(400).json({ error: 'id ou type invalide' });
+        }
         const tmdbKey = FALLBACK_TMDB_KEY;
         if (!tmdbKey) return res.status(503).json({ error: "Clé TMDB de secours non configurée côté serveur (TMDB_API_KEY)" });
 
         try {
-            const mediaType = type === 'tv' ? 'tv' : 'movie';
-            const imdbId = await getImdbId(mediaType, encodeURIComponent(id), tmdbKey);
+            const imdbId = await getImdbId(type, id, tmdbKey);
             if (!imdbId) return res.status(404).json({ error: 'IMDB ID introuvable pour ce titre' });
             res.json({ imdbId });
         } catch (err) {
@@ -149,7 +155,7 @@ module.exports = function registerDashboardRoutes(app) {
         }
     });
 
-    app.post('/api/login', login);
+    app.post('/api/login', loginLimit, login);
 
     app.get('/api/session', requireAuth, (req, res) => {
         const renewed = res.getHeader('X-Admin-Token');
@@ -199,35 +205,54 @@ module.exports = function registerDashboardRoutes(app) {
 
     app.post('/api/overrides', requireAuth, async (req, res) => {
         const { imdbId, season, ytId, url, links, title, hidden, mediaType, notes } = req.body || {};
+        const cleanImdb = typeof imdbId === 'string' ? imdbId.trim() : '';
+        if (!/^tt\d{6,10}$/.test(cleanImdb)) return res.status(400).json({ error: 'IMDB ID invalide' });
+        let cleanSeason = null;
+        if (season !== null && season !== undefined && String(season).trim() !== '') {
+            const sn = Number(season);
+            if (!Number.isInteger(sn) || sn < 1 || sn > 999) return res.status(400).json({ error: 'Saison invalide' });
+            cleanSeason = sn;
+        }
         const isHidden = hidden === true;
         // `links` = liste prioritaire de liens de repli [{ytId}|{url}, ...]. Si absent, on
         // construit depuis ytId/url (compat). Validation : il faut au moins un lien exploitable.
         const cleanLinks = Array.isArray(links)
             ? links.filter(l => l && (typeof l.ytId === 'string' && l.ytId.trim() || typeof l.url === 'string' && l.url.trim()))
             : [];
-        const hasYt = (typeof ytId === 'string' && ytId.trim()) || cleanLinks.some(l => l.ytId);
-        const hasUrl = (typeof url === 'string' && url.trim()) || cleanLinks.some(l => l.url);
-        if (!imdbId || (!hasYt && !hasUrl && !isHidden)) return res.status(400).json({ error: 'imdbId et (ytId, url ou hidden) requis' });
+        const cleanYt = typeof ytId === 'string' ? ytId.trim() : '';
+        const cleanUrl = typeof url === 'string' ? url.trim() : '';
+        const hasYt = !!cleanYt || cleanLinks.some(l => typeof l.ytId === 'string' && l.ytId.trim());
+        const hasUrl = !!cleanUrl || cleanLinks.some(l => typeof l.url === 'string' && l.url.trim());
+        if (!hasYt && !hasUrl && !isHidden) return res.status(400).json({ error: 'imdbId et (ytId, url ou hidden) requis' });
+        try {
+            if (!cleanYt && cleanUrl) assertSafeUrl(cleanUrl);
+            for (const l of cleanLinks) {
+                if (!(l.ytId && l.ytId.trim()) && l.url && l.url.trim()) assertSafeUrl(l.url.trim());
+            }
+        } catch {
+            return res.status(400).json({ error: 'URL directe invalide ou non autorisée' });
+        }
         const ok = await setOverride({
-            imdbId,
-            season: season || null,
-            ytId: ytId || null,
-            url: ytId ? null : (url || null),
+            imdbId: cleanImdb,
+            season: cleanSeason,
+            ytId: cleanYt || null,
+            url: cleanYt ? null : (cleanUrl || null),
             links: cleanLinks.length ? cleanLinks.map(l => ({ ytId: l.ytId ? l.ytId.trim() : null, url: l.ytId ? null : (l.url ? l.url.trim() : null) })) : undefined,
             title: title || null,
             hidden: isHidden,
-            mediaType: mediaType || null,
+            mediaType: mediaType === 'tv' ? 'series' : (mediaType || null),
             notes: typeof notes === 'string' ? notes.trim() || null : null,
         });
-        if (ok) await logEvent({ level: 'info', context: 'OVERRIDE', event: 'override_set', message: `Override enregistré pour ${imdbId}${isHidden ? ' (masqué)' : ''}`, meta: { imdbId, season: season || null, hidden: isHidden, links: cleanLinks.length } });
+        if (ok) await logEvent({ level: 'info', context: 'OVERRIDE', event: 'override_set', message: `Override enregistré pour ${cleanImdb}${isHidden ? ' (masqué)' : ''}`, meta: { imdbId: cleanImdb, season: cleanSeason, hidden: isHidden, links: cleanLinks.length } });
         res.json({ success: ok });
     });
 
     app.delete('/api/overrides', requireAuth, async (req, res) => {
-        const { imdbId, season } = req.query;
-        if (!imdbId) return res.status(400).json({ error: 'imdbId requis' });
-        const ok = await deleteOverride(imdbId, season || null);
-        if (ok) await logEvent({ level: 'info', context: 'OVERRIDE', event: 'override_deleted', message: `Override supprimé pour ${imdbId}`, meta: { imdbId, season: season || null } });
+        const cleanImdb = typeof req.query.imdbId === 'string' ? req.query.imdbId.trim() : '';
+        const { season } = req.query;
+        if (!/^tt\d{6,10}$/.test(cleanImdb)) return res.status(400).json({ error: 'IMDB ID invalide' });
+        const ok = await deleteOverride(cleanImdb, season || null);
+        if (ok) await logEvent({ level: 'info', context: 'OVERRIDE', event: 'override_deleted', message: `Override supprimé pour ${cleanImdb}`, meta: { imdbId: cleanImdb, season: season || null } });
         res.json({ success: ok });
     });
 
@@ -237,7 +262,7 @@ module.exports = function registerDashboardRoutes(app) {
     });
 
     app.post('/api/contributions/:id/accept', requireAuth, async (req, res) => {
-        const item = await updateContributionStatus(req.params.id, 'accepted');
+        const item = await getContributionById(req.params.id);
         if (!item) return res.status(404).json({ error: 'Proposition introuvable' });
         const ok = await setOverride({
             imdbId: item.imdbId,
@@ -250,8 +275,10 @@ module.exports = function registerDashboardRoutes(app) {
             notes: `Proposé par ${item.pseudo}${item.notes ? ' — ' + item.notes : ''}`,
             contributedBy: item.pseudo,
         });
-        if (ok) await logEvent({ level: 'info', context: 'CONTRIB', event: 'contribution_accepted', message: `Proposition acceptée pour ${item.imdbId} (${item.pseudo}) — override créé`, meta: { imdbId: item.imdbId, pseudo: item.pseudo } });
-        res.json({ success: ok });
+        if (!ok) return res.status(500).json({ success: false, error: 'Impossible de créer l’override' });
+        await updateContributionStatus(req.params.id, 'accepted');
+        await logEvent({ level: 'info', context: 'CONTRIB', event: 'contribution_accepted', message: `Proposition acceptée pour ${item.imdbId} (${item.pseudo}) — override créé`, meta: { imdbId: item.imdbId, pseudo: item.pseudo } });
+        res.json({ success: true });
     });
 
     app.post('/api/contributions/:id/reject', requireAuth, async (req, res) => {
@@ -304,13 +331,21 @@ module.exports = function registerDashboardRoutes(app) {
 
     app.post('/api/settings/behavior', requireAuth, async (req, res) => {
         const ok = await setBehaviorSettings(req.body || {});
-        if (ok) await logEvent({ level: 'info', context: 'SETTINGS', event: 'settings_behavior_updated', message: 'Réglages de comportement mis à jour' });
+        if (ok) {
+            invalidateBehaviorCache();
+            federation.clearCache();
+            await logEvent({ level: 'info', context: 'SETTINGS', event: 'settings_behavior_updated', message: 'Réglages de comportement mis à jour' });
+        }
         res.json({ success: ok });
     });
 
     app.post('/api/settings/behavior/reset', requireAuth, async (req, res) => {
         const ok = await resetBehaviorSettings();
-        if (ok) await logEvent({ level: 'info', context: 'SETTINGS', event: 'settings_behavior_reset', message: 'Réglages de comportement réinitialisés' });
+        if (ok) {
+            invalidateBehaviorCache();
+            federation.clearCache();
+            await logEvent({ level: 'info', context: 'SETTINGS', event: 'settings_behavior_reset', message: 'Réglages de comportement réinitialisés' });
+        }
         res.json({ success: ok });
     });
 
@@ -343,8 +378,8 @@ module.exports = function registerDashboardRoutes(app) {
     // Utilise l'URL enregistrée, ou ?url= pour tester une adresse avant de l'enregistrer.
     app.get('/api/netflix-catalogue/test', requireAuth, async (req, res) => {
         const behavior = await getBehaviorSettings();
-        const url = String(req.query.url || behavior.netflixCatalogueUrl || '').trim();
-        const key = String(req.query.key || behavior.netflixCatalogueKey || '').trim();
+        const url = ('url' in req.query ? String(req.query.url || '') : String(behavior.netflixCatalogueUrl || '')).trim();
+        const key = ('key' in req.query ? String(req.query.key || '') : String(behavior.netflixCatalogueKey || '')).trim();
         res.json(await federation.checkConnection(url, key));
     });
 

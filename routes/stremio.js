@@ -49,6 +49,21 @@ async function respondAiom(req, res, config, type, imdbId, season) {
     return res.json({ streams: result.streams });
 }
 
+function parseStremioTarget(type, rawIdWithExt) {
+    if (type !== 'movie' && type !== 'series') return null;
+    let decoded;
+    try { decoded = decodeURIComponent(String(rawIdWithExt || '')).replace(/\.json$/, ''); }
+    catch { return null; }
+    const match = decoded.match(/^(tt\d{6,10})(?::(\d{1,3})(?::\d{1,4})?)?$/);
+    if (!match) return null;
+    if (type === 'movie' && match[2] !== undefined) return null;
+    const seasonNum = match[2] !== undefined ? Number(match[2]) : null;
+    // Dans Stremio, la saison 0 correspond aux « Specials » : en base, season=0 signifie « global »
+    // et TMDB/Stockage BD n'ont pas de bande-annonce « Saison 0 ». On la traite comme la fiche série générale.
+    const season = seasonNum && seasonNum >= 1 ? String(seasonNum) : null;
+    return { imdbId: match[1], season };
+}
+
 module.exports = function registerStremioRoutes(app) {
     app.get('/aiom/manifest.json', (req, res) => {
         res.json(aiomManifest);
@@ -58,16 +73,13 @@ module.exports = function registerStremioRoutes(app) {
         const config = sharedAiomConfig();
         if (!config.tmdbKey) return res.json({ streams: [] });
         const { type } = req.params;
-        const id = req.params.idWithExt.replace(/\.json$/, '');
-        const match = id.match(/^(tt\d{6,9})(?::(\d{1,3})(?::\d{1,4})?)?$/);
-        if (!['movie', 'series'].includes(type) || !match || (type === 'movie' && match[2])) {
-            return res.json({ streams: [] });
-        }
+        const parsed = parseStremioTarget(type, req.params.idWithExt);
+        if (!parsed) return res.json({ streams: [] });
         try {
-            return await respondAiom(req, res, config, type, match[1], match[2] || null);
+            return await respondAiom(req, res, config, type, parsed.imdbId, parsed.season);
         } catch {
             await logEvent({ level: 'error', context: 'AIOM', event: 'aiom_shared_error',
-                message: 'Résolution AIOMetadata partagée impossible', meta: { type, imdbId: match[1] } });
+                message: 'Résolution AIOMetadata partagée impossible', meta: { type, imdbId: parsed.imdbId } });
             res.json({ streams: [] });
         }
     });
@@ -82,13 +94,15 @@ module.exports = function registerStremioRoutes(app) {
             // d'afficher le bouton "Configure" au lieu de "Install" même une fois configuré.
             const { tmdbKey, pseudo } = decodeConfig(req.params.config);
             hasValidConfig = !!tmdbKey;
-            const isNewInstall = await recordInstallActivity(req.params.config, pseudo);
-            if (isNewInstall) {
-                await logEvent({
-                    level: 'info', context: 'INSTALL', event: 'manifest_created',
-                    message: `${pseudo || 'Un visiteur'} a créé son manifest`,
-                    meta: { pseudo: pseudo || null },
-                });
+            if (hasValidConfig) {
+                const isNewInstall = await recordInstallActivity(req.params.config, pseudo);
+                if (isNewInstall) {
+                    await logEvent({
+                        level: 'info', context: 'INSTALL', event: 'manifest_created',
+                        message: `${pseudo || 'Un visiteur'} a créé son manifest`,
+                        meta: { pseudo: pseudo || null },
+                    });
+                }
             }
         }
 
@@ -105,9 +119,10 @@ module.exports = function registerStremioRoutes(app) {
         try {
             const config = decodeConfig(req.params.config);
             const { type } = req.params;
-            const imdbId = decodeURIComponent(req.params.idWithExt).replace(/\.json$/, '');
+            const parsed = parseStremioTarget(type, req.params.idWithExt);
+            if (!parsed) return res.json({ meta: null });
 
-            const meta = await buildMetaObject(type, imdbId, config);
+            const meta = await buildMetaObject(type, parsed.imdbId, config);
             res.json({ meta: meta || null });
         } catch (err) {
             console.error('Erreur /meta:', err);
@@ -120,8 +135,9 @@ module.exports = function registerStremioRoutes(app) {
         try {
             const config = decodeConfig(req.params.config);
             const { type } = req.params;
-            const id = decodeURIComponent(req.params.idWithExt).replace(/\.json$/, '');
-            const [imdbId, season] = id.split(':');
+            const parsed = parseStremioTarget(type, req.params.idWithExt);
+            if (!parsed) return res.json({ streams: [] });
+            const { imdbId, season } = parsed;
 
             if (config.aiom) return await respondAiom(req, res, config, type, imdbId, season);
 
