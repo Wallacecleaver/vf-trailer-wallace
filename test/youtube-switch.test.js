@@ -95,21 +95,31 @@ test('Recherche YouTube indépendante du réglage de repli Allociné', async () 
     assert.deepStrictEqual(calls.order, ['youtube']);
 });
 
-test('Saison >= 2 absente de TMDB : interroge Stockage BD (strictSeason) avant la BA globale Saison 1 de TMDB', async () => {
+test('Saison >= 2 absente de TMDB : mapping strict (rejette la BA globale Saison 1) + Stockage BD + teaser de secours si ignoreTeasers', async () => {
     reset();
     const fedCalls = [];
+    const ytQueries = [];
+    let globalHasSeason3 = false;
+    let youtubeHasSeason2Trailer = false;
+
     stub('net', {
         fetchT: async url => {
             calls.urls.push(url);
             if (url.includes('/find/')) return json({ tv_results: [{ id: 108545, name: 'Le Problème à 3 corps' }] });
             if (url.includes('/alternative_titles')) return json({ results: [] });
             if (url.includes('/watch/providers')) return json({ results: {} });
-            if (url.includes('/season/2/videos')) return json({ results: [] }); // rien sur TMDB pour la S2
+            if (url.includes('/season/2/videos') || url.includes('/season/3/videos')) return json({ results: [] });
             if (url.includes('/season/1/videos')) {
                 return json({ results: [{ site: 'YouTube', type: 'Trailer', name: 'Le Problème à 3 corps - Bande-annonce VF', key: 's1youtube00', iso_639_1: 'fr', official: true, published_at: '2024-03-01' }] });
             }
             if (url.includes('/videos')) {
-                return json({ results: [{ site: 'YouTube', type: 'Trailer', name: 'Le Problème à 3 corps | Bande-annonce finale VF', key: 's1global000', iso_639_1: 'fr', official: true, published_at: '2024-03-01' }] });
+                const list = [
+                    { site: 'YouTube', type: 'Trailer', name: 'Le Problème à 3 corps | Bande-annonce finale VF', key: 's1global000', iso_639_1: 'fr', official: true, published_at: '2024-03-01' },
+                ];
+                if (globalHasSeason3) {
+                    list.push({ site: 'YouTube', type: 'Trailer', name: 'Le Problème à 3 corps : Saison 3 | Bande-annonce officielle VF', key: 's3global000', iso_639_1: 'fr', official: true, published_at: '2027-03-01' });
+                }
+                return json({ results: list });
             }
             return json({ name: 'Le Problème à 3 corps', original_name: '3 Body Problem', first_air_date: '2024-03-21', networks: [{ name: 'Netflix' }] });
         },
@@ -127,18 +137,27 @@ test('Saison >= 2 absente de TMDB : interroge Stockage BD (strictSeason) avant l
             return { found: false, reason: 'aucune vidéo pour cette saison' };
         },
     });
+    stub('youtube-search', {
+        searchYoutubeTrailer: async (query, ref, opts) => {
+            ytQueries.push({ query, year: ref.year, season: opts.season });
+            if (youtubeHasSeason2Trailer && opts.season === 2) {
+                return { videoId: 's2ytfull000', title: 'Le Problème à 3 corps - Saison 2 | Bande-annonce VF', channel: 'Netflix France' };
+            }
+            return null;
+        },
+    });
     delete require.cache[lib('tmdb')];
     delete require.cache[lib('resolve-apis')];
     const { resolveViaApis: fresh } = require('../lib/resolve-apis');
 
-    // Saison 1 : utilise TMDB normalement sans interroger Stockage BD
+    // 1. Saison 1 : utilise TMDB normalement sans interroger Stockage BD
     const s1 = await fresh('series', 'tt13016388', 1, behavior(), 'KEY');
     assert.strictEqual(s1.source, 'tmdb');
     assert.strictEqual(s1.streams[0].ytId, 's1youtube00');
     assert.strictEqual(fedCalls.length, 0);
 
-    // Saison 2 : TMDB S2 est vide -> récupère le Teaser Saison 2 sur Stockage BD au lieu de la BA globale S1
-    const s2 = await fresh('series', 'tt13016388', 2, behavior(), 'KEY');
+    // 2. Saison 2 (ignoreTeasers: false) : récupère directement le Teaser Saison 2 sur Stockage BD
+    const s2 = await fresh('series', 'tt13016388', 2, behavior({ ignoreTeasers: false }), 'KEY');
     assert.strictEqual(s2.source, 'netflix_catalogue');
     assert.strictEqual(s2.platform, 'netflix');
     assert.strictEqual(fedCalls.length, 1);
@@ -147,8 +166,37 @@ test('Saison >= 2 absente de TMDB : interroge Stockage BD (strictSeason) avant l
     assert.strictEqual(s2.streams[0].url, 'https://netflix.exemple.fr/trailer/81024821/0.mp4');
     assert.strictEqual(s2.streams[0].title, 'Teaser\nLe Problème à 3 corps (Saison 2)');
 
-    // Saison 3 (pas de teaser sur Stockage BD non plus) : retombe proprement sur la BA globale TMDB
-    const s3 = await fresh('series', 'tt13016388', 3, behavior(), 'KEY');
-    assert.strictEqual(s3.source, 'tmdb');
-    assert.strictEqual(s3.streams[0].ytId, 's1global000');
+    // 3. Saison 2 avec ignoreTeasers: true (cas réel du dashboard) :
+    //    - rejette la BA globale Saison 1 (`s1global000`, qui ne mentionne pas « Saison 2 »)
+    //    - cherche une vraie BA « saison 2 » sur YouTube (sans l'année 2024 de la S1)
+    //    - comme aucune BA complète S2 n'existe encore, restitue le Teaser S2 de Stockage BD en secours !
+    const traceS2 = [];
+    const s2NoTeaser = await fresh('series', 'tt13016388', 2, behavior({ ignoreTeasers: true, includeExtras: true }), 'KEY', traceS2);
+    assert.strictEqual(s2NoTeaser.source, 'netflix_catalogue');
+    assert.strictEqual(s2NoTeaser.streams.length, 1);
+    assert.strictEqual(s2NoTeaser.streams[0].url, 'https://netflix.exemple.fr/trailer/81024821/0.mp4');
+    assert.strictEqual(s2NoTeaser.streams[0].title, 'Teaser\nLe Problème à 3 corps (Saison 2)');
+    assert.ok(ytQueries.some(q => q.query === 'Le Problème à 3 corps saison 2 bande annonce VF' && q.year === null && q.season === 2));
+    assert.strictEqual(calls.allocine, 0, 'Allociné ne doit pas être appelé sur une saison >= 2');
+    assert.ok(traceS2.some(t => t.step === 'tmdb-videos' && /saison 2 absente du titre/.test(t.detail)));
+    assert.ok(traceS2.some(t => t.step === 'teaser-secours'));
+
+    // 4. Saison 2 avec ignoreTeasers: true MAIS une vraie BA Saison 2 existe sur YouTube :
+    //    la vraie BA gagne et le teaser de secours est bien ignoré !
+    youtubeHasSeason2Trailer = true;
+    const s2WithFull = await fresh('series', 'tt13016388', 2, behavior({ ignoreTeasers: true }), 'KEY');
+    assert.strictEqual(s2WithFull.source, 'youtube_search');
+    assert.strictEqual(s2WithFull.streams.length, 1);
+    assert.strictEqual(s2WithFull.streams[0].ytId, 's2ytfull000');
+    youtubeHasSeason2Trailer = false;
+
+    // 5. Saison 3 inexistante partout : NE SERT JAMAIS la BA globale Saison 1 (`s1global000`) !
+    const s3Empty = await fresh('series', 'tt13016388', 3, behavior(), 'KEY');
+    assert.deepStrictEqual(s3Empty.streams, []);
+
+    // 6. Saison 3 présente dans les vidéos globales TMDB avec « Saison 3 » explicite dans le titre : retenue !
+    globalHasSeason3 = true;
+    const s3Global = await fresh('series', 'tt13016388', 3, behavior(), 'KEY');
+    assert.strictEqual(s3Global.source, 'tmdb');
+    assert.strictEqual(s3Global.streams[0].ytId, 's3global000');
 });
