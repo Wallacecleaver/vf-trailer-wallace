@@ -70,6 +70,33 @@
                 <div class="ts-history-label">Derniers tests de cette session</div>
                 <div class="ts-history-list" id="ts-history-list"></div>
               </div>
+
+              <div class="card" id="rt-card">
+                <div class="card-head"><div class="ts-head-icon">🎲</div><div><div class="card-title">Test aléatoire en masse</div><div class="card-desc">Tire des films / séries au hasard, lance la vraie chaîne de résolution sur chacun et compte les réussites (sans toucher au cache, aux stats ni aux logs)</div></div></div>
+                <div class="card-body">
+                  <div class="form-grid">
+                    <div class="form-field"><label>Nombre de titres</label>
+                      <select id="rt-count"><option value="25">25</option><option value="50">50</option><option value="100" selected>100</option><option value="200">200</option></select></div>
+                    <div class="form-field"><label>Type</label>
+                      <select id="rt-type"><option value="both" selected>Films + séries</option><option value="movie">Films seulement</option><option value="tv">Séries seulement</option></select></div>
+                    <div class="form-field"><label>Échantillon</label>
+                      <select id="rt-pool"><option value="popular" selected>Populaires (top 500)</option><option value="wide">Large (top 2000, cas plus difficiles)</option></select></div>
+                  </div>
+                  <div class="toggle-row" style="margin-top:6px">
+                    <div><div class="label">Ignorer les overrides</div><div class="desc">Teste la vraie chaîne automatique (TMDB → TheTVDB → AniList → YouTube → Allociné → Stockage BD) sans les mappings manuels</div></div>
+                    <label class="switch"><input type="checkbox" id="rt-ignore-override" checked><span class="slider"></span></label>
+                  </div>
+                  <div class="form-actions">
+                    <button class="btn-outline-sm" id="rt-stop" onclick="stopRandomTest()" disabled>⏹ Arrêter</button>
+                    <button class="btn-save" id="rt-start" onclick="startRandomTest()">🎲 Lancer le test</button>
+                  </div>
+                  <div id="rt-progress" class="rt-progress" hidden>
+                    <div class="rt-bar"><div class="rt-bar-fill" id="rt-bar-fill"></div></div>
+                    <div class="rt-progress-label" id="rt-progress-label"></div>
+                  </div>
+                  <div id="rt-results"></div>
+                </div>
+              </div>
             </div>
 
             <aside class="card ts-stremio-preview" aria-labelledby="ts-preview-heading">

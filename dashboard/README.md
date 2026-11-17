@@ -18,7 +18,7 @@ Le dashboard est une page unique générée par `lib/dashboard-view.js`, qui **c
 | Utilisateurs        | `pages/users.html`      | `js/03-users.js`                                                   |
 | Mapping des liens   | `pages/mapping.html`    | `js/05-mapping.js`, `js/07-mapping-form.js`, `js/09-mapping-io.js` |
 | Demandes            | `pages/requests.html`   | `js/06-requests.js`                                                |
-| Test des flux       | `pages/test-flux.html`  | `js/08-test-flux.js`                                               |
+| Test des flux       | `pages/test-flux.html`  | `js/08-test-flux.js`, `js/08b-random-run.js` (test aléatoire en masse) |
 | Maintenance de Configure | `pages/configure.html` | `js/12-configure.js`                                            |
 | AIOM (statistiques et lien partagé) | `pages/aiom.html` | `js/14-aiom.js` |
 | Réglages            | `pages/settings.html`   | `js/13-settings.js`, `js/11-services-status.js`                    |

@@ -22,6 +22,7 @@ const { searchYoutubeRaw } = require('../lib/youtube-search');
 const { probeDirectLink } = require('../lib/media-link');
 const federation = require('../lib/netflix-federation');
 const { testResolve } = require('../lib/resolver');
+const { pickRandomTitles, POOLS } = require('../lib/random-titles');
 const { buildStreamPreviewVariants } = require('../lib/stream-format');
 const { tmdbSearch, youtubeTitle } = require('./lookups');
 
@@ -386,6 +387,23 @@ module.exports = function registerDashboardRoutes(app) {
             res.json({ ...result, preview: buildStreamPreviewVariants(result.streams, result.source, result.aiom) });
         } catch (err) {
             res.status(500).json({ error: err.message });
+        }
+    });
+
+    // Test en masse : tire ~20 films ou séries au hasard (avec IMDB ID). Le dashboard rappelle cet
+    // endpoint puis teste chaque titre via /api/test-resolve — aucun cache / stat / log n'est touché.
+    app.get('/api/random-titles', requireAuth, async (req, res) => {
+        res.setHeader('Cache-Control', 'no-store');
+        const type = String(req.query.type || '');
+        const pool = String(req.query.pool || 'popular');
+        if (!['movie', 'tv'].includes(type)) return res.status(400).json({ error: 'type invalide (movie ou tv)' });
+        if (!POOLS[pool]) return res.status(400).json({ error: 'pool invalide' });
+        if (!FALLBACK_TMDB_KEY) return res.status(503).json({ error: "Clé TMDB de secours non configurée côté serveur (TMDB_API_KEY)" });
+        try {
+            res.json({ titles: await pickRandomTitles({ type, pool, tmdbKey: FALLBACK_TMDB_KEY, count: 20 }) });
+        } catch (err) {
+            console.error('Erreur tirage aléatoire TMDB:', err.message);
+            res.status(502).json({ error: 'Erreur réseau côté serveur, réessaie.' });
         }
     });
 
