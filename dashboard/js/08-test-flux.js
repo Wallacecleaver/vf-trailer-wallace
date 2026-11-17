@@ -19,6 +19,76 @@
   };
   let tsLast = null; // dernier résultat de test : { imdbId, season, type, streams }
 
+  let tsPreviewData = null;
+  let tsSelectedMedia = null;
+  let tsTestSeq = 0;
+
+  function updateTsPreviewMedia(context, officialTitle) {
+    const box = document.getElementById('ts-preview-media');
+    const poster = document.getElementById('ts-preview-poster');
+    const fallback = document.getElementById('ts-preview-poster-fallback');
+    box.hidden = !context;
+    if (!context) {
+      document.getElementById('ts-preview-type').textContent = 'Film / Série';
+      poster.hidden = true;
+      poster.removeAttribute('src');
+      return;
+    }
+    const type = context.type === 'series' ? 'Série' : 'Film';
+    const media = context.media || {};
+    document.getElementById('ts-preview-type').textContent = type;
+    document.getElementById('ts-preview-media-title').textContent = officialTitle || media.title || context.imdbId;
+    document.getElementById('ts-preview-media-meta').textContent = [
+      type, media.year, context.type === 'series' && context.season ? 'Saison ' + context.season : null, context.imdbId,
+    ].filter(Boolean).join(' · ');
+    const posterUrl = typeof media.poster === 'string' && /^https:\/\/image\.tmdb\.org\/t\/p\/[a-zA-Z0-9_/.-]+$/.test(media.poster) ? media.poster : '';
+    poster.hidden = !posterUrl;
+    fallback.hidden = !!posterUrl;
+    fallback.textContent = context.type === 'series' ? '📺' : '🎬';
+    if (posterUrl) poster.src = posterUrl;
+    else poster.removeAttribute('src');
+  }
+
+  function showTsPreviewMessage(message, loading = false) {
+    const list = document.getElementById('ts-preview-list');
+    list.setAttribute('aria-busy', String(loading));
+    list.innerHTML = '<div class="ts-preview-state' + (loading ? ' is-loading' : '') + '">' + escapeHtml(message) + '</div>';
+    document.getElementById('ts-preview-display').disabled = true;
+    document.getElementById('ts-preview-note').textContent = '';
+  }
+
+  function renderTsStremioPreview() {
+    if (!tsPreviewData) {
+      updateTsPreviewMedia(null);
+      showTsPreviewMessage('Lance un test pour voir les liens tels qu’ils apparaissent dans Stremio.');
+      return;
+    }
+    const data = tsPreviewData.data;
+    updateTsPreviewMedia(tsPreviewData.context, data.officialTitle);
+    if (data.error) { showTsPreviewMessage(data.error); return; }
+    if (!data.streams || !data.streams.length) {
+      showTsPreviewMessage(data.hidden ? 'Ce titre est masqué par un override.' : 'Aucun lien trouvé pour ce test.');
+      if (data.aiom) document.getElementById('ts-preview-note').textContent = 'AIOMetadata conserverait la bande-annonce de son fournisseur.';
+      return;
+    }
+    const select = document.getElementById('ts-preview-display');
+    select.disabled = !!data.aiom || !data.preview;
+    if (select.disabled) select.value = 'default';
+    const mode = ['default', 'compact', 'detailed'].includes(select.value) ? select.value : 'default';
+    const streams = data.preview && data.preview[mode] || data.streams;
+    const list = document.getElementById('ts-preview-list');
+    list.setAttribute('aria-busy', 'false');
+    list.innerHTML = streams.map((stream, i) =>
+      '<button type="button" class="ts-preview-row" onclick="playStream(' + i + ')" aria-label="Lire le lien ' + (i + 1) + '">' +
+      '<span class="ts-preview-name">' + escapeHtml(stream.name || '🎬 VF') + '</span>' +
+      '<span class="ts-preview-title">' + escapeHtml(stream.title || '') + '</span>' +
+      '</button>'
+    ).join('');
+    document.getElementById('ts-preview-note').textContent = (data.aiom ? 'Vue AIOMetadata · ' : '') +
+      streams.length + ' lien' + (streams.length > 1 ? 's' : '') + ' · Clique sur un lien pour le lire dans le testeur.';
+  }
+
+
   // ---- Saison masquée automatiquement en mode Film ----
   function setTsType(value) {
     document.getElementById('ts-type').value = value;
@@ -66,6 +136,16 @@
   }
 
   function resetTsForm() {
+    ++tsTestSeq;
+    ++testTmdbSearchSeq;
+    clearTimeout(testTmdbSearchTimer);
+    tsLast = null;
+    tsSelectedMedia = null;
+    tsPreviewData = null;
+    document.getElementById('ts-btn').disabled = false;
+    document.getElementById('ts-btn').textContent = '🔬 Tester';
+    document.getElementById('test-tmdb-results').classList.remove('show');
+    renderTsStremioPreview();
     document.getElementById('test-tmdb-search').value = '';
     document.getElementById('ts-imdb').value = '';
     document.getElementById('ts-season').value = '';
@@ -125,9 +205,15 @@
 
     if (!/^tt\d{6,9}$/.test(imdbId)) { toast('❌ IMDB ID invalide (doit ressembler à tt15239678)'); return; }
 
+    const request = ++tsTestSeq;
+    const media = tsSelectedMedia && tsSelectedMedia.imdbId === imdbId && tsSelectedMedia.type === type ? tsSelectedMedia : null;
+    const context = { imdbId, type, season: season || null, media };
     const out = document.getElementById('ts-result');
+    tsLast = null;
+    tsPreviewData = null;
+    updateTsPreviewMedia(context);
+    showTsPreviewMessage('Recherche des bandes-annonces…', true);
     btn.disabled = true;
-    const originalText = btn.textContent;
     btn.textContent = '...';
     out.innerHTML = '<div class="ts-loading"><div class="ts-eq"><span></span><span></span><span></span><span></span><span></span></div><div class="lbl">résolution en cours…</div></div>';
 
@@ -136,17 +222,24 @@
         method: 'POST', headers: authHeaders({ 'Content-Type': 'application/json' }),
         body: JSON.stringify({ type, imdbId, season: season || null, ignoreOverride, aiom }),
       });
+      if (request !== tsTestSeq) return;
       if (!res.ok) {
         if (res.status !== 401) out.innerHTML = '<div class="info-box">❌ Le serveur est temporairement indisponible. Réessaie.</div>';
+        showTsPreviewMessage('Le test est indisponible pour le moment. Réessaie.');
         return;
       }
       const data = await res.json();
-      renderStreamTestResult(data, imdbId, season || null, type);
+      if (request !== tsTestSeq) return;
+      renderStreamTestResult(data, imdbId, season || null, type, context);
     } catch (e) {
+      if (request !== tsTestSeq) return;
       out.innerHTML = '<div class="info-box" style="color:var(--accent)">❌ Erreur réseau : ' + escapeHtml(e.message) + '</div>';
+      showTsPreviewMessage('Impossible de charger les liens. Réessaie.');
     } finally {
-      btn.disabled = false;
-      btn.textContent = originalText;
+      if (request === tsTestSeq) {
+        btn.disabled = false;
+        btn.textContent = '🔬 Tester';
+      }
     }
   }
 
@@ -164,9 +257,11 @@
     return '<div class="trace-box"><div class="trace-title">🔍 Trace de résolution</div>' + rows + '</div>';
   }
 
-  function renderStreamTestResult(data, imdbId, season, type) {
+  function renderStreamTestResult(data, imdbId, season, type, context) {
     const out = document.getElementById('ts-result');
     tsLast = { imdbId, season, type, streams: data.streams || [] };
+    tsPreviewData = { data, context: context || { imdbId, season, type } };
+    renderTsStremioPreview();
     const titleForHistory = document.getElementById('test-tmdb-search').value.trim() || imdbId;
     const srcLabel = data.source ? (SOURCE_LABELS[data.source] || data.source) : '—';
 
@@ -288,6 +383,7 @@
   }
 
   function onTestTmdbSearchInput() {
+    ++testTmdbSearchSeq;
     const q = document.getElementById('test-tmdb-search').value.trim();
     const box = document.getElementById('test-tmdb-results');
     clearTimeout(testTmdbSearchTimer);
@@ -319,6 +415,7 @@
   }
 
   async function pickTestTmdbResult(i) {
+    const selection = ++testTmdbSearchSeq;
     const r = (window._testTmdbLastResults || [])[i];
     if (!r) return;
     const box = document.getElementById('test-tmdb-results');
@@ -326,9 +423,11 @@
     try {
       const res = await authFetch('/api/tmdb-resolve?id=' + r.tmdbId + '&type=' + r.mediaType, { headers: authHeaders() });
       const data = await res.json();
+      if (selection !== testTmdbSearchSeq) return;
       if (!res.ok || !data.imdbId) { toast('❌ IMDB ID introuvable pour ce titre'); box.classList.remove('show'); return; }
       document.getElementById('ts-imdb').value = data.imdbId;
       document.getElementById('ts-type').value = r.mediaType === 'tv' ? 'series' : 'movie';
+      tsSelectedMedia = { imdbId: data.imdbId, type: r.mediaType === 'tv' ? 'series' : 'movie', title: r.title, year: r.year, poster: r.poster };
       onTsTypeChange();
       document.getElementById('test-tmdb-search').value = r.title + (r.year ? ' (' + r.year + ')' : '');
       box.classList.remove('show');

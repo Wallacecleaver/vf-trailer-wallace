@@ -22,6 +22,7 @@ const { searchYoutubeRaw } = require('../lib/youtube-search');
 const { probeDirectLink } = require('../lib/media-link');
 const federation = require('../lib/netflix-federation');
 const { testResolve } = require('../lib/resolver');
+const { buildStreamPreviewVariants } = require('../lib/stream-format');
 const { tmdbSearch, youtubeTitle } = require('./lookups');
 
 module.exports = function registerDashboardRoutes(app) {
@@ -381,7 +382,7 @@ module.exports = function registerDashboardRoutes(app) {
             const { type, imdbId, season, ignoreOverride, aiom } = req.body || {};
             if (!imdbId || !type) return res.status(400).json({ error: 'imdbId et type requis' });
             const result = await testResolve(type, imdbId.trim(), season ? String(season).trim() : null, ignoreOverride === true, aiom === true);
-            res.json(result);
+            res.json({ ...result, preview: buildStreamPreviewVariants(result.streams, result.source, result.aiom) });
         } catch (err) {
             res.status(500).json({ error: err.message });
         }
