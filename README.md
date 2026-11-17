@@ -1,44 +1,73 @@
 # Bandes-Annonces VF — addon Stremio
 
-Addon [Stremio](https://www.stremio.com/) qui affiche la **bande-annonce officielle française** (et le teaser quand il existe) de n'importe quel film ou série, directement dans la fiche du titre.
+Addon [Stremio](https://www.stremio.com/) qui affiche la **bande-annonce officielle française** (et le teaser quand il existe) de n'importe quel film ou série, directement dans la fiche du titre. Il s'auto-héberge en un seul conteneur Docker (VPS, Raspberry Pi, NAS…), avec une base SQLite intégrée : aucun compte externe requis.
 
-- **Sources** : TMDB en premier, puis **TheTVDB** pour les séries/saisons, **AniList** pour identifier les animés, recherche YouTube VF, Allociné et instance **Stockage BD** en dernier recours. Les trailers AniList ne sont retenus que si YouTube confirme explicitement VF/VOSTFR ; sinon la recherche YouTube VF prend le relais. L'API publique Jikan a été arrêtée le 1er octobre 2026 et n'est plus utilisée.
-- **Stremio** : teaser (si dispo) puis bande-annonce. Compatible avec l'option « A trailer addon » d'**AIOMetadata** (mode `aiom` : un seul lien `ytId`/`url`, avec délai maximum réglable).
-- **Dashboard d'administration** : stats, utilisateurs, mapping manuel des liens, journal des échecs, test des flux, logs, réglages, cache…
-- **Pages publiques** : configuration de l'addon (`/`), proposition de liens par la communauté (`/proposer`).
+## Sommaire
 
-Tout tourne sur ton serveur (VPS, Raspberry Pi, NAS…), avec Docker.
+1. [Fonctionnalités](#fonctionnalités)
+2. [Comment une bande-annonce est choisie](#comment-une-bande-annonce-est-choisie)
+3. [Installation](#installation)
+4. [Configuration](#configuration)
+5. [Dashboard d'administration](#dashboard-dadministration)
+6. [AIOMetadata](#aiometadata)
+7. [Stockage BD (optionnel)](#stockage-bd-optionnel)
+8. [Exploitation](#exploitation)
+9. [Développement](#développement)
+10. [Sources de données](#sources-de-données)
 
 ---
 
-## Lien AIOMetadata partagé
+## Fonctionnalités
 
-Partage `https://ton-domaine/aiom/manifest.json` comme **A trailer addon** dans
-**AIOMetadata → Meta Providers → Trailers**. Le dashboard propose ce lien dans **AIOM → AIOM**.
+- **VF stricte** : seules les vidéos reconnues comme françaises sont proposées (langue TMDB + nom de la vidéo, voir plus bas).
+- **Plusieurs sources en cascade** : TMDB, TheTVDB, AniList (animés), recherche YouTube VF, Allociné, puis une instance Stockage BD.
+- **Teaser puis bande-annonce** dans Stremio, avec options d'extras, de teasers et de nombre de liens.
+- **Mode AIOMetadata** : un seul lien (`ytId` ou `url`), avec un manifest partagé et un délai maximum réglable.
+- **Dashboard d'administration** : statistiques, utilisateurs, mapping manuel des liens, demandes de la communauté, test des flux, **test aléatoire en masse**, logs, réglages, cache.
+- **Pages publiques** : configuration de l'addon (`/configure`) et proposition de liens par la communauté (`/proposer`).
+- **Léger** : un seul processus Node, SQLite intégré, aucune tâche de fond.
 
-Ce fournisseur utilise la clé **`TMDB_API_KEY` du serveur**, définie dans WDock ou dans `.env`.
-La clé n’est ni dans le lien ni dans le manifest. Sans clé serveur, les streams répondent
-`{ "streams": [] }` pour laisser AIOMetadata utiliser son propre trailer.
+## Comment une bande-annonce est choisie
 
-Le manifest ne déclare que la ressource `stream`, pour les films et séries. Une seule
-bande-annonce YouTube ou vidéo directe est renvoyée, sans lien externe ni bouton Proposer.
-Le délai est réglable dans **Réglages → AIOMetadata** (1 à 12 s, 5 par défaut) et s’applique
-aussi aux anciens liens AIOMMetadata. La recherche continue en arrière-plan après un timeout.
-Les manifests classiques et les anciens liens avec configuration conservent leur comportement.
+Pour chaque titre demandé, l'addon applique cette chaîne et s'arrête à la première source qui donne un résultat :
 
-## 🏠 Installation (Docker)
+1. **Override manuel** (mapping créé dans le dashboard), puis cache.
+2. **TMDB** : vidéos du titre (ou de la saison pour une série).
+3. **TheTVDB** : séries, saisons et films (si une clé est configurée).
+4. **AniList** : identification des animés. Leurs trailers ne sont retenus que si YouTube confirme VF/VOSTFR.
+5. **Recherche YouTube VF** (désactivable).
+6. **Allociné** (désactivable).
+7. **Stockage BD** (si une URL est configurée).
 
-Tout tourne chez toi : l'addon et sa base SQLite (un simple fichier), dans un seul conteneur. Aucun compte externe requis.
+Le fournisseur Jikan n'est plus utilisé (l'API publique a été arrêtée le 1er octobre 2026).
+
+### Filtre VF des vidéos TMDB
+
+Chaque vidéo TMDB est jugée en croisant sa **langue** (`iso_639_1`) et son **nom** (`lib/tmdb-video-match.js`) :
+
+| Règle | Effet |
+|---|---|
+| Signal de langue requis | La vidéo doit être taguée `fr` par TMDB **ou** contenir « VF », « VFF », « VFQ », « français », « doublage »… dans son nom. |
+| Rejets immédiats | Nom avec VOST, sous-titres, une autre langue, ou un mot de réaction / critique / film complet ; mots-clés « pas VF » ajoutés dans les réglages. |
+| Nom générique (« Bande-annonce officielle ») | Pas de comparaison de titre : TMDB a déjà rattaché la vidéo au bon film. |
+| Nom avec un vrai titre (« Prada 2 - Bande-annonce ») | Le titre doit correspondre au film (anti-suite et anti-hors-sujet). |
+
+Les mots-clés sont cherchés comme **mots entiers** (`lib/video-filters.js`) : « Substance » ne déclenche pas « sub », « Davis » ne déclenche pas « avis ».
+
+---
+
+## Installation
 
 ### Prérequis
 
-- Un serveur / VPS / Raspberry Pi 64 bits avec [Docker](https://docs.docker.com/engine/install/) et le plugin Compose (`docker compose version`).
-- Une clé API TMDB gratuite : <https://www.themoviedb.org/settings/api>. TheTVDB est facultatif : l'administrateur peut configurer une clé de projet côté serveur, ou chaque utilisateur peut renseigner la sienne sur `/configure`.
-- Pour installer l'addon dans Stremio **depuis un autre appareil**, un nom de domaine en HTTPS servi par ton reverse proxy (Stremio refuse les addons HTTP distants).
+- Un serveur 64 bits avec [Docker](https://docs.docker.com/engine/install/) et le plugin Compose (`docker compose version`).
+- Une clé API TMDB gratuite : <https://www.themoviedb.org/settings/api>.
+- TheTVDB est facultatif : une clé de projet côté serveur, ou une clé personnelle par utilisateur dans `/configure`.
+- Pour installer l'addon dans Stremio **depuis un autre appareil** : un nom de domaine en HTTPS servi par ton reverse proxy (Stremio refuse les addons HTTP distants).
 
-### Installation (100 % Docker, rien à cloner ni à télécharger)
+### Installation rapide (100 % Docker)
 
-Tout est dans l'image Docker, **installeur compris**. Dans un dossier vide :
+Tout est dans l'image Docker, installeur compris. Dans un dossier vide :
 
 ```bash
 mkdir vf-trailers && cd vf-trailers
@@ -46,27 +75,23 @@ docker run --rm -it --user "$(id -u):$(id -g)" -v "$PWD":/data <IMAGE> install
 docker compose up -d
 ```
 
-`<IMAGE>` est le nom de l'image publiée (par exemple `monnom/vf-trailers:latest`). La première commande lance l'installeur, qui pose quelques questions puis écrit `docker-compose.yml` et `.env` dans le dossier ; la seconde démarre l'addon.
+`<IMAGE>` est le nom de l'image publiée (par exemple `monnom/vf-trailers:latest`). L'installeur pose quelques questions puis écrit `docker-compose.yml` et `.env` :
 
-L'installeur demande :
+1. **Nom de domaine** (facultatif), pour écrire l'adresse publique (`APP_BASE_URL`).
+2. **Clé TMDB** (facultatif).
+3. **Mot de passe du dashboard** : longueur libre, saisi masqué et confirmé, ou Entrée pour en générer un.
+4. **Port d'écoute** (`3000` par défaut) et, sans domaine, l'adresse du serveur (`localhost` par défaut).
 
-1. **Ton nom de domaine** (facultatif), si ton reverse proxy HTTPS le sert déjà. Il sert à écrire l'adresse publique de l'addon (`APP_BASE_URL`).
-2. **Ta clé TMDB** (facultatif).
-3. **Ton mot de passe du dashboard** : tu le choisis (longueur libre, saisi masqué et confirmé), ou Entrée pour en générer un.
-4. **Le port d'écoute** (`3000` par défaut) et, sans domaine, l'adresse du serveur (`localhost` par défaut).
-
-Si un `.env` existe déjà, l'installeur n'y touche pas (supprime-le pour refaire la configuration).
-
-Installation sans question (scripts) : passe les réponses en variables, `-e DOMAIN=... -e TMDB_API_KEY=... -e DASHBOARD_PASSWORD='...'` après `docker run`.
+Si un `.env` existe déjà, l'installeur n'y touche pas. Pour un usage sans question (scripts), passe les réponses en variables : `-e DOMAIN=... -e TMDB_API_KEY=... -e DASHBOARD_PASSWORD='...'`.
 
 <details>
 <summary>Installation à la main (sans l'installeur)</summary>
 
-Écris toi-même un `docker-compose.yml` à partir de `selfhost/deploy/compose.template.yml` (remplace `__IMAGE__` par le nom de l'image) et un `.env` d'après `.env.example`, puis `docker compose up -d`.
+Écris un `docker-compose.yml` à partir de `selfhost/deploy/compose.template.yml` (remplace `__IMAGE__` par le nom de l'image) et un `.env` d'après `.env.example`, puis `docker compose up -d`.
 </details>
 
 <details>
-<summary>Construire l'image toi-même (développement)</summary>
+<summary>Construire l'image toi-même</summary>
 
 ```bash
 docker build -t vf-trailers:local .
@@ -76,92 +101,157 @@ docker compose up -d
 ```
 </details>
 
-L'addon répond alors sur `http://IP_DU_SERVEUR:3000` :
+### Déploiement depuis le dépôt (WDock, VPS, `git pull`)
 
-| Adresse | Rôle |
-|---|---|
-| `/` | Page de configuration (chaque utilisateur renseigne sa clé TMDB et, facultativement, sa clé API TheTVDB) |
-| `/dashboard` | Dashboard admin (mot de passe = `DASHBOARD_PASSWORD`) |
-| `/proposer` | Proposition de liens par la communauté |
+- **WDock** : crée le projet depuis le repo GitHub (port `3000`), ajoute `DASHBOARD_PASSWORD`, `APP_BASE_URL` (avec `https://`) et `TMDB_API_KEY`, et monte un volume persistant sur `/data`.
+- **VPS en direct** : `cp .env.example .env`, remplis-le, puis `docker compose up -d --build`. Mise à jour : `git pull && docker compose up -d --build` (le volume `data` n'est jamais touché).
+
+> **`/data` doit être un volume persistant.** La base SQLite (`/data/addon.sqlite`) contient réglages, mapping, stats et logs.
+
+### Sans Docker
+
+Node.js 22.13 ou plus récent (SQLite est intégré) :
+
+```bash
+npm install
+export DATA_DIR=./data
+export DASHBOARD_PASSWORD=...
+export APP_BASE_URL=http://localhost:3000
+export TMDB_API_KEY=...
+npm start          # = node selfhost/server.js ; crée la base et les tables au premier lancement
+```
+
+Pour le garder en service : `systemd` ou `pm2 start selfhost/server.js --name vf-trailers`.
 
 ### HTTPS
 
-L'addon écoute en HTTP sur le port choisi (`3000` par défaut) : mets-y ton reverse proxy habituel (Nginx, Traefik, Nginx Proxy Manager, Caddy…) pour le HTTPS. Si le proxy tourne sur la même machine, ajoute `BIND_ADDRESS=127.0.0.1` dans le `.env` pour ne pas exposer le port directement.
-
-### Déploiement WDock / « git pull » sur VPS
-
-L'addon utilise une **base SQLite** (module `node:sqlite` intégré à Node, aucune dépendance) stockée dans `/data/addon.sqlite` : un seul conteneur, rien d'autre à installer. Tout ce que tu sauvegardes dans le dashboard (réglages, page de config, mapping, stats, logs) est écrit dans ce fichier.
-
-Pour que ça survive aux redéploiements, **`/data` doit être un volume persistant** :
-
-- **WDock** : crée le projet depuis le repo GitHub (port `3000`), ajoute les variables `DASHBOARD_PASSWORD`, `APP_BASE_URL` (l'adresse publique, avec `https://`) et `TMDB_API_KEY`, et monte un volume persistant sur `/data` si WDock le permet.
-- **VPS en direct** : `cp .env.example .env`, remplis-le, puis `docker compose up -d --build`. Mise à jour : `git pull && docker compose up -d --build` (le volume `data` n'est jamais touché).
-
-Sauvegarde : copie le fichier `addon.sqlite` du volume `data` (voir « Maintenance » ci-dessous).
+L'addon écoute en HTTP. Mets devant lui ton reverse proxy habituel (Nginx, Traefik, Nginx Proxy Manager, Caddy…). Si le proxy tourne sur la même machine, garde `BIND_ADDRESS=127.0.0.1` pour ne pas exposer le port directement.
 
 ### Installer dans Stremio
 
-Ouvre `APP_BASE_URL` dans ton navigateur, renseigne ta clé TMDB, puis clique sur **Installer dans Stremio** (ou copie le lien).
+Ouvre `APP_BASE_URL` dans ton navigateur (page `/configure`), renseigne ta clé TMDB, puis clique sur **Installer dans Stremio** (ou copie le lien).
+
+| Adresse | Rôle |
+|---|---|
+| `/configure` (et `/`) | Configuration de l'addon par chaque utilisateur |
+| `/dashboard` | Dashboard admin (mot de passe = `DASHBOARD_PASSWORD`) |
+| `/proposer` | Proposition de liens par la communauté |
+
+---
+
+## Configuration
 
 ### Variables d'environnement
 
 | Variable | Obligatoire | Description |
 |---|:--:|---|
-| `DASHBOARD_PASSWORD` | ✅ | Mot de passe du dashboard, **longueur libre et non vide**. La connexion est refusée si le mot de passe est absent ou vide. |
-| `TOKEN_SECRET` | non | Secret de signature des sessions, indépendant du mot de passe. Si absent, une clé aléatoire est créée dans `DATA_DIR/dashboard-session-secret` et conservée entre les redémarrages. Une valeur explicitement configurée garde la priorité. |
+| `DASHBOARD_PASSWORD` | ✅ | Mot de passe du dashboard (longueur libre, non vide). La connexion est refusée s'il est absent. |
 | `APP_BASE_URL` | ✅ | URL publique de l'addon, sans slash final (logo, liens `/proposer`…). |
-| `TMDB_API_KEY` | conseillé | Clé TMDB du testeur admin et du lien AIOMetadata partagé. |
-| `TVDB_API_KEY` | non | Clé API TheTVDB v4 partagée par défaut ; une clé personnelle sans PIN peut la remplacer dans `/configure`. |
-| `BIND_ADDRESS` | non | `127.0.0.1` pour ne pas exposer le port 3000 sur Internet (défaut `127.0.0.1`). |
-| `HOST_PORT` | non | Port exposé sur la machine (défaut `3000`). |
-| `DATA_DIR` | non | Dossier de la base SQLite (`addon.sqlite`) (défaut `/data` dans l'image : à monter en volume). |
-| `TRUST_PROXY` | non | Nombre de reverse proxies de confiance devant l'addon (`0` par défaut : `X-Forwarded-For` est ignoré). Mets `1` uniquement derrière un reverse proxy de confiance, sinon le verrouillage anti brute-force est contournable. L'installeur le règle automatiquement. |
+| `TMDB_API_KEY` | conseillé | Clé TMDB du testeur admin, du test aléatoire et du lien AIOMetadata partagé. |
+| `TVDB_API_KEY` | non | Clé de projet TheTVDB v4 partagée par défaut ; une clé personnelle sans PIN peut la remplacer dans `/configure`. |
+| `TOKEN_SECRET` | non | Secret de signature des sessions. Absent : une clé aléatoire est créée dans `DATA_DIR/dashboard-session-secret` et conservée. |
 | `SESSION_VERSION` | non | Changer cette valeur révoque immédiatement toutes les sessions du dashboard. |
-| `ALLOW_PRIVATE_UPSTREAM` | non | `1` pour autoriser une instance « Stockage BD » sur une adresse privée (réseau Docker). Désactivé par défaut (anti-SSRF). |
-| `DASHBOARD_NO_CACHE` | non | `1` pour désactiver le cache de rendu du dashboard pendant que tu le modifies. |
+| `BIND_ADDRESS` | non | `127.0.0.1` (défaut) pour ne pas exposer le port sur Internet. |
+| `HOST_PORT` | non | Port exposé sur la machine (défaut `3000`). |
+| `DATA_DIR` | non | Dossier de la base SQLite (défaut `/data` dans l'image : à monter en volume). |
+| `TRUST_PROXY` | non | Nombre de reverse proxies de confiance (`0` par défaut). À `1` seulement derrière un proxy de confiance, sinon l'anti brute-force est contournable. L'installeur le règle seul. |
+| `ALLOW_PRIVATE_UPSTREAM` | non | `1` pour autoriser une instance Stockage BD sur une adresse privée (réseau Docker). Désactivé par défaut (anti-SSRF). |
+| `NETFLIX_CATALOGUE_URL` / `NETFLIX_CATALOGUE_KEY` | non | Instance Stockage BD (voir plus bas). Réglable aussi dans le dashboard. |
+| `DASHBOARD_NO_CACHE` | non | `1` pour relire le dashboard à chaque requête pendant que tu le modifies. |
 
-Les sessions du dashboard durent huit heures et sont renouvelées pendant l'utilisation, avant leur expiration. Une erreur réseau ou une indisponibilité du serveur ne déconnecte pas l'utilisateur. Conserve le volume `DATA_DIR` lors des mises à jour : il contient aussi la clé de session si `TOKEN_SECRET` n'est pas défini. Changer `SESSION_VERSION` ou la clé de signature révoque les sessions. Après la première mise à jour depuis l'ancien secret aléatoire non persistant, une reconnexion peut être nécessaire.
+Les sessions du dashboard durent huit heures et sont renouvelées pendant l'utilisation ; une panne réseau ne déconnecte pas l'utilisateur. Conserve le volume `DATA_DIR` lors des mises à jour : il contient aussi la clé de session si `TOKEN_SECRET` n'est pas défini.
 
-> **Note sécurité — identifiants dans le lien d'installation.** La configuration utilisateur (clé TMDB, et éventuellement clé API TheTVDB) est encodée en base64 dans l'URL `/<config>/manifest.json`. Le base64 n'est pas du chiffrement : ne partage pas ce lien publiquement, et sache qu'il peut apparaître dans l'historique du navigateur ou les journaux d'un proxy. L'en-tête `Referrer-Policy: no-referrer` limite les fuites par référent. La clé TheTVDB n'est pas mémorisée dans le stockage local du navigateur.
+> **Sécurité — identifiants dans le lien d'installation.** La configuration utilisateur (clé TMDB, éventuellement clé TheTVDB) est encodée en base64 dans l'URL `/<config>/manifest.json`. Le base64 n'est pas du chiffrement : ne partage pas ce lien publiquement. Il peut apparaître dans l'historique du navigateur ou les journaux d'un proxy.
 
-### Ressources utilisées (très légères)
+### Réglages du dashboard
 
-Mesures faites avant le passage à SQLite (la base n'est plus un processus séparé, à re-mesurer) :
+Dashboard → **Réglages** : interrupteur YouTube, repli Allociné, repli recherche YouTube, nombre de bandes-annonces, teasers, extras, langue (`fr-first` par défaut, ou `fr-only` pour ne demander que les vidéos françaises), mots-clés « pas VF », durée du cache, délai AIOMetadata.
 
-| | Au repos | Sous charge (≈ 110 requêtes/s, écritures en base) |
-|---|---|---|
-| **Addon (Node.js)** | ≈ 85 Mo de RAM, ≈ 0,7 % d'un cœur | ≈ 110 Mo de RAM |
+Quand l'interrupteur **YouTube** est coupé, les vidéos YouTube de TMDB et la recherche YouTube sont ignorées : la chaîne devient Allociné → Stockage BD (liens directs). Les overrides avec un ID YouTube restent appliqués.
 
-Un usage Stremio normal est de l'ordre de quelques requêtes par minute : le CPU reste quasi à zéro. Ce qui est déjà en place pour que ça reste ainsi :
+---
 
-- SQLite tourne dans le processus de l'addon (pas de second conteneur) : cache de 2 Mo, journal WAL borné à 4 Mo.
-- Plafonds Docker : **256 Mo** et **0,5 cœur** pour l'addon. Tourne sans souci sur un Raspberry Pi ou le plus petit VPS.
-- Mémoire Node plafonnée (`--max-old-space-size`, voir `Dockerfile`).
-- Les journaux Docker sont limités à 3 × 10 Mo (le disque ne se remplit pas).
-- Les journaux de l'appli (500 lignes), les échecs (50 titres) et les résolutions (1 h) sont bornés ; les entrées de cache expirées sont purgées toutes les 6 h.
-- Aucun processus en tâche de fond : l'addon ne fait rien tant que personne ne lui demande une bande-annonce.
+## Dashboard d'administration
 
-Si tu veux changer les plafonds, modifie `mem_limit` et `cpus` dans `docker-compose.yml`.
+Accessible sur `/dashboard`. Chaque page a son HTML et son JS (voir [`dashboard/README.md`](dashboard/README.md)).
+
+| Page | Rôle |
+|---|---|
+| Vue d'ensemble | Statistiques de requêtes, état des services, cache |
+| Utilisateurs | Installations et activité |
+| Page Configure | Maintenance de la page de configuration |
+| Logs | Journal de l'application (500 lignes) |
+| Mapping des liens | Overrides manuels, journal des échecs et des résolutions |
+| Demandes | Propositions de la communauté à accepter ou refuser |
+| **Test des flux** | Test d'un titre, et **test aléatoire en masse** |
+| Réglages | Comportement de la résolution, diagnostics |
+| AIOM | Lien partagé AIOMetadata et statistiques |
+
+### Test des flux
+
+Simule la résolution d'un film ou d'une série avec les réglages actuels et affiche la **trace** étape par étape (TMDB, filtre des vidéos, repli…), l'aperçu tel qu'il apparaît dans Stremio, et permet de créer un override en un clic. Un test ne touche ni au cache, ni aux stats, ni aux logs.
+
+### Test aléatoire en masse
+
+Carte « 🎲 Test aléatoire en masse », en bas de **Test des flux**. Elle tire au hasard 25, 50, 100 ou 200 films et/ou séries sur TMDB, passe chacun dans la vraie chaîne de résolution (4 en parallèle) et affiche :
+
+- le pourcentage de bandes-annonces trouvées, les titres sans résultat, les erreurs, le temps moyen ;
+- la réussite par type (films / séries) et la répartition par source ;
+- la liste des titres sans bande-annonce, avec la raison et un bouton pour les rouvrir dans le testeur ;
+- la liste des titres où **TMDB avait une vidéo mais où le filtre VF l'a rejetée** (utile pour régler le filtre) ;
+- un export JSON.
+
+Options : type (films, séries ou les deux), échantillon (« populaires » : top 500 ; « large » : top 2000), et « ignorer les overrides » pour tester la chaîne automatique seule. Nécessite `TMDB_API_KEY` côté serveur.
+
+---
+
+## AIOMetadata
+
+Partage `https://ton-domaine/aiom/manifest.json` comme **A trailer addon** dans **AIOMetadata → Meta Providers → Trailers**. Le dashboard propose ce lien dans **AIOM**.
+
+- Il utilise la clé **`TMDB_API_KEY` du serveur** : aucune clé dans le lien ni dans le manifest. Sans clé serveur, les streams répondent `{ "streams": [] }` et AIOMetadata garde son propre trailer.
+- Le manifest ne déclare que la ressource `stream`, pour les films et séries. Une seule bande-annonce (YouTube ou vidéo directe) est renvoyée, sans lien externe ni bouton Proposer.
+- Le délai maximum est réglable dans **Réglages → AIOMetadata** (1 à 12 s, 5 par défaut). La recherche continue en arrière-plan après un timeout.
+- Les manifests classiques et les anciens liens avec configuration gardent leur comportement.
+
+---
+
+## Stockage BD (optionnel)
+
+Si tu fais tourner une instance de l'addon **Stockage BD**, l'addon peut lui demander ses bandes-annonces par API : colle son URL (et sa clé si elle en a une) dans **Réglages → API Stockage BD**, ou dans le `.env` :
+
+```env
+NETFLIX_CATALOGUE_URL=https://netflix.mondomaine.fr
+NETFLIX_CATALOGUE_KEY=la-cle-generee-sur-l-instance
+```
+
+- La clé se génère sur l'instance amont : **Paramètres → API de fédération → Générer une clé**. Elle est envoyée en en-tête `x-api-key`. Laisse-la vide si l'instance amont a `API_KEY` vide.
+- Les noms techniques des variables et réglages gardent « netflix » pour rester compatibles avec les installations existantes.
+- La source est aussi interrogée quand TMDB ne connaît pas du tout le titre. Les URLs renvoyées sont des vidéos directes (relais `/trailer/...`).
+- Un résultat est gardé 6 h en mémoire ; un échec est retenté au bout de 30 min.
+- Le bouton **Tester** et le diagnostic de la page Réglages vérifient la connexion (`GET /api/status`).
+
+---
+
+## Exploitation
 
 ### Maintenance
 
 ```bash
-# Mettre à jour (télécharge la dernière image publiée)
-docker compose pull
-docker compose up -d
+docker compose pull && docker compose up -d     # mettre à jour (image publiée)
+docker compose logs -f app                      # logs
+docker compose restart app                      # redémarrer
+docker compose down                             # arrêter (les données sont conservées)
+```
 
-# Voir les logs
-docker compose logs -f app
+### Sauvegarde et restauration
 
-# Redémarrer / arrêter
-docker compose restart app
-docker compose down                 # les données sont conservées (volume data)
-
-# Sauvegarder la base (copie cohérente, même pendant que l'addon tourne)
+```bash
+# Sauvegarde cohérente, même pendant que l'addon tourne
 docker compose exec app node -e "const {DatabaseSync}=require('node:sqlite');new DatabaseSync('/data/addon.sqlite').exec(\"VACUUM INTO '/data/sauvegarde.sqlite'\")"
 docker compose cp app:/data/sauvegarde.sqlite ./sauvegarde.sqlite
 
-# Restaurer : arrête l'addon, remplace le fichier du volume, redémarre
+# Restauration
 docker compose stop app
 docker compose cp ./sauvegarde.sqlite app:/data/addon.sqlite
 docker compose start app
@@ -169,79 +259,51 @@ docker compose start app
 
 > ⚠️ `docker compose down -v` supprime aussi le volume : **toutes les données** (mapping, réglages, stats) seraient perdues.
 
-Le schéma SQL ([`schema.sql`](schema.sql)) est appliqué automatiquement à chaque démarrage ; il est idempotent et ne touche jamais aux données existantes.
+Le schéma ([`schema.sql`](schema.sql)) est appliqué automatiquement à chaque démarrage ; il est idempotent et ne touche jamais aux données existantes.
 
-### Sans Docker (Node.js directement)
+### Ressources
 
-Il faut Node.js 22.13 ou plus récent (SQLite est intégré, rien d'autre à installer).
+Mesures faites avant le passage à SQLite (à re-mesurer) : environ 85 Mo de RAM et 0,7 % d'un cœur au repos, 110 Mo sous ≈ 110 requêtes/s.
 
-```bash
-npm install
-export DATA_DIR=./data   # la base y sera créée (addon.sqlite)
-export DASHBOARD_PASSWORD=...
-export APP_BASE_URL=http://localhost:3000
-export TMDB_API_KEY=...
-npm start          # (= node selfhost/server.js) crée la base et les tables au premier lancement
-```
-
-Pour le garder en service, utilise par exemple `systemd` ou `pm2 start selfhost/server.js --name vf-trailers`.
-
-### Bandes-annonces via Stockage BD (optionnel)
-
-Si tu fais tourner une instance de l'addon **Stockage BD**, l'addon peut lui demander ses bandes-annonces par API : colle son URL, et sa clé si elle en a une, dans **Réglages → API Stockage BD** (ou `NETFLIX_CATALOGUE_URL` / `NETFLIX_CATALOGUE_KEY` dans le `.env`).
-
-Le nom affiché est **Stockage BD**. Les noms techniques des variables, des réglages SQLite et de l'API restent compatibles avec les installations existantes : aucune connexion n'est à reconfigurer.
-
-L'aperçu de `/configure` utilise la même recherche réelle que le testeur du dashboard, y compris les liens directs du stockage et les mappings manuels. Il respecte les options d'affichage et d'extras, sans écrire dans le cache SQLite, les statistiques ou les journaux. Une courte mémoire de recherche évite de relancer les sources à chaque changement de présentation.
-
-```env
-NETFLIX_CATALOGUE_URL=https://netflix.mondomaine.fr
-NETFLIX_CATALOGUE_KEY=la-cle-generee-sur-l-instance
-```
-
-La clé se génère en un clic sur l'instance amont : **Paramètres → API de fédération → Générer une clé**, puis elle s'envoie en en-tête `x-api-key`. Laisse le champ vide si l'instance amont a `API_KEY` vide (API ouverte).
-
-- Ordre de résolution : TMDB → **TheTVDB** (séries/saisons) → **AniList** (identification des animés) → recherche YouTube VF → Allociné → **Stockage BD**.
-- **Interrupteur YouTube** (Dashboard → Réglages → Sources de résolution) : désactivé, les vidéos YouTube de TMDB et la recherche YouTube sont ignorées. La chaîne devient Allociné → Stockage BD (liens directs uniquement). Les overrides manuels avec un ID YouTube restent appliqués.
-- La source est aussi interrogée quand TMDB ne connaît pas du tout le titre (recherche par IMDb).
-- L'addon demande d'abord par IMDb, puis par TMDB + type si nécessaire.
-- Les URLs renvoyées sont des vidéos directes (relais `/trailer/...` de l'instance amont).
-- Sur l'instance **Stockage BD**, laisse `API_KEY` vide (API ouverte) : c'est l'URL que tu gardes pour toi qui fait office de secret. Ou génère une clé depuis son dashboard et colle-la ici : elle est alors exigée sur chaque appel (401 sans elle).
-- Un résultat est gardé en mémoire 6 h ; un échec est retenté au bout de 30 min.
-- Le bouton **Tester** et le diagnostic de la page Réglages vérifient la connexion (`GET /api/status`).
+- SQLite tourne dans le processus de l'addon : cache de 2 Mo, journal WAL borné à 4 Mo.
+- Plafonds Docker : **256 Mo** et **0,5 cœur** (modifiables via `mem_limit` et `cpus`). Tourne sur un Raspberry Pi.
+- Journaux Docker limités à 3 × 10 Mo ; journaux applicatifs (500 lignes), échecs (50 titres) et résolutions (1 h) bornés ; cache expiré purgé toutes les 6 h.
+- Aucune tâche de fond : l'addon ne fait rien tant que personne ne demande de bande-annonce.
 
 ### Dépannage
 
 | Symptôme | Piste |
 |---|---|
-| `Impossible d’ouvrir la base` dans les logs | `DATA_DIR` n'existe pas ou n'est pas inscriptible par l'utilisateur de l'addon : vérifie le volume monté sur `/data`. |
-| Le dashboard refuse le mot de passe / « non configuré » | `DASHBOARD_PASSWORD` absent de `.env`. Après modification : `docker compose up -d`. |
-| Stremio refuse d'installer l'addon | Stremio exige du **HTTPS** pour les addons distants : mets un reverse proxy HTTPS devant le port de l'addon. |
-| `pull access denied` / image introuvable au téléchargement | L'image n'est pas encore construite ou pas publique : vérifie la CI, puis la visibilité **Public** du dépôt d'images. |
-| Le logo ou les liens pointent vers un mauvais domaine | `APP_BASE_URL` mal renseignée. |
+| `Impossible d'ouvrir la base` dans les logs | `DATA_DIR` n'existe pas ou n'est pas inscriptible : vérifie le volume monté sur `/data`. |
+| Le dashboard refuse le mot de passe / « non configuré » | `DASHBOARD_PASSWORD` absent du `.env`. Après modification : `docker compose up -d`. |
+| Stremio refuse d'installer l'addon | Stremio exige du **HTTPS** pour les addons distants : mets un reverse proxy HTTPS devant. |
+| `pull access denied` / image introuvable | L'image n'est pas encore publiée ou pas publique : vérifie la CI, puis la visibilité du dépôt d'images. |
+| Logo ou liens vers un mauvais domaine | `APP_BASE_URL` mal renseignée. |
+| Une bande-annonce VF existe sur TMDB mais l'addon cherche ailleurs | Lance le titre dans **Test des flux** et lis la ligne « TMDB vidéos » de la trace : `0/n retenue(s)` veut dire que le filtre VF a rejeté la vidéo (langue ou nom, voir [le filtre](#filtre-vf-des-vidéos-tmdb)). |
 
 ---
 
-## 🧱 Structure du projet
+## Développement
+
+### Structure du projet
 
 ```
-api/index.js        Application Express (routes Stremio, API, pages)
-selfhost/server.js  Point d'entrée self-host (écoute un port, applique schema.sql, sert public/)
-schema.sql          Schéma SQLite complet (idempotent)
-lib/                Modules : db, cache, matching des titres, Allociné, YouTube, stats, réglages…
-dashboard/          Dashboard découpé en vrais fichiers HTML / CSS / JS (voir dashboard/README.md)
-public/             Fichiers statiques (logo)
-test/               Tests unitaires
-Dockerfile, .env.example   Image Docker (l'installeur est dans selfhost/install.js)
-selfhost/deploy/    Modèle du docker-compose.yml écrit par l'installeur
-.github/workflows/docker.yml   Publication automatique de l'image
+api/index.js          Application Express : assemble les routes sur les modules
+selfhost/             Point d'entrée self-host (server.js), installeur (install.js), modèle compose
+routes/               stremio.js (manifest, meta, stream) · dashboard.js (API admin) ·
+                      public.js (API publiques) · pages.js (pages HTML) · lookups.js
+lib/                  Modules : resolver.js, resolve-apis.js (chaîne de résolution), tmdb.js,
+                      tmdb-video-match.js + video-filters.js + title-match.js (filtre VF),
+                      random-titles.js (test aléatoire), allocine.js, tvdb.js, anime-sources.js,
+                      youtube-search.js, netflix-federation.js, db.js, cache.js, settings.js, stats.js…
+dashboard/            Dashboard en vrais fichiers HTML / CSS / JS (voir dashboard/README.md)
+public/               Fichiers statiques (logo)
+schema.sql            Schéma SQLite complet (idempotent)
+test/                 Tests unitaires (node:test)
+.github/workflows/    Publication automatique de l'image Docker
 ```
 
-Toute la persistance (cache, réglages, stats, logs, mapping) est dans un fichier SQLite (`DATA_DIR/addon.sqlite`).
-
-### Modifier le dashboard
-
-Chaque page a son HTML et son JS : tout est expliqué dans [`dashboard/README.md`](dashboard/README.md). Pendant tes modifications, mets `DASHBOARD_NO_CACHE=1` pour voir les changements sans redémarrer le cache de rendu.
+Toute la persistance (cache, réglages, stats, logs, mapping) est dans `DATA_DIR/addon.sqlite`.
 
 ### Tests
 
@@ -250,15 +312,21 @@ npm install
 npm test
 ```
 
+### Modifier le dashboard
+
+Mets `DASHBOARD_NO_CACHE=1` pour voir tes changements sans redémarrer. La correspondance page ↔ fichiers est dans [`dashboard/README.md`](dashboard/README.md).
+
+### Publication de l'image (mainteneur)
+
+Chaque push sur `main` déclenche `.github/workflows/docker.yml` : tests, puis construction (amd64 + arm64) et publication de l'image (tags `latest`, `vX.Y.Z` et `sha`). L'image embarque l'installeur et aucune étiquette qui renvoie au dépôt.
+
+- **Docker Hub** : variable `IMAGE_NAME` = `nom/vf-trailers`, secrets `DOCKERHUB_USERNAME` et `DOCKERHUB_TOKEN`. Le dépôt d'images est public par défaut.
+- **GHCR (par défaut)** : sans configuration, l'image va sur `ghcr.io/<propriétaire>/<dépôt>` ; le paquet doit être passé en *Public* à la main, une seule fois.
+
 ---
-
-## 📦 Publication de l'image (mainteneur)
-
-Chaque push sur `main` déclenche `.github/workflows/docker.yml` : tests, puis construction (amd64 + arm64) et publication de l'image (tags `latest`, `vX.Y.Z` et `sha`). L'image embarque l'installeur et ne contient ni l'adresse du dépôt ni aucune étiquette qui y renvoie (pas de labels, pas d'attestation de provenance).
-
-- **Docker Hub (recommandé pour rester discret)** : crée un compte / une organisation Docker Hub au nom de ton choix, puis dans le dépôt : variable `IMAGE_NAME` = `nom/vf-trailers`, secrets `DOCKERHUB_USERNAME` et `DOCKERHUB_TOKEN` (jeton d'accès en lecture/écriture). Le dépôt d'images Docker Hub est public par défaut.
-- **GHCR (par défaut)** : sans configuration, l'image est publiée sur `ghcr.io/<propriétaire>/<dépôt>`. Le nom de l'image contient alors ton identifiant GitHub, et le paquet doit être passé en *Public* à la main (une seule fois).
 
 ## Sources de données
 
-TMDB (principal) · TheTVDB (séries et saisons) · AniList (identification des animés) · YouTube (recherche VF) · Allociné (repli) · instance Stockage BD (optionnelle, par URL). Ce produit utilise l'API TMDB mais n'est ni approuvé ni certifié par TMDB.
+TMDB (principal) · TheTVDB (séries et saisons) · AniList (identification des animés) · YouTube (recherche VF) · Allociné (repli) · instance Stockage BD (optionnelle).
+
+Ce produit utilise l'API TMDB mais n'est ni approuvé ni certifié par TMDB.
