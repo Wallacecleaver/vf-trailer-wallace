@@ -28,8 +28,9 @@ USER node
 ENV PORT=3000
 EXPOSE 3000
 
+# Le manifest reste disponible pendant la maintenance de /configure (qui renvoie alors 503).
 HEALTHCHECK --interval=30s --timeout=5s --start-period=20s --retries=3 \
-  CMD wget -q -O /dev/null http://127.0.0.1:${PORT:-3000}/ || exit 1
+  CMD wget -q -O /dev/null http://127.0.0.1:${PORT:-3000}/manifest.json || exit 1
 
 ENTRYPOINT ["sh", "/app/selfhost/entrypoint.sh"]
 CMD ["server"]

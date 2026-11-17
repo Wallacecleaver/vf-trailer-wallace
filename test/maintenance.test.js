@@ -128,6 +128,16 @@ test('maintenance : les manifests et les bandes-annonces installés restent disp
     assert.deepEqual(result.streams, streams);
 });
 
+test('maintenance : la sonde déclarée dans Docker reste saine quand la configuration est bloquée', async () => {
+    await save({ enabled: true, blockInstall: true });
+    assert.equal((await request('/configure')).status, 503);
+    const dockerfile = fs.readFileSync(path.join(__dirname, '..', 'Dockerfile'), 'utf8');
+    // Tester la véritable URL déclarée dans l'image, y compris une éventuelle redirection.
+    const probePath = dockerfile.match(/http:\/\/127\.0\.0\.1:\$\{PORT:-3000\}(\/[^\s]*)/)?.[1];
+    assert.ok(probePath, 'URL de la sonde Docker introuvable');
+    assert.equal((await request(probePath)).status, 200);
+});
+
 test('maintenance : validation des champs et des liens sans modifier les réglages en cas d’erreur', async () => {
     const previous = await getMaintenanceSettings();
     for (const patch of [null, [], { enabled: 'false' }, { blockInstall: 1 }, { title: 'a'.repeat(71) },
