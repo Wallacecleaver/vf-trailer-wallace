@@ -3,14 +3,20 @@ const assert = require('node:assert');
 const fs = require('fs');
 const path = require('path');
 const { renderDashboardShell, PAGES, SCRIPTS } = require('../lib/dashboard-view');
+const { manifest } = require('../lib/config');
 
 const DIR = path.join(__dirname, '..', 'dashboard');
 const html = renderDashboardShell();
 
 test('dashboard : aucun repère {{...}} ne reste dans la page générée', () => {
-    assert.ok(!/\{\{(css|pages|js)\}\}/.test(html));
+    assert.ok(!/\{\{(css|pages|js|version)\}\}/.test(html));
     assert.ok(html.startsWith('<!DOCTYPE html>'));
     assert.ok(html.trimEnd().endsWith('</html>'));
+});
+
+test('dashboard : affiche proprement la version actuelle de l\'addon', () => {
+    assert.ok(html.includes(`<span class="version-pill" title="Version actuelle de l'addon">v${manifest.version}</span>`));
+    assert.ok(html.includes(`data-diag="version">v${manifest.version}<span class="diag-sub">Manifest Stremio</span>`));
 });
 
 test('dashboard : chaque page déclarée est présente (id="page-...")', () => {

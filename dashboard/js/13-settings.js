@@ -171,6 +171,7 @@
       if (force) { desc.textContent = 'Vérification en cours...'; setVal('db', '…', null); setVal('tmdbkey', '…', null); setVal('svc-tmdb', '…', null); setVal('svc-youtube', '…', null); setVal('svc-allocine', '…', null); setVal('svc-netflix-catalogue', '…', null); setVal('cache', '…', null); }
       const res = await authFetch('/api/diagnostics', { headers: authHeaders() });
       const d = await res.json();
+      if (d.version) setVal('version', 'v' + d.version, true, 'Manifest Stremio');
       setVal('db', d.db ? '✓ Connectée' : '✗ Indisponible', d.db, d.db ? 'SQLite opérationnelle' : 'Vérifie que DATA_DIR est accessible en écriture');
       if (d.tmdbKey && d.tmdbKey.present) {
         setVal('tmdbkey', d.tmdbKey.valid === true ? '✓ Valide' : '✗ Invalide', d.tmdbKey.valid === true, 'Clé …' + (d.tmdbKey.last4 || ''));

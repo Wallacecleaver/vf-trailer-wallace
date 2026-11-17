@@ -2,7 +2,7 @@
 
 const sql = require('../lib/db');
 const { fetchT, checkServices, toUpDown, youtubeOembedUrl } = require('../lib/net');
-const { FALLBACK_TMDB_KEY } = require('../lib/config');
+const { FALLBACK_TMDB_KEY, manifest } = require('../lib/config');
 const { findByImdb, fetchConfiguration, getImdbId } = require('../lib/tmdb');
 const { requireAuth, login } = require('../lib/auth');
 const { getCached, setCached, getCacheStats, clearAllCache, clearCacheFailures } = require('../lib/cache');
@@ -371,7 +371,7 @@ module.exports = function registerDashboardRoutes(app) {
     // Utile car tout le reste de l'app est best-effort silencieux si la base est down -> sans ça,
     // aucun moyen de savoir que quelque chose déconne avant de constater des stats vides.
     app.get('/api/system-status', requireAuth, async (req, res) => {
-        res.json({ db: await dbOk(), tmdbFallback: !!FALLBACK_TMDB_KEY });
+        res.json({ version: manifest.version, db: await dbOk(), tmdbFallback: !!FALLBACK_TMDB_KEY });
     });
 
     // Test de connexion à l'instance « Stockage BD » (bouton « Tester » du dashboard).
@@ -410,6 +410,7 @@ module.exports = function registerDashboardRoutes(app) {
         ]);
 
         res.json({
+            version: manifest.version,
             db: dbReachable,
             tmdbKey: { present: !!FALLBACK_TMDB_KEY, last4: tmdbKeyLast4, valid: tmdbKeyValid },
             services,
