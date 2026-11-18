@@ -7,6 +7,7 @@ const { logEvent } = require('../lib/logs');
 const { logFailure } = require('../lib/overrides');
 const { manifest, decodeConfig, FALLBACK_TMDB_KEY, LOGO_URL } = require('../lib/config');
 const { resolveStreams, getBehaviorSettingsFast, buildMetaObject } = require('../lib/resolver');
+const { resolveAiomDirect } = require('../lib/aiom-direct');
 const { aiomTimeoutMs, withDeadline, aiomOutcome, resolveStreamsSingleFlight, logAiomRequest } = require('../lib/aiom');
 
 // ---- Lien AIOMetadata PARTAGÉ : /aiom/manifest.json ----------------------------------------
@@ -26,6 +27,13 @@ const aiomManifest = {
     idPrefixes: ['tt'],
     catalogs: [],
 };
+const aiomDirectManifest = {
+    ...aiomManifest,
+    id: 'org.vftrailers.aiom.direct',
+    name: 'W Bandes-Annonces VF (AIOM Direct)',
+    description: 'Bande-annonce VF en MP4 pour AIOMetadata',
+};
+
 function sharedAiomConfig() {
     return { aiom: true, pseudo: 'AIOMetadata', tmdbKey: FALLBACK_TMDB_KEY || null };
 }
@@ -81,6 +89,29 @@ module.exports = function registerStremioRoutes(app) {
             await logEvent({ level: 'error', context: 'AIOM', event: 'aiom_shared_error',
                 message: 'Résolution AIOMetadata partagée impossible', meta: { type, imdbId: parsed.imdbId } });
             res.json({ streams: [] });
+        }
+    });
+
+    app.get('/aiom-direct/manifest.json', (_req, res) => res.json(aiomDirectManifest));
+
+    app.get('/aiom-direct/stream/:type/:idWithExt', async (req, res) => {
+        const { type, idWithExt } = req.params;
+        const target = parseStremioTarget(type, idWithExt);
+        res.setHeader('Cache-Control', 'no-store');
+        if (!target) return res.json({ streams: [] });
+
+        try {
+            const behavior = await getBehaviorSettingsFast();
+            const work = resolveAiomDirect(type, target.imdbId, target.season, FALLBACK_TMDB_KEY, behavior);
+            const { streams } = await withDeadline(work, aiomTimeoutMs(behavior));
+            if (streams.length) res.setHeader('Cache-Control', 'public, max-age=120');
+            return res.json({ streams });
+        } catch {
+            await logEvent({
+                level: 'warn', context: 'AIOM', event: 'aiom_direct_error',
+                message: 'Résolution AIOM Direct impossible', meta: { type, imdbId: target.imdbId },
+            }).catch(() => {});
+            return res.json({ streams: [] });
         }
     });
 
