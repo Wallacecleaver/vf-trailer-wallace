@@ -15,7 +15,11 @@ test('Allociné : le lien encodé et la date permettent de choisir le bon homony
     };
     const pages = {
         '/rechercher/': `<main>${card(287159, '8 juin 2021')}${card(1000033111, '19 novembre 2026')}</main>`,
-        '/videos/fichefilm-1000033111/toutes/': '<a href="/video/video-20645654/">Avec toi pour toujours Bande-annonce VF</a>',
+        '/videos/fichefilm-1000033111/toutes/': [
+            '<a href="/video/video-english/">Avec toi pour toujours Bande-annonce VO</a>',
+            '<a href="/video/video-unverified/">Avec toi pour toujours Bande-annonce</a>',
+            '<a href="/video/video-20645654/">Avec toi pour toujours Bande-annonce VF</a>',
+        ].join(''),
         '/video/video-20645654/': '<script type="application/ld+json">{"@type":"VideoObject","contentUrl":"https://cdn.example/trailer.mp4"}</script>',
     };
     require.cache[fetchModule].exports = async raw => {
@@ -31,6 +35,11 @@ test('Allociné : le lien encodé et la date permettent de choisir le bon homony
         const streams = await getAllocineTrailerStreams('Avec toi pour toujours', ref);
         assert.equal(streams[0]?.url, 'https://cdn.example/trailer.mp4');
         assert.deepEqual(paths, Object.keys(pages));
+        paths.length = 0;
+        pages['/videos/fichefilm-1000033111/toutes/'] =
+            '<a href="/video/video-english/">Avec toi pour toujours Bande-annonce VO</a>';
+        assert.deepEqual(await getAllocineTrailerStreams('Avec toi pour toujours', ref), []);
+        assert.deepEqual(paths, Object.keys(pages).slice(0, 2));
     } finally {
         require.cache[fetchModule].exports = originalFetch;
         delete require.cache[allocineModule];

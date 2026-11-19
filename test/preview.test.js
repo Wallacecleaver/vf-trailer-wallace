@@ -172,7 +172,8 @@ test('aperçu réel : mapping manuel multi-liens et masquage appliqués immédia
     assert.equal(manual.data.source, 'override');
     assert.equal(manual.data.streams.length, 1);
     assert.match(manual.data.streams[0].title, /Lien manuel/);
-    assert.match(manual.data.streams[0].title, /manuel\.mp4/);
+    assert.match(manual.data.streams[0].title, /Lien vidéo direct/);
+    assert.doesNotMatch(manual.data.streams[0].title, /\.mp4/);
     assert.equal(await snapshot(), initial);
     await setOverride({ imdbId: 'tt0900005', title: 'Trouble échange', hidden: true });
     const hiddenSnapshot = await snapshot();

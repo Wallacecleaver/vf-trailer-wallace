@@ -181,7 +181,8 @@ test('matching strict : ancien cache conservé mais jamais resservi après chang
     assert.equal(data.streams[0].ytId, 'trailer0000');
     assert.equal(state.calls.length, 1);
     assert.equal((await sql`SELECT value FROM kv_cache WHERE cache_key = ${key}`)[0].value, previous);
-    assert.equal((await sql`SELECT COUNT(*) AS count FROM kv_cache WHERE cache_key = ${key + ':strict-platform-v3'}`)[0].count, 1);
+    const current = key.replace(':vf:', ':fr-first:') + ':strict-platform-v4';
+    assert.equal((await sql`SELECT COUNT(*) AS count FROM kv_cache WHERE cache_key = ${current}`)[0].count, 1);
 });
 
 test('AIOM partagé : une vidéo en cours de recherche reste disponible dès la requête suivante', async () => {

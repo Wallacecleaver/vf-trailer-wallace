@@ -1,6 +1,6 @@
 const test = require('node:test');
 const assert = require('node:assert');
-const { applyDisplayMode, buildPreviewStreams, formatStreamName } = require('../lib/stream-format');
+const { applyDisplayMode, buildPreviewStreams, formatStreamName, toAiomStreams } = require('../lib/stream-format');
 const { detectPlatform, platformFromProviders } = require('../lib/tmdb');
 const { decodeConfig } = require('../lib/config');
 
@@ -40,6 +40,18 @@ test('display : le mode détaillé masque l’URL directe dans le texte et la co
         '🇫🇷 VF ✓ • 🔎 Allociné',
         '▶️ Lien vidéo direct',
     ]);
+});
+
+test('display : la langue vidéo inconnue est indiquée dans chaque mode et exclue d’AIOM', () => {
+    const unknown = { name: '🔴 Netflix', title: 'Bande-annonce\nDune', url: 'https://cdn.example/trailer.mp4', __unverifiedAudio: true };
+    for (const display of ['default', 'compact', 'detailed']) {
+        const [stream] = applyDisplayMode([unknown], { display }, 'netflix_catalogue');
+        assert.match(stream.title, /Audio non vérifié/);
+        assert.doesNotMatch(stream.title, /VF ✓/);
+        assert.strictEqual(stream.url, unknown.url);
+        assert.ok(!Object.hasOwn(stream, '__unverifiedAudio'));
+    }
+    assert.deepStrictEqual(toAiomStreams([unknown]), []);
 });
 
 test('display : la qualité TMDB s\'affiche en détaillé/compact et n\'est jamais envoyée', () => {

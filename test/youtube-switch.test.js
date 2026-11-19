@@ -13,6 +13,7 @@ const stub = (name, exports) => {
 
 const calls = { urls: [], order: [], allocine: 0, federation: 0, youtubeSearch: 0 };
 let tmdbHasTrailer = true;
+let storedTrailers = [{ title: 'Trailer', url: 'https://netflix.exemple.fr/trailer/1.mp4' }];
 
 const json = body => ({ json: async () => body });
 stub('net', {
@@ -31,7 +32,7 @@ stub('netflix-federation', {
     resolveFederatedTrailer: async () => {
         calls.order.push('netflix');
         calls.federation++;
-        return { found: true, title: { name: 'Film Test' }, trailers: [{ title: 'Trailer', url: 'https://netflix.exemple.fr/trailer/1.mp4' }] };
+        return { found: true, title: { name: 'Film Test' }, trailers: storedTrailers };
     },
 });
 stub('youtube-search', { searchYoutubeTrailer: async () => { calls.order.push('youtube'); calls.youtubeSearch++; return { videoId: 'zzzzzzzzzzz' }; } });
@@ -73,6 +74,27 @@ test('YouTube désactivé et rien ailleurs : liste vide, jamais de recherche You
     const r = await fresh('movie', 'tt1234567', null, behavior({ youtubeEnabled: false }), 'KEY');
     assert.deepStrictEqual(r.streams, []);
     assert.strictEqual(calls.youtubeSearch, 0);
+});
+
+test('Stockage BD : français prioritaire, VO écartée et langue inconnue signalée', async () => {
+    reset();
+    const initial = storedTrailers;
+    storedTrailers = [
+        { title: 'Trailer', url: 'https://netflix.exemple.fr/unknown.mp4' },
+        { title: 'Bande-annonce VF', lang: 'en-US', url: 'https://netflix.exemple.fr/english.mp4' },
+        { title: 'Bande-annonce VO', url: 'https://netflix.exemple.fr/vo.mp4' },
+        { title: 'Bande-annonce', lang: 'fr-FR', url: 'https://netflix.exemple.fr/french.mp4' },
+    ];
+    try {
+        const common = { youtubeEnabled: false, maxTrailers: 4 };
+        const preferred = await resolveViaApis('movie', 'tt1234567', null, behavior(common), 'KEY');
+        assert.deepStrictEqual(preferred.streams.map(s => s.url.split('/').at(-1)), ['french.mp4', 'unknown.mp4']);
+        assert.strictEqual(preferred.streams[1].__unverifiedAudio, true);
+        const strict = await resolveViaApis('movie', 'tt1234567', null, behavior({ ...common, trailerLanguage: 'fr-only' }), 'KEY');
+        assert.deepStrictEqual(strict.streams, [preferred.streams[0]]);
+    } finally {
+        storedTrailers = initial;
+    }
 });
 
 
