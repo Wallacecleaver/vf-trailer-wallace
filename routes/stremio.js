@@ -53,7 +53,7 @@ async function respondAiom(req, res, config, type, imdbId, season) {
     ]);
     // Cache navigateur/CDN : 10 min, trouvé ou non (un "aucun" ne change pas d'une minute à l'autre) ; un timeout jamais
     // (la résolution continue en arrière-plan, la requête suivante sera servie par le cache).
-    res.setHeader('Cache-Control', result.timedOut ? 'no-store' : 'public, max-age=600');
+    res.setHeader('Cache-Control', result.timedOut || result.pending ? 'no-store' : 'public, max-age=600');
     return res.json({ streams: result.streams });
 }
 
@@ -172,13 +172,14 @@ module.exports = function registerStremioRoutes(app) {
 
             if (config.aiom) return await respondAiom(req, res, config, type, imdbId, season);
 
-            const { streams, officialTitle, hidden } = await resolveStreams(type, imdbId, season, config);
+            const { streams, officialTitle, hidden, pending } = await resolveStreams(type, imdbId, season, config);
+            if (pending) res.setHeader('Cache-Control', 'no-store');
 
             // On attend ces écritures (en parallèle) avant de répondre : les stats sont ainsi
             // toujours à jour au moment où la réponse part.
             await Promise.all([
                 recordRequest({ type, imdbId, title: officialTitle }),
-                streams.length === 0 && !hidden ? logFailure({ imdbId, type, season, title: officialTitle }) : Promise.resolve(),
+                streams.length === 0 && !hidden && !pending ? logFailure({ imdbId, type, season, title: officialTitle }) : Promise.resolve(),
             ]);
 
             res.json({ streams });

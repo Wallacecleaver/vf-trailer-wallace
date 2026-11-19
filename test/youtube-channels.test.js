@@ -118,6 +118,27 @@ test('recherche plateforme : repli cinéma fiable sans second appel, âge contr�
     assert.equal(queries.length, 1);
 });
 
+test('recherche YouTube : un second passage retrouve une VF avec les mêmes garde-fous', async () => {
+    const id = CHANNELS.prime[0].id;
+    const firstQueries = youtube([{ videoId: 'wrong', id, title: 'Lucky Luke - Bande-annonce VF' }]);
+    const firstFetch = global.fetch;
+    const secondQueries = youtube([
+        { videoId: 'spoof', id: 'usurpation', title: 'Lucky - Bande-annonce VF (2026)' },
+        { videoId: 'other', id, title: 'Lucky - Bande-annonce VOSTFR' },
+        { videoId: 'right', id, title: 'Lucky - Bande-annonce VF (2026)' },
+    ]);
+    const secondFetch = global.fetch;
+    global.fetch = (raw, options) => {
+        const query = new URL(raw).searchParams.get('search_query');
+        return (query === 'Lucky bande annonce' ? secondFetch : firstFetch)(raw, options);
+    };
+    const result = await searchYoutubeTrailer('Lucky 2026 bande annonce VF', reference,
+        { platform: 'prime', backupQuery: 'Lucky bande annonce' });
+    assert.equal(result.videoId, 'right');
+    assert.deepEqual(firstQueries, ['Lucky 2026 bande annonce VF Amazon Prime Video France']);
+    assert.deepEqual(secondQueries, ['Lucky bande annonce']);
+});
+
 test('recherche brute admin : identité et date extraites, résultats manuels non filtrés', async () => {
     const queries = youtube([{ videoId: 'manual', id: 'inconnu', url: '/@Perso', title: 'Une vidéo VO' }]);
     const results = await searchYoutubeRaw('recherche manuelle');

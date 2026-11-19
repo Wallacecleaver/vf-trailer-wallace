@@ -19,7 +19,8 @@ require.cache[apiPath] = { id: apiPath, filename: apiPath, loaded: true, exports
         if (fail) throw new Error('Upstream api_key=' + key);
         return { officialTitle: 'Film de test', platform: 'apple',
             source: kind === 'direct' ? 'netflix_catalogue' : 'tmdb',
-            streams: kind === 'none' ? [] : kind === 'direct'
+            pending: kind === 'pending',
+            streams: kind === 'none' || kind === 'pending' ? [] : kind === 'direct'
                 ? [{ title: 'Bande-annonce\nFilm de test', url: 'https://stockage.example/trailer.mp4' }]
                 : [{ title: 'Teaser\nFilm de test', ytId: 'teaser00000' },
                     { title: 'Bande-annonce\nFilm de test', ytId: 'trailer0000' }] };
@@ -180,5 +181,16 @@ test('matching strict : ancien cache conservé mais jamais resservi après chang
     assert.equal(data.streams[0].ytId, 'trailer0000');
     assert.equal(state.calls.length, 1);
     assert.equal((await sql`SELECT value FROM kv_cache WHERE cache_key = ${key}`)[0].value, previous);
-    assert.equal((await sql`SELECT COUNT(*) AS count FROM kv_cache WHERE cache_key = ${key + ':strict-platform-v2'}`)[0].count, 1);
+    assert.equal((await sql`SELECT COUNT(*) AS count FROM kv_cache WHERE cache_key = ${key + ':strict-platform-v3'}`)[0].count, 1);
+});
+
+test('AIOM partagé : une vidéo en cours de recherche reste disponible dès la requête suivante', async () => {
+    const pathname = '/aiom/stream/movie/tt0900009.json';
+    state.kind = 'pending';
+    const first = await get(pathname);
+    assert.equal(first.headers.get('cache-control'), 'no-store');
+    assert.deepEqual(await first.json(), { streams: [] });
+    state.kind = 'direct';
+    assert.equal((await get(pathname).then(response => response.json())).streams[0].url, 'https://stockage.example/trailer.mp4');
+    assert.equal(state.calls.length, 2);
 });

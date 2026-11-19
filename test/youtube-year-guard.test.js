@@ -162,8 +162,8 @@ test('recherche YouTube : date et chaîne extraites, requête unique précise et
     results = [old]; calls.length = 0; order.length = 0;
     const failureTrace = [];
     assert.deepEqual((await resolveViaApis('series', 'tt1234567', null, behavior, 'fixture', failureTrace)).streams, []);
-    assert.deepEqual(calls, ['Lucky série 2026 bande annonce VF FilmsActu']);
-    assert.deepEqual(order, ['youtube', 'allocine', 'stockage']);
+    assert.deepEqual(calls, ['Lucky série 2026 bande annonce VF FilmsActu', 'Lucky bande annonce']);
+    assert.deepEqual(order, ['youtube', 'youtube', 'allocine', 'stockage']);
     assert.match(failureTrace.find(r => r.step === 'youtube-search').detail,
         /Rien de pertinent pour "Lucky série 2026 bande annonce VF" · écarté : "LUCKY Bande Annonce VF \(2020\)" \(année 2020 ≠ 2026\)/);
     results = [current]; calls.length = 0; order.length = 0;

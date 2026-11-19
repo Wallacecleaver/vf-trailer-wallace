@@ -71,9 +71,10 @@ Le ciblage utilise les identifiants des auteurs YouTube, pas leur seul nom affic
 - En l’absence de résultat officiel exploitable, les mêmes chaînes cinéma françaises servent de repli.
   Une plateforme sans chaîne répertoriée utilise également ce repli ; aucun nom de chaîne n’est deviné.
 
-Une seule requête YouTube ciblée est effectuée : la sélection et les replis entre chaînes portent
-sur les résultats de cette requête. Si rien ne convient, la résolution continue vers Allociné puis
-Stockage BD, comme auparavant. Le sélecteur YouTube manuel du dashboard reste non filtré.
+Si la recherche ciblée ne donne rien de valide, un second passage cherche le titre et la saison
+sans imposer de chaîne dans la requête. Les mêmes contrôles de titre, de langue et de chaîne
+s'appliquent aux résultats. Si rien ne convient, la résolution continue vers Allociné puis
+Stockage BD selon les réglages. Le sélecteur YouTube manuel du dashboard reste non filtré.
 Le cache utilise un nouveau périmètre de matching afin de ne pas resservir les anciens faux positifs ;
 les anciennes entrées expirent normalement, sans purge des mappings ni des réglages.
 
