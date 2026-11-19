@@ -24,6 +24,12 @@ test('Stockage BD : identité confirmée par les identifiants ou le titre et l�
         [{ name: 'Guarding Stars', type: 'movie' }, false],
         [{ name: 'Stars Guarding', type: 'movie', year: 2026 }, false],
     ]) assert.equal(matcher.matchesStockageTitle(title, expected), match);
+    assert.equal(matcher.matchesStockageTitle({ name: '1917', type: 'movie', year: 2019 }, {
+        type: 'movie', ref: buildRef({ allTitles: ['1917'], year: 2019 }),
+    }), true);
+    assert.equal(matcher.matchesStockageTitle({ name: 'Blade Runner', type: 'movie', year: 2017 }, {
+        type: 'movie', ref: buildRef({ allTitles: ['Blade Runner 2049'], year: 2017 }),
+    }), false);
 });
 
 test('matcher strict : classement par année puis ordre des mots, égalités stables', () => {

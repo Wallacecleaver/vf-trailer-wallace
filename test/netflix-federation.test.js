@@ -90,6 +90,7 @@ test('resolveFederatedTrailer : transmet season + strict_season + imdb/tmdb grou
             title: { name: 'Le Problème à 3 corps', imdb_id: 'tt13016388', tmdb_id: 108545 },
             trailers: [
                 { title: 'Saison 2 (Teaser) : Le Problème à 3 corps', url: 'https://x/s2.mp4', season: 2, kind: 'teaser' },
+                { title: 'Bande-annonce VF', url: 'https://x/s2-without-label.mp4', season: '2', kind: 'trailer' },
                 { title: 'Le Problème à 3 corps : Saison 1 (Dans cette saison)', url: 'https://x/s1.mp4', season: 1, kind: 'teaser' },
             ],
         });
@@ -103,7 +104,7 @@ test('resolveFederatedTrailer : transmet season + strict_season + imdb/tmdb grou
         assert.match(seen[0], /season=2/);
         assert.match(seen[0], /strict_season=1/);
         assert.strictEqual(s2.found, true);
-        assert.strictEqual(s2.trailers.length, 1);
+        assert.strictEqual(s2.trailers.length, 2);
         assert.strictEqual(s2.trailers[0].url, 'https://x/s2.mp4');
 
         // 2) Cache isolé par saison : demander la saison 3 ne réutilise pas la saison 2
@@ -113,6 +114,12 @@ test('resolveFederatedTrailer : transmet season + strict_season + imdb/tmdb grou
         });
         assert.strictEqual(seen.length, 2);
         assert.strictEqual(s3.found, false);
+
+        const s1 = await fed.resolveFederatedTrailer({
+            imdbId: 'tt13016388', tmdbId: 108545, type: 'series', season: 1,
+            baseUrl: 'https://netflix.exemple.fr',
+        });
+        assert.deepEqual(s1.trailers.map(trailer => trailer.url), ['https://x/s1.mp4']);
 
         // 3) Réponse `pending: true` : jamais mise en cache négatif 30 min
         fed.clearCache();

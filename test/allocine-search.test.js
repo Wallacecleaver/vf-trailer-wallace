@@ -4,6 +4,7 @@ const { buildRef } = require('../lib/title-match');
 
 test('Allociné : le lien encodé et la date permettent de choisir le bon homonyme', async () => {
     const paths = [];
+    let requestedTitle = 'Avec toi pour toujours';
     const fetchModule = require.resolve('node-fetch');
     const originalFetch = require(fetchModule);
     const card = (id, date) => {
@@ -25,7 +26,7 @@ test('Allociné : le lien encodé et la date permettent de choisir le bon homony
     require.cache[fetchModule].exports = async raw => {
         const url = new URL(raw);
         paths.push(url.pathname);
-        if (url.pathname === '/rechercher/') assert.equal(url.searchParams.get('q'), 'Avec toi pour toujours');
+        if (url.pathname === '/rechercher/') assert.equal(url.searchParams.get('q'), requestedTitle);
         return { ok: Object.hasOwn(pages, url.pathname), text: async () => pages[url.pathname] || '' };
     };
     const allocineModule = require.resolve('../lib/allocine');
@@ -40,6 +41,18 @@ test('Allociné : le lien encodé et la date permettent de choisir le bon homony
             '<a href="/video/video-english/">Avec toi pour toujours Bande-annonce VO</a>';
         assert.deepEqual(await getAllocineTrailerStreams('Avec toi pour toujours', ref), []);
         assert.deepEqual(paths, Object.keys(pages).slice(0, 2));
+
+        paths.length = 0;
+        requestedTitle = 'Lupin';
+        pages['/rechercher/'] = '<a href="/series/ficheserie_gen_cserie=12345.html">Lupin (2021)</a>';
+        pages['/videos/ficheserie-12345/toutes/'] = [
+            '<a href="/video/video-wrong/">Lupin Saison 2 Bande-annonce VF</a>',
+            '<a href="/video/video-20645654/">Lupin Saison 1 Bande-annonce VF</a>',
+        ].join('');
+        const lupin = buildRef({ allTitles: ['Lupin'], year: 2021 });
+        const [seasonOne] = await getAllocineTrailerStreams('Lupin', lupin, { mediaType: 'tv', season: '1' });
+        assert.equal(seasonOne?.url, 'https://cdn.example/trailer.mp4');
+        assert.equal(paths.at(-1), '/video/video-20645654/');
     } finally {
         require.cache[fetchModule].exports = originalFetch;
         delete require.cache[allocineModule];
