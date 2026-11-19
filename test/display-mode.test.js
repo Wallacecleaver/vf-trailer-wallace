@@ -30,6 +30,18 @@ test('display : detailed ajoute langue, source, lecture et lien', () => {
     assert.match(out[1].title, /Ouverture externe/);
 });
 
+test('display : le mode détaillé masque l’URL directe dans le texte et la conserve pour la lecture', () => {
+    const url = 'https://fr.vid.web.acsta.net/nmedia/33/26/10/trailer.mp4?source=www';
+    const [stream] = applyDisplayMode([{ name: '🎬 VF', title: 'Bande-annonce\nAvec toi pour toujours', url }],
+        { display: 'detailed' }, 'allocine');
+    assert.strictEqual(stream.url, url);
+    assert.deepStrictEqual(stream.title.split('\n'), [
+        'Bande-annonce • Avec toi pour toujours',
+        '🇫🇷 VF ✓ • 🔎 Allociné',
+        '▶️ Lien vidéo direct',
+    ]);
+});
+
 test('display : la qualité TMDB s\'affiche en détaillé/compact et n\'est jamais envoyée', () => {
     const q = [{ name: '🎬 VF', title: 'Bande-annonce\nDune', ytId: 'abc', __quality: 1080 }, { name: '🎬 VF', title: 'Teaser\nDune', ytId: 'def', __quality: 2160 }];
     const det = applyDisplayMode(q, { display: 'detailed' }, 'tmdb');
