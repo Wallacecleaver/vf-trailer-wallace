@@ -77,6 +77,38 @@ test('recherche YouTube : la bonne chaîne ne suffit pas à valider Lucky Luke',
     assert.equal(await searchYoutubeTrailer('Lucky 2026 bande annonce VF', reference, { platform: 'disney' }), null);
 });
 
+test('recherche YouTube : bande-annonce Prime officielle sans VF mais audio français détecté', async () => {
+    const videoId = 'a8ECma_sutE';
+    const id = CHANNELS.prime[0].id;
+    const title = 'Avec toi pour toujours - Bande-Annonce Officielle | Prime Video';
+    const ref = buildRef({ allTitles: ['Avec toi pour toujours', 'Son Yemek', 'Last Meal'], year: 2026 });
+    const scenarios = [
+        { title, tracks: [{ kind: 'asr', vssId: 'a.fr', languageCode: 'fr' }], match: true, checked: true },
+        { title, tracks: [{ vssId: '.fr', languageCode: 'fr' }], match: false, checked: true },
+        { title, tracks: [{ kind: 'asr', vssId: 'a.tr', languageCode: 'tr' }], match: false, checked: true },
+        { title: 'Avec toi pour toujours 2 - Bande-annonce officielle', match: false, checked: false },
+        { title: 'Avec toi pour toujours - Bande-annonce VOSTFR', match: false, checked: false },
+        { title, channelId: 'other-channel', match: false, checked: false },
+    ];
+    for (const scenario of scenarios) {
+        const queries = youtube([{ videoId, id: scenario.channelId || id, title: scenario.title }]);
+        const searchFetch = global.fetch;
+        const watch = [];
+        global.fetch = async raw => {
+            const url = new URL(raw);
+            if (url.pathname !== '/watch') return searchFetch(raw);
+            watch.push(url.searchParams.get('v'));
+            const player = { videoDetails: { videoId, channelId: id },
+                captions: { playerCaptionsTracklistRenderer: { captionTracks: scenario.tracks } } };
+            return { ok: true, text: async () => '<script>var ytInitialPlayerResponse = ' + JSON.stringify(player) + ';</script>' };
+        };
+        const result = await searchYoutubeTrailer('Avec toi pour toujours 2026 bande annonce VF', ref, { platform: 'prime' });
+        assert.equal(result?.videoId, scenario.match ? videoId : undefined);
+        assert.deepEqual(watch, scenario.checked ? [videoId] : []);
+        assert.equal(queries.length, 1);
+    }
+});
+
 test('recherche plateforme : repli cinéma fiable sans second appel, âge contrôlé', async () => {
     const queries = youtube([
         { videoId: 'old', id: CHANNELS.apple[0].id, title: 'Lucky - Bande-annonce VF (2020)' },
