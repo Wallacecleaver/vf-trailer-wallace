@@ -43,6 +43,7 @@ stub('net', {
 });
 stub('youtube-search', { searchYoutubeTrailer: async () => { state.order.push('youtube'); return null; } });
 stub('allocine', { getAllocineTrailerStreams: async () => { state.order.push('allocine'); return []; } });
+stub('mp4-audio', { fillStockageAudioLanguages: async trailers => trailers });
 stub('netflix-federation', {
     resolveFederatedTrailer: async options => {
         state.order.push('stockage');

@@ -87,7 +87,7 @@ test('resolveFederatedTrailer : transmet season + strict_season + imdb/tmdb grou
         // 1) Saison 2 stricte : envoie imdb + tmdb + season=2 + strict_season=1 en un seul appel
         responder = () => ({
             found: true,
-            title: { name: 'Le Problème à 3 corps' },
+            title: { name: 'Le Problème à 3 corps', imdb_id: 'tt13016388', tmdb_id: 108545 },
             trailers: [
                 { title: 'Saison 2 (Teaser) : Le Problème à 3 corps', url: 'https://x/s2.mp4', season: 2, kind: 'teaser' },
                 { title: 'Le Problème à 3 corps : Saison 1 (Dans cette saison)', url: 'https://x/s1.mp4', season: 1, kind: 'teaser' },
@@ -121,7 +121,7 @@ test('resolveFederatedTrailer : transmet season + strict_season + imdb/tmdb grou
         const p1 = await fed.resolveFederatedTrailer({ imdbId: 'tt9999999', baseUrl: 'https://netflix.exemple.fr' });
         assert.strictEqual(p1.found, false);
         assert.strictEqual(p1.pending, true);
-        responder = () => ({ found: true, trailers: [{ title: 'BA', url: 'https://x/ok.mp4' }] });
+        responder = () => ({ found: true, title: { imdb_id: 'tt9999999' }, trailers: [{ title: 'BA', url: 'https://x/ok.mp4' }] });
         const p2 = await fed.resolveFederatedTrailer({ imdbId: 'tt9999999', baseUrl: 'https://netflix.exemple.fr' });
         assert.strictEqual(p2.found, true);
         assert.strictEqual(seen.length, 2);

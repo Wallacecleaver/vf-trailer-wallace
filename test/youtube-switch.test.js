@@ -28,6 +28,7 @@ stub('net', {
     },
 });
 stub('allocine', { getAllocineTrailerStreams: async () => { calls.order.push('allocine'); calls.allocine++; return []; } });
+stub('mp4-audio', { fillStockageAudioLanguages: async trailers => trailers });
 stub('netflix-federation', {
     resolveFederatedTrailer: async () => {
         calls.order.push('netflix');

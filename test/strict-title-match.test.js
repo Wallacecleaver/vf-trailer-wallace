@@ -8,8 +8,22 @@ test('matcher strict : normalisation, mêmes mots et refus des titres prolongés
     assert.equal(matcher.titlesMatch(['Lucky'], 'Lucky Luke'), false);
     assert.equal(matcher.titlesMatch(['Happy End'], 'My Happy Ending'), false);
     assert.equal(matcher.titlesMatch(['Le Retour du Roi'], 'Retour Roi VF'), true);
-    assert.equal(matcher.titlesMatch(['Grand Bleu'], 'Bleu Grand'), true);
+    assert.equal(matcher.titlesMatch(['Grand Bleu'], 'Bleu Grand'), false);
     assert.equal(matcher.titlesMatch(['The'], ''), false);
+});
+
+test('Stockage BD : identité confirmée par les identifiants ou le titre et l’année', () => {
+    const expected = { imdbId: 'tt6611324', tmdbId: 1551025, type: 'movie',
+        ref: buildRef({ allTitles: ['Guarding Stars', 'Protection (très) rapprochée'], year: 2026 }) };
+    for (const [title, match] of [
+        [{ imdb_id: 'tt6611324', type: 'movie', name: 'Protection (très) rapproché', year: 2026 }, true],
+        [{ imdb_id: 'tt6611324', tmdb_id: 1551026, type: 'movie' }, false],
+        [{ imdb_id: 'tt6611324', type: 'series' }, false],
+        [{ name: 'Protection (très) rapprochée', type: 'movie', year: '2026' }, true],
+        [{ name: 'Protection (très) rapprochée', type: 'movie', year: 1992 }, false],
+        [{ name: 'Guarding Stars', type: 'movie' }, false],
+        [{ name: 'Stars Guarding', type: 'movie', year: 2026 }, false],
+    ]) assert.equal(matcher.matchesStockageTitle(title, expected), match);
 });
 
 test('matcher strict : classement par année puis ordre des mots, égalités stables', () => {
