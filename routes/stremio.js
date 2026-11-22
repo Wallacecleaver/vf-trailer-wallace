@@ -47,14 +47,21 @@ async function respondAiom(req, res, config, type, imdbId, season) {
     work.catch(() => {}); // évite un unhandledRejection si le délai a déjà répondu
     const result = await withDeadline(work, timeoutMs);
     const ms = Date.now() - t0;
-    await Promise.all([
-        logAiomRequest({ type, imdbId, season, config, result, ms, timeoutMs }),
-        recordAiomStat({ outcome: aiomOutcome(result), fromCache: !!result.fromCache, ms }),
-    ]);
-    // Cache navigateur/CDN : 10 min, trouvé ou non (un "aucun" ne change pas d'une minute à l'autre) ; un timeout jamais
-    // (la résolution continue en arrière-plan, la requête suivante sera servie par le cache).
-    res.setHeader('Cache-Control', result.timedOut || result.pending ? 'no-store' : 'public, max-age=600');
-    return res.json({ streams: result.streams });
+    // Cache navigateur/CDN : 10 min si un trailer est trouvé, 2 min pour un "aucun" (une nouveauté peut
+    // recevoir sa bande-annonce d'un moment à l'autre) ; un timeout jamais (la résolution continue en
+    // arrière-plan, la requête suivante sera servie par le cache).
+    const cacheable = !result.timedOut && !result.pending;
+    res.setHeader('Cache-Control', !cacheable ? 'no-store' : `public, max-age=${result.streams.length ? 600 : 120}`);
+    res.json({ streams: result.streams });
+    // Journal et compteurs APRÈS l'envoi de la réponse : une base lente ou en erreur ne retarde plus
+    // AIOMetadata et ne peut plus faire perdre une bande-annonce déjà trouvée. On les attend quand même
+    // (sans bloquer la réponse) pour que l'hébergement serverless ne coupe pas l'écriture.
+    try {
+        await Promise.all([
+            logAiomRequest({ type, imdbId, season, config, result, ms, timeoutMs }),
+            recordAiomStat({ outcome: aiomOutcome(result), fromCache: !!result.fromCache, ms }),
+        ]);
+    } catch { /* journal best-effort */ }
 }
 
 function parseStremioTarget(type, rawIdWithExt) {
