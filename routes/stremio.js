@@ -27,6 +27,12 @@ const aiomManifest = {
     idPrefixes: ['tt'],
     catalogs: [],
 };
+const aiomYoutubeManifest = {
+    ...aiomManifest,
+    id: 'org.vftrailers.aiom.youtube',
+    name: 'W Bandes-Annonces VF (AIOM YouTube)',
+    description: 'Bande-annonce VF YouTube (ytId) pour AIOMetadata',
+};
 const aiomDirectManifest = {
     ...aiomManifest,
     id: 'org.vftrailers.aiom.direct',
@@ -40,12 +46,14 @@ function sharedAiomConfig() {
 
 // Mode AIOMetadata : réponse courte et lisible, journalisée dans le dashboard (Logs > AIOM),
 // sans stats globales ni journal "échecs" (voir logAiomRequest).
-async function respondAiom(req, res, config, type, imdbId, season) {
+async function respondAiom(req, res, config, type, imdbId, season, { youtubeOnly = false } = {}) {
     const t0 = Date.now();
     const timeoutMs = aiomTimeoutMs(await getBehaviorSettingsFast()); // réglage du dashboard (cache mémoire 30 s)
     const work = resolveStreamsSingleFlight(type, imdbId, season, config);
     work.catch(() => {}); // évite un unhandledRejection si le délai a déjà répondu
-    const result = await withDeadline(work, timeoutMs);
+    let result = await withDeadline(work, timeoutMs);
+    // Variante « YouTube » : uniquement un flux ytId, jamais un lien direct (Allociné, Stockage BD…).
+    if (youtubeOnly) result = { ...result, streams: (result.streams || []).filter(s => s && s.ytId) };
     const ms = Date.now() - t0;
     // Cache navigateur/CDN : 10 min si un trailer est trouvé, 2 min pour un "aucun" (une nouveauté peut
     // recevoir sa bande-annonce d'un moment à l'autre) ; un timeout jamais (la résolution continue en
@@ -95,6 +103,24 @@ module.exports = function registerStremioRoutes(app) {
         } catch {
             await logEvent({ level: 'error', context: 'AIOM', event: 'aiom_shared_error',
                 message: 'Résolution AIOMetadata partagée impossible', meta: { type, imdbId: parsed.imdbId } });
+            res.json({ streams: [] });
+        }
+    });
+
+    // Même résolution que /aiom, mais ne renvoie qu'un flux YouTube (ytId).
+    app.get('/aiom-youtube/manifest.json', (_req, res) => res.json(aiomYoutubeManifest));
+
+    app.get('/aiom-youtube/stream/:type/:idWithExt', async (req, res) => {
+        const config = sharedAiomConfig();
+        if (!config.tmdbKey) return res.json({ streams: [] });
+        const { type } = req.params;
+        const parsed = parseStremioTarget(type, req.params.idWithExt);
+        if (!parsed) return res.json({ streams: [] });
+        try {
+            return await respondAiom(req, res, config, type, parsed.imdbId, parsed.season, { youtubeOnly: true });
+        } catch {
+            await logEvent({ level: 'error', context: 'AIOM', event: 'aiom_youtube_error',
+                message: 'Résolution AIOM YouTube impossible', meta: { type, imdbId: parsed.imdbId } }).catch(() => {});
             res.json({ streams: [] });
         }
     });
