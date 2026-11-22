@@ -27,3 +27,9 @@ test('trouve la bande-annonce VF de la saison 1 et son id Dailymotion', () => {
 test('ne sert pas cette bande-annonce de saison 1 pour la saison 2', () => {
     assert.equal(pickTrailerFromPage(cheerio.load(HTML), { mediaType: 'tv', directOnly: false, season: 2 }), null);
 });
+
+test('saison 2 : accepte une vidéo qui cite explicitement « saison 2 »', () => {
+    const html = '<a href="/video/player_gen_cmedia=1999&cserie=5.html">Série - saison 2 Bande-annonce VF</a>';
+    const found = pickTrailerFromPage(cheerio.load(html), { mediaType: 'tv', directOnly: false, season: 2 });
+    assert.equal(found.url, 'https://www.allocine.fr/video/player_gen_cmedia=1999&cserie=5.html');
+});
