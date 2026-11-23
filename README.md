@@ -10,10 +10,11 @@ Addon [Stremio](https://www.stremio.com/) qui affiche la **bande-annonce officie
 4. [Configuration](#configuration)
 5. [Dashboard d'administration](#dashboard-dadministration)
 6. [AIOMetadata](#aiometadata)
-7. [Stockage BD (optionnel)](#stockage-bd-optionnel)
-8. [Exploitation](#exploitation)
-9. [Développement](#développement)
-10. [Sources de données](#sources-de-données)
+7. [Nuvio et Odin](#nuvio-et-odin)
+8. [Stockage BD (optionnel)](#stockage-bd-optionnel)
+9. [Exploitation](#exploitation)
+10. [Développement](#développement)
+11. [Sources de données](#sources-de-données)
 
 ---
 
@@ -237,6 +238,17 @@ Partage `https://ton-domaine/aiom/manifest.json` comme **A trailer addon** dans 
 - Le manifest ne déclare que la ressource `stream`, pour les films et séries. Une seule bande-annonce (YouTube ou vidéo directe) est renvoyée, sans lien externe ni bouton Proposer.
 - Le délai maximum est réglable dans **Réglages → AIOMetadata** (1 à 12 s, 5 par défaut). La recherche continue en arrière-plan après un timeout.
 - Les manifests classiques et les anciens liens avec configuration gardent leur comportement.
+
+---
+
+## Nuvio et Odin
+
+Le manifest `https://ton-domaine/direct/manifest.json` fournit une bande-annonce VF en MP4 ou HLS (`.m3u8`) selon les sources disponibles. Il reprend le format `meta.links` de [Trailerio Lite](https://github.com/emreyild/trailerio-lite/blob/main/src/index.js) et fournit aussi une URL vidéo dans la ressource `stream`.
+
+- **Nuvio** : ajoute le manifest dans les addons pour retrouver le flux de bande-annonce parmi les flux du titre. Pour l'utiliser comme source du bouton de bande-annonce avec AIOMetadata, ajoute le même manifest dans **Meta Providers → Trailers → A trailer addon**.
+- **Odin** : ajoute le manifest comme source de bandes-annonces dans AIOMetadata, puis connecte Odin à [l'interface Jellyfin d'AIOMetadata](https://github.com/cedya77/aiometadata/blob/dev/docs/jellyfin.md) avec l'adresse et les identifiants fournis par AIOMetadata.
+
+Le mode direct utilise les liens vidéo du mapping manuel, puis Stockage BD si configuré, puis Allociné si activé. Renseigne `TMDB_API_KEY` côté serveur pour la recherche Allociné. Si aucune vidéo VF directe n'est disponible, le manifest ne propose aucun flux pour le titre.
 
 ---
 

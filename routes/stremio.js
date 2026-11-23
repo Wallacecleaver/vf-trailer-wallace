@@ -33,6 +33,13 @@ const aiomDirectManifest = {
     name: 'W Bandes-Annonces VF (AIOM Direct)',
     description: 'Bande-annonce VF en MP4 pour AIOMetadata',
 };
+const directTrailerManifest = {
+    ...aiomManifest,
+    id: 'org.vftrailers.direct',
+    name: 'W Bandes-Annonces VF (Direct)',
+    description: 'Bandes-annonces VF en vidéo directe MP4 ou HLS',
+    resources: manifest.resources,
+};
 
 function sharedAiomConfig() {
     return { aiom: true, pseudo: 'AIOMetadata', tmdbKey: FALLBACK_TMDB_KEY || null };
@@ -90,6 +97,39 @@ function parseStremioTarget(type, rawIdWithExt) {
     return { imdbId: match[1], season };
 }
 
+async function respondDirect(req, res, { asMeta = false, allowHls = false } = {}) {
+    const { type, idWithExt } = req.params;
+    const target = parseStremioTarget(type, idWithExt);
+    const empty = asMeta ? { meta: null } : { streams: [] };
+    res.setHeader('Cache-Control', 'no-store');
+    if (!target) return res.json(empty);
+
+    const { imdbId, season } = target;
+    try {
+        const behavior = await getBehaviorSettingsFast();
+        const work = resolveAiomDirect(type, imdbId, season, FALLBACK_TMDB_KEY, behavior, { allowHls });
+        const { streams, officialTitle, provider } = await withDeadline(work, aiomTimeoutMs(behavior));
+        if (!streams.length) return res.json(empty);
+        res.setHeader('Cache-Control', 'public, max-age=120');
+        if (!asMeta) return res.json({ streams });
+
+        return res.json({ meta: {
+            id: imdbId,
+            type,
+            name: officialTitle || imdbId,
+            links: [{ trailers: streams[0].url, provider: `VF · ${provider}` }],
+        } });
+    } catch {
+        await logEvent({
+            level: 'warn', context: allowHls ? 'STREAM' : 'AIOM',
+            event: allowHls ? 'direct_trailer_error' : 'aiom_direct_error',
+            message: allowHls ? 'Résolution de la bande-annonce directe impossible' : 'Résolution AIOM Direct impossible',
+            meta: { type, imdbId },
+        }).catch(() => {});
+        return res.json(empty);
+    }
+}
+
 module.exports = function registerStremioRoutes(app) {
     app.get('/aiom/manifest.json', (req, res) => {
         res.json(aiomManifest);
@@ -111,27 +151,11 @@ module.exports = function registerStremioRoutes(app) {
     });
 
     app.get('/aiom-direct/manifest.json', (_req, res) => res.json(aiomDirectManifest));
+    app.get('/aiom-direct/stream/:type/:idWithExt', (req, res) => respondDirect(req, res));
 
-    app.get('/aiom-direct/stream/:type/:idWithExt', async (req, res) => {
-        const { type, idWithExt } = req.params;
-        const target = parseStremioTarget(type, idWithExt);
-        res.setHeader('Cache-Control', 'no-store');
-        if (!target) return res.json({ streams: [] });
-
-        try {
-            const behavior = await getBehaviorSettingsFast();
-            const work = resolveAiomDirect(type, target.imdbId, target.season, FALLBACK_TMDB_KEY, behavior);
-            const { streams } = await withDeadline(work, aiomTimeoutMs(behavior));
-            if (streams.length) res.setHeader('Cache-Control', 'public, max-age=120');
-            return res.json({ streams });
-        } catch {
-            await logEvent({
-                level: 'warn', context: 'AIOM', event: 'aiom_direct_error',
-                message: 'Résolution AIOM Direct impossible', meta: { type, imdbId: target.imdbId },
-            }).catch(() => {});
-            return res.json({ streams: [] });
-        }
-    });
+    app.get('/direct/manifest.json', (_req, res) => res.json(directTrailerManifest));
+    app.get('/direct/stream/:type/:idWithExt', (req, res) => respondDirect(req, res, { allowHls: true }));
+    app.get('/direct/meta/:type/:idWithExt', (req, res) => respondDirect(req, res, { asMeta: true, allowHls: true }));
 
     // Manifest et stream acceptent un segment de config optionnel en tête d'URL.
     app.get('/:config?/manifest.json', async (req, res) => {
