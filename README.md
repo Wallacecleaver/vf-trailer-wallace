@@ -235,8 +235,10 @@ Options : type (films, séries ou les deux), échantillon (« populaires » : to
 Partage `https://ton-domaine/aiom/manifest.json` comme **A trailer addon** dans **AIOMetadata → Meta Providers → Trailers**. Le dashboard propose ce lien dans **AIOM**.
 
 - Le manifest renvoie un seul MP4 VF pour chaque film ou série. Après les mappings manuels, la priorité va à **YouTube 1080p → Allociné → Stockage DB**. Le premier appel peut servir un repli pendant que Stockage DB prépare le MP4 YouTube.
-- Configure `TMDB_API_KEY` côté serveur pour la recherche YouTube et Allociné. Pour YouTube 1080p, configure l'URL Stockage DB et renseigne `AIOM_DIRECT_STOCKAGE_WRITE_KEY` avec une clé nommée ayant le scope `trailers:write`. Active aussi `AIOM_YOUTUBE_1080_ENABLED=1` sur Stockage DB pour les vidéos dont l'import et la diffusion sont autorisés.
+- Configure `TMDB_API_KEY` côté serveur pour la recherche YouTube et Allociné. Pour YouTube 1080p, configure l'URL Stockage DB et renseigne `AIOM_DIRECT_STOCKAGE_WRITE_KEY` avec une clé nommée ayant le scope `trailers:write`. Sur Stockage DB, active **Préparer les bandes-annonces YouTube en MP4 1080p** dans **Paramètres & Cache HLS → AIOMetadata** pour les vidéos dont l'import et la diffusion sont autorisés.
 - Le délai est réglable dans **Réglages → AIOMetadata** (1 à 12 s, 5 par défaut). AIOMetadata a son propre cache. Après un repli, sa fréquence de réessai dépend notamment de `TRAILER_ADDON_TTL` et `TRAILER_ADDON_EMPTY_TTL` sur son instance.
+
+Pour vérifier la réponse de l'addon sans passer par le cache AIOMetadata, ouvre `https://ton-domaine/aiom/stream/movie/tt1234567.json` en remplaçant l'identifiant IMDb. Le champ `streams[0].url` pointe vers le MP4 et le titre contient `YouTube 1080p` quand ce fournisseur a été retenu. Recharge après la préparation, puis essaie le même titre dans AIOMetadata.
 
 ---
 
