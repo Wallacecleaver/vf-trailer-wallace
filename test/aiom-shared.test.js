@@ -37,7 +37,7 @@ mock.method(require('../lib/security'), 'safeFetch', async (raw, options) => {
     if (url.pathname.endsWith('/youtube')) {
         assert.equal(options.headers['x-api-key'], 'fixture-write-key');
         assert.deepEqual(JSON.parse(options.body), { ytId: 'trailer0000' });
-        return { ok: true, json: async () => state.relay };
+        return { ok: state.relayStatus < 400, status: state.relayStatus, json: async () => state.relay };
     }
     if (!state.stored) return { ok: false };
     const imdbId = url.searchParams.get('imdb');
@@ -69,7 +69,7 @@ before(async () => {
     base = 'http://127.0.0.1:' + server.address().port;
 });
 beforeEach(() => Object.assign(state, { calls: [], kind: 'youtube', delay: 0, fail: false,
-    relay: { url: youtubeMp4, height: 1080 }, allocine: false, stored: false, storageSeason: null }));
+    relay: { url: youtubeMp4, height: 1080 }, relayStatus: 200, allocine: false, stored: false, storageSeason: null }));
 after(async () => {
     if (server) { server.closeAllConnections(); await new Promise(resolve => server.close(resolve)); }
     sql.close();
@@ -236,4 +236,15 @@ test('AIOM partagé : un résultat YouTube sous 1080p passe au repli Allociné',
     state.allocine = state.stored = true;
     const data = await get('/aiom/stream/movie/tt0900010.json').then(response => response.json());
     assert.equal(data.streams[0].url, allocineMp4);
+});
+
+test('AIOM partagé : le refus de Stockage DB apparaît dans le journal sans exposer la clé', async () => {
+    state.relayStatus = 403;
+    const response = await get('/aiom/stream/movie/tt0900011.json');
+    assert.deepEqual(await response.json(), { streams: [] });
+    const rows = await sql`SELECT meta FROM event_logs WHERE event = 'aiom_request' ORDER BY id DESC LIMIT 1`;
+    const meta = JSON.parse(rows[0].meta);
+    assert.equal(meta.imdbId, 'tt0900011');
+    assert.deepEqual(meta.youtubeRelay, { videoId: 'trailer0000', httpStatus: 403 });
+    assert.doesNotMatch(rows[0].meta, /fixture-write-key/);
 });
