@@ -124,6 +124,11 @@ test('applyDisplayMode compact : préserve le titre personnalisé sur une seule 
 });
 
 test('Routes Stremio : ignore les IDs non-IMDb sans polluer failed_log, gère Saison 0 (Specials) et les IDs 8-10 chiffres, et évite le double comptage sur /meta', async () => {
+    const videos = [
+        { id: 'tt12345678:1:1', season: 1, episode: 1, name: 'Premier épisode', released: '2026-01-01T00:00:00.000Z' },
+        { id: 'tt12345678:2:1', season: 2, episode: 1, name: 'Nouvelle saison' },
+    ];
+    const relatedLink = { name: 'Interprète', category: 'Cast', url: 'https://example.test/cast' };
     await setOverride({
         imdbId: 'tt12345678',
         season: null,
@@ -133,8 +138,16 @@ test('Routes Stremio : ignore les IDs non-IMDb sans polluer failed_log, gère Sa
     });
 
     netStubState.handler = async (url) => {
+        if (url.includes('cinemeta.strem.io/meta/series/tt12345678.json')) {
+            return jsonRes({ meta: { id: 'tt12345678', type: 'series', name: 'Original series', videos,
+                description: 'Original synopsis', poster: 'https://example.test/poster.jpg',
+                links: [relatedLink, { name: 'Trailer', category: 'Trailers', url: 'https://www.youtube.com/watch?v=original000' }],
+                trailers: [{ source: 'original000', type: 'Trailer' }], trailerStreams: [{ ytId: 'original000' }],
+            } });
+        }
         if (url.includes('/find/tt12345678')) {
-            return jsonRes({ tv_results: [{ id: 555, name: 'Série Moderne' }] });
+            assert.match(url, /language=fr-FR/);
+            return jsonRes({ tv_results: [{ id: 555, name: 'Série Moderne', overview: 'Synopsis français' }] });
         }
         if (url.includes('/find/tt99999999')) {
             return jsonRes({ movie_results: [{ id: 777, title: 'Film Sans Trailer' }] });
@@ -164,10 +177,16 @@ test('Routes Stremio : ignore les IDs non-IMDb sans polluer failed_log, gère Sa
     assert.deepEqual(badSeasonRes.streams, []);
     assert.equal((await getFailedLog()).length, 0);
 
-    // 3. /meta avec externalOnly:true conserve bien `trailers` (ytId) et n'incrémente pas `override.uses`.
+    // 3. /meta avec externalOnly:true combine les épisodes et la VF sans incrémenter override.uses.
     const metaRes = await fetch(`${base}/${cfg}/meta/series/tt12345678.json`).then(r => r.json());
     assert.ok(metaRes.meta);
     assert.deepEqual(metaRes.meta.trailers, [{ source: 'dQw4w9WgXcQ', type: 'Trailer' }]);
+    assert.deepEqual(metaRes.meta.videos, videos);
+    assert.deepEqual(metaRes.meta.links, [relatedLink]);
+    assert.equal(metaRes.meta.trailerStreams, undefined);
+    assert.equal(metaRes.meta.name, 'Série Moderne');
+    assert.equal(metaRes.meta.description, 'Synopsis français');
+    assert.equal(metaRes.meta.poster, 'https://example.test/poster.jpg');
     assert.equal((await getOverrideUses())['tt12345678:'], '0');
 
     // 4. Saison 0 (Specials Stremio : tt12345678:0:1) retombe sur la série générale sans "(Saison 0)" et incrémente uses une seule fois.
@@ -179,4 +198,16 @@ test('Routes Stremio : ignore les IDs non-IMDb sans polluer failed_log, gère Sa
     // 5. /meta renvoie null (et non un objet vide qui écraserait Cinemeta) quand aucune bande-annonce n'existe.
     const emptyMeta = await fetch(`${base}/${cfg}/meta/movie/tt99999999.json`).then(r => r.json());
     assert.equal(emptyMeta.meta, null);
+});
+
+test('Routes Stremio : une bande-annonce seule ne remplace pas la fiche série si Cinemeta n’a pas les épisodes', async () => {
+    const imdbId = 'tt12345679';
+    await setOverride({ imdbId, ytId: 'dQw4w9WgXcQ', title: 'Série sans épisodes', mediaType: 'series' });
+    netStubState.handler = async url => {
+        if (url.includes(`/find/${imdbId}`)) return jsonRes({ tv_results: [{ name: 'Série sans épisodes' }] });
+        return jsonRes({ meta: { id: imdbId, type: 'series', videos: [] } });
+    };
+    const cfg = Buffer.from(JSON.stringify({ tmdbKey: 'user-tmdb-key' })).toString('base64url');
+    const response = await fetch(`${base}/${cfg}/meta/series/${imdbId}.json`);
+    assert.deepEqual(await response.json(), { meta: null });
 });

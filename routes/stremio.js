@@ -6,7 +6,7 @@ const { recordAiomStat } = require('../lib/aiom-stats');
 const { logEvent } = require('../lib/logs');
 const { logFailure } = require('../lib/overrides');
 const { manifest, decodeConfig, FALLBACK_TMDB_KEY, LOGO_URL } = require('../lib/config');
-const { resolveStreams, getBehaviorSettingsFast, buildMetaObject } = require('../lib/resolver');
+const { resolveStreams, getBehaviorSettingsFast, buildMetaObject, getSeriesMetadata, withSeriesEpisodes } = require('../lib/resolver');
 const { resolveAiomDirect, resolveSharedAiom } = require('../lib/aiom-direct');
 const { aiomTimeoutMs, withDeadline, aiomOutcome, resolveStreamsSingleFlight, logAiomRequest } = require('../lib/aiom');
 
@@ -96,19 +96,25 @@ async function respondDirect(req, res, { asMeta = false, allowHls = false } = {}
 
     const { imdbId, season } = target;
     try {
+        const seriesWork = asMeta && type === 'series' ? getSeriesMetadata(imdbId) : null;
         const behavior = await getBehaviorSettingsFast();
         const work = resolveAiomDirect(type, imdbId, season, FALLBACK_TMDB_KEY, behavior, { allowHls });
         const { streams, officialTitle, provider } = await withDeadline(work, aiomTimeoutMs(behavior));
         if (!streams.length) return res.json(empty);
-        res.setHeader('Cache-Control', 'public, max-age=120');
-        if (!asMeta) return res.json({ streams });
+        if (!asMeta) {
+            res.setHeader('Cache-Control', 'public, max-age=120');
+            return res.json({ streams });
+        }
 
-        return res.json({ meta: {
+        const series = await seriesWork;
+        const meta = withSeriesEpisodes({
             id: imdbId,
             type,
-            name: officialTitle || imdbId,
+            name: officialTitle || series?.name || imdbId,
             links: [{ trailers: streams[0].url, provider: `VF · ${provider}` }],
-        } });
+        }, series);
+        if (meta) res.setHeader('Cache-Control', 'public, max-age=120');
+        return res.json({ meta });
     } catch {
         await logEvent({
             level: 'warn', context: allowHls ? 'STREAM' : 'AIOM',

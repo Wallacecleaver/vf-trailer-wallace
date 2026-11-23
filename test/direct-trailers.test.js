@@ -13,6 +13,10 @@ process.env.AIOM_DIRECT_STOCKAGE_WRITE_KEY = '';
 
 const hls = 'https://video.example/trailer.m3u8?token=fixture';
 const mp4 = 'https://video.example/trailer.mp4';
+const episodes = [{ id: 'tt0000002:2:4', season: 2, episode: 4, name: 'Épisode quatre' }];
+mock.method(require('../lib/imdb-title'), 'fetchCinemetaMeta', async (id, type) => ({
+    id, type, videos: id === 'tt0000002' ? episodes : [], trailers: [{ source: 'ancienneVO' }],
+}));
 const probe = mock.method(require('../lib/media-link'), 'probeDirectLink', async url => {
     if (url === hls) return { ok: true, media: 'hls' };
     if (url === mp4) return { ok: true, media: 'mp4' };
@@ -53,6 +57,7 @@ before(async () => {
     await ensureSchema();
     await setOverride({ imdbId: 'tt0000001', title: 'Film VF', links: [{ ytId: 'abcdefghijk' }, { url: hls }] });
     await setOverride({ imdbId: 'tt0000004', hidden: true });
+    await setOverride({ imdbId: 'tt0000005', title: 'Série sans épisodes', url: hls });
     server = app.listen(0, '127.0.0.1');
     await new Promise(resolve => server.once('listening', resolve));
     base = 'http://127.0.0.1:' + server.address().port;
@@ -93,6 +98,18 @@ test('Stockage BD conserve la saison et la VF, avec un cache distinct du mode MP
     assert.deepEqual(await get('/direct' + url).then(response => response.json()),
         { streams: [{ title: 'Saison 2 VF', url: hls }] });
     assert.deepEqual(await get('/aiom-direct' + url).then(response => response.json()), { streams: [] });
+});
+
+test('la fiche de série directe conserve les épisodes et les liens VF, ou laisse la place au catalogue', async () => {
+    const found = await get('/direct/meta/series/tt0000002%3A2%3A4.json');
+    const { meta } = await found.json();
+    assert.equal(meta.id, 'tt0000002');
+    assert.deepEqual(meta.videos, episodes);
+    assert.deepEqual(meta.links, [{ trailers: hls, provider: 'VF · Stockage BD' }]);
+    assert.deepEqual(meta.trailers, []);
+    const missing = await get('/direct/meta/series/tt0000005.json');
+    assert.deepEqual(await missing.json(), { meta: null });
+    assert.equal(missing.headers.get('cache-control'), 'no-store');
 });
 
 test('Allociné privilégie un MP4 vérifié et ignore la page du lecteur', async () => {
