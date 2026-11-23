@@ -242,9 +242,10 @@ test('AIOM partagé : le refus de Stockage DB apparaît dans le journal sans exp
     state.relayStatus = 403;
     const response = await get('/aiom/stream/movie/tt0900011.json');
     assert.deepEqual(await response.json(), { streams: [] });
-    const rows = await sql`SELECT meta FROM event_logs WHERE event = 'aiom_request' ORDER BY id DESC LIMIT 1`;
+    const rows = await sql`SELECT meta, message FROM event_logs WHERE event = 'aiom_request' ORDER BY id DESC LIMIT 1`;
     const meta = JSON.parse(rows[0].meta);
     assert.equal(meta.imdbId, 'tt0900011');
     assert.deepEqual(meta.youtubeRelay, { videoId: 'trailer0000', httpStatus: 403 });
+    assert.match(rows[0].message, /YouTube 1080p.*HTTP 403/);
     assert.doesNotMatch(rows[0].meta, /fixture-write-key/);
 });
