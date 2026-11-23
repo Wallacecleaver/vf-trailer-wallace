@@ -23,7 +23,7 @@ Addon [Stremio](https://www.stremio.com/) qui affiche la **bande-annonce officie
 - **VF stricte** : seules les vidéos reconnues comme françaises sont proposées (langue TMDB + nom de la vidéo, voir plus bas).
 - **Plusieurs sources en cascade** : TMDB, TheTVDB, AniList (animés), recherche YouTube VF, Allociné, puis une instance Stockage BD.
 - **Teaser puis bande-annonce** dans Stremio, avec options d'extras, de teasers et de nombre de liens.
-- **Mode AIOMetadata** : un seul lien (`ytId` ou `url`), avec un manifest partagé et un délai maximum réglable.
+- **Mode AIOMetadata** : un seul lien MP4 sur le manifest partagé, avec un délai maximum réglable.
 - **Dashboard d'administration** : statistiques, utilisateurs, mapping manuel des liens, demandes de la communauté, test des flux, **test aléatoire en masse**, logs, réglages, cache.
 - **Pages publiques** : configuration de l'addon (`/configure`) et proposition de liens par la communauté (`/proposer`).
 - **Léger** : un seul processus Node, SQLite intégré, aucune tâche de fond.
@@ -234,10 +234,9 @@ Options : type (films, séries ou les deux), échantillon (« populaires » : to
 
 Partage `https://ton-domaine/aiom/manifest.json` comme **A trailer addon** dans **AIOMetadata → Meta Providers → Trailers**. Le dashboard propose ce lien dans **AIOM**.
 
-- Il utilise la clé **`TMDB_API_KEY` du serveur** : aucune clé dans le lien ni dans le manifest. Sans clé serveur, les streams répondent `{ "streams": [] }` et AIOMetadata garde son propre trailer.
-- Le manifest ne déclare que la ressource `stream`, pour les films et séries. Une seule bande-annonce (YouTube ou vidéo directe) est renvoyée, sans lien externe ni bouton Proposer.
-- Le délai maximum est réglable dans **Réglages → AIOMetadata** (1 à 12 s, 5 par défaut). La recherche continue en arrière-plan après un timeout.
-- Les manifests classiques et les anciens liens avec configuration gardent leur comportement.
+- Le manifest renvoie un seul MP4 VF pour chaque film ou série. Après les mappings manuels, la priorité va à **YouTube 1080p → Allociné → Stockage DB**. Le premier appel peut servir un repli pendant que Stockage DB prépare le MP4 YouTube.
+- Configure `TMDB_API_KEY` côté serveur pour la recherche YouTube et Allociné. Pour YouTube 1080p, configure l'URL Stockage DB et renseigne `AIOM_DIRECT_STOCKAGE_WRITE_KEY` avec une clé nommée ayant le scope `trailers:write`. Active aussi `AIOM_YOUTUBE_1080_ENABLED=1` sur Stockage DB pour les vidéos dont l'import et la diffusion sont autorisés.
+- Le délai est réglable dans **Réglages → AIOMetadata** (1 à 12 s, 5 par défaut). AIOMetadata a son propre cache. Après un repli, sa fréquence de réessai dépend notamment de `TRAILER_ADDON_TTL` et `TRAILER_ADDON_EMPTY_TTL` sur son instance.
 
 ---
 

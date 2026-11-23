@@ -7,20 +7,20 @@ const { logEvent } = require('../lib/logs');
 const { logFailure } = require('../lib/overrides');
 const { manifest, decodeConfig, FALLBACK_TMDB_KEY, LOGO_URL } = require('../lib/config');
 const { resolveStreams, getBehaviorSettingsFast, buildMetaObject } = require('../lib/resolver');
-const { resolveAiomDirect } = require('../lib/aiom-direct');
+const { resolveAiomDirect, resolveSharedAiom } = require('../lib/aiom-direct');
 const { aiomTimeoutMs, withDeadline, aiomOutcome, resolveStreamsSingleFlight, logAiomRequest } = require('../lib/aiom');
 
 // ---- Lien AIOMetadata PARTAGÉ : /aiom/manifest.json ----------------------------------------
 // Un seul lien identique pour tout le monde (comme https://trailerio.cc/fr/manifest.json) : pas de
-// config dans l'URL, pas de page /configure. La config est fixée ici (mode aiom, un seul flux
-// ytId/url) et la clé TMDB est celle du serveur (TMDB_API_KEY) ; le délai max reste réglable dans
+// config dans l'URL, pas de page /configure. La config est fixée ici (mode aiom, un seul MP4)
+// et la clé TMDB est celle du serveur (TMDB_API_KEY) ; le délai max reste réglable dans
 // le dashboard (Réglages > AIOMetadata). Ces routes DOIVENT être enregistrées avant
 // /:config?/manifest.json, sinon "aiom" serait pris pour un segment de config.
 const aiomManifest = {
     id: 'org.vftrailers.aiom',
     version: manifest.version,
     name: 'W Bandes-Annonces VF (AIOMetadata)',
-    description: 'Bande-annonce VF (YouTube, sinon lien MP4 direct) pour l\'option « A trailer addon » d\'AIOMetadata',
+    description: 'Bande-annonce VF en MP4 (YouTube 1080p, Allociné ou Stockage DB) pour AIOMetadata',
     logo: LOGO_URL,
     resources: ['stream'],
     types: ['movie', 'series'],
@@ -47,29 +47,19 @@ function sharedAiomConfig() {
 
 // Mode AIOMetadata : réponse courte et lisible, journalisée dans le dashboard (Logs > AIOM),
 // sans stats globales ni journal "échecs" (voir logAiomRequest).
-async function respondAiom(req, res, config, type, imdbId, season, { directFallback = false } = {}) {
+async function respondAiom(req, res, config, type, imdbId, season, { shared = false } = {}) {
     const t0 = Date.now();
-    const timeoutMs = aiomTimeoutMs(await getBehaviorSettingsFast()); // réglage du dashboard (cache mémoire 30 s)
-    const work = resolveStreamsSingleFlight(type, imdbId, season, config);
-    work.catch(() => {}); // évite un unhandledRejection si le délai a déjà répondu
-    let result = await withDeadline(work, timeoutMs);
-    // Lien unique : ytId / URL en priorité (résolution classique) ; si rien, on tente AIOM Direct
-    // (MP4 Stockage BD / Allociné) avec le temps qu'il reste sur le délai.
-    if (directFallback && !result.streams.length && !result.timedOut) {
-        const remaining = timeoutMs - (Date.now() - t0);
-        if (remaining >= 800) {
-            const behavior = await getBehaviorSettingsFast();
-            const direct = await withDeadline(resolveAiomDirect(type, imdbId, season, config.tmdbKey, behavior), remaining)
-                .catch(() => ({ streams: [] }));
-            if (direct.streams && direct.streams.length) result = { ...result, streams: direct.streams, source: 'aiom_direct' };
-        }
-    }
+    const behavior = await getBehaviorSettingsFast();
+    const timeoutMs = aiomTimeoutMs(behavior);
+    const work = shared ? resolveSharedAiom(type, imdbId, season, config.tmdbKey, behavior, timeoutMs)
+        : resolveStreamsSingleFlight(type, imdbId, season, config);
+    const result = await withDeadline(work, timeoutMs);
     const ms = Date.now() - t0;
-    // Cache navigateur/CDN : 10 min si un trailer est trouvé, 2 min pour un "aucun" (une nouveauté peut
-    // recevoir sa bande-annonce d'un moment à l'autre) ; un timeout jamais (la résolution continue en
-    // arrière-plan, la requête suivante sera servie par le cache).
+    // Cache navigateur/CDN : 2 min sur le lien partagé. Une préparation ou un timeout
+    // conserve la possibilité d'obtenir la vidéo prioritaire dès le prochain appel.
     const cacheable = !result.timedOut && !result.pending;
-    res.setHeader('Cache-Control', !cacheable ? 'no-store' : `public, max-age=${result.streams.length ? 600 : 120}`);
+    const maxAge = result.streams.length ? (shared ? 120 : 600) : 120;
+    res.setHeader('Cache-Control', !cacheable ? 'no-store' : `public, max-age=${maxAge}`);
     res.json({ streams: result.streams });
     // Journal et compteurs APRÈS l'envoi de la réponse : une base lente ou en erreur ne retarde plus
     // AIOMetadata et ne peut plus faire perdre une bande-annonce déjà trouvée. On les attend quand même
@@ -137,12 +127,11 @@ module.exports = function registerStremioRoutes(app) {
 
     app.get('/aiom/stream/:type/:idWithExt', async (req, res) => {
         const config = sharedAiomConfig();
-        if (!config.tmdbKey) return res.json({ streams: [] });
         const { type } = req.params;
         const parsed = parseStremioTarget(type, req.params.idWithExt);
         if (!parsed) return res.json({ streams: [] });
         try {
-            return await respondAiom(req, res, config, type, parsed.imdbId, parsed.season, { directFallback: true });
+            return await respondAiom(req, res, config, type, parsed.imdbId, parsed.season, { shared: true });
         } catch {
             await logEvent({ level: 'error', context: 'AIOM', event: 'aiom_shared_error',
                 message: 'Résolution AIOMetadata partagée impossible', meta: { type, imdbId: parsed.imdbId } });

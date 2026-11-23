@@ -49,9 +49,9 @@
                   <button type="button" id="aiom-copy" class="btn-save" onclick="copyAiomManifest()">Copier le lien .json</button>
                   <a id="aiom-open" class="btn-outline-sm" target="_blank" rel="noopener noreferrer">Ouvrir le manifest ↗</a>
                 </div>
-                <div id="aiom-key-warning" class="aiom-warning" hidden><strong>La clé TMDB du serveur est absente.</strong> Renseigne <code>TMDB_API_KEY</code> dans WDock, puis redéploie l’addon. Sans elle, le lien partagé ne renvoie aucune bande-annonce.</div>
+                <div id="aiom-key-warning" class="aiom-warning" hidden><strong>La clé TMDB du serveur est absente.</strong> Renseigne <code>TMDB_API_KEY</code> pour la recherche YouTube et Allociné.</div>
                 <div class="aiom-link-details">
-                  <div><span>Format de réponse</span><strong>1 bande-annonce VF</strong><small>YouTube ou vidéo directe</small></div>
+                  <div><span>Format de réponse</span><strong>1 bande-annonce VF en MP4</strong><small>YouTube 1080p, Allociné ou Stockage DB</small></div>
                   <div><span>Délai maximum</span><strong id="aiom-timeout">—</strong><button type="button" class="aiom-text-button" onclick="showPage('settings')">Régler le délai ↗</button></div>
                 </div>
                 <p class="aiom-note">Si aucun trailer VF n’est trouvé ou si le délai est dépassé, AIOMetadata peut garder celui de son fournisseur.</p>
