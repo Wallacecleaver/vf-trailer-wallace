@@ -1,6 +1,6 @@
 {
   "name": "vf-trailers-addon",
-  "version": "3.7.2",
+  "version": "3.7.3",
   "scripts": {
     "start": "node selfhost/server.js",
     "test": "node --test"
