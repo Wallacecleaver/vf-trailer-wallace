@@ -43,6 +43,7 @@ const stockage = mock.method(require('../lib/security'), 'safeFetch', async raw 
 });
 
 const sql = require('../lib/db');
+const { setCached } = require('../lib/cache');
 const { ensureSchema } = require('../lib/migrate');
 const { setOverride } = require('../lib/overrides');
 const app = require('../api');
@@ -96,6 +97,8 @@ test('Stockage BD conserve la saison et la VF, avec un cache distinct du mode MP
 });
 
 test('Allociné privilégie un MP4 vérifié et ignore la page du lecteur', async () => {
+    const oldCacheKey = 'cache:direct:v1:movie:tt0000003::https://stockage.example:true:false';
+    await setCached(oldCacheKey, { provider: 'Allociné', title: 'Autre film', url: 'https://video.example/other.mp4' }, 600);
     const response = await get('/direct/stream/movie/tt0000003.json');
     assert.deepEqual(await response.json(), { streams: [{ title: 'Bande-annonce VF · Film Allociné', url: mp4 }] });
 });
