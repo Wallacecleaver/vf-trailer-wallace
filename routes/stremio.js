@@ -65,6 +65,20 @@ function sharedAiomConfig() {
     return { aiom: true, pseudo: 'AIOMetadata', tmdbKey: FALLBACK_TMDB_KEY || null };
 }
 
+async function resolveSharedAiomSource(sourceUrl, type, imdbId, season, tmdbKey, behavior, timeoutMs) {
+    const source = withDeadline(resolveAiomSource(sourceUrl, type, imdbId, season, behavior, timeoutMs), timeoutMs);
+    // Recherche en parallèle, avec son propre délai pour conserver la VF YouTube si le MP4 tarde.
+    const direct = withDeadline(
+        resolveAiomDirect(type, imdbId, season, tmdbKey, behavior, { allowHls: true }).catch(() => null),
+        Math.min(timeoutMs, 2500), null,
+    );
+    const result = await source;
+    if (!result.streams[0]?.ytId) return result;
+
+    const playable = (await direct)?.streams[0];
+    return playable?.url ? { ...result, streams: [playable, ...result.streams] } : result;
+}
+
 // Mode AIOMetadata : réponse courte et lisible, journalisée dans le dashboard (Logs > AIOM),
 // sans stats globales ni journal "échecs" (voir logAiomRequest).
 async function respondAiom(res, config, type, imdbId, season, { shared = false, asMeta = false } = {}) {
@@ -72,11 +86,10 @@ async function respondAiom(res, config, type, imdbId, season, { shared = false, 
     const behavior = await getBehaviorSettingsFast();
     const timeoutMs = aiomTimeoutMs(behavior);
     const sourceUrl = shared ? await getAiomSource() : '';
-    let work;
-    if (sourceUrl) work = resolveAiomSource(sourceUrl, type, imdbId, season, behavior, timeoutMs);
-    else if (shared) work = resolveSharedAiom(type, imdbId, season, config.tmdbKey, behavior, timeoutMs);
-    else work = resolveStreamsSingleFlight(type, imdbId, season, config);
-    const result = await withDeadline(work, timeoutMs);
+    const result = sourceUrl
+        ? await resolveSharedAiomSource(sourceUrl, type, imdbId, season, config.tmdbKey, behavior, timeoutMs)
+        : await withDeadline(shared ? resolveSharedAiom(type, imdbId, season, config.tmdbKey, behavior, timeoutMs)
+            : resolveStreamsSingleFlight(type, imdbId, season, config), timeoutMs);
     const ms = Date.now() - t0;
     // Cache navigateur/CDN : 2 min sur le lien partagé. Une préparation ou un timeout
     // conserve la possibilité d'obtenir la vidéo prioritaire dès le prochain appel.
@@ -88,11 +101,11 @@ async function respondAiom(res, config, type, imdbId, season, { shared = false, 
         res.status(503);
     }
     if (asMeta) {
-        const [stream] = result.streams;
-        res.json({ meta: stream ? {
+        const youtube = result.streams.find(stream => stream.ytId);
+        res.json({ meta: result.streams.length ? {
             id: imdbId, type, name: result.officialTitle || imdbId,
             trailerStreams: result.streams,
-            trailers: stream.ytId ? [{ source: stream.ytId, type: 'Trailer', name: stream.title }] : [],
+            trailers: youtube ? [{ source: youtube.ytId, type: 'Trailer', name: youtube.title }] : [],
         } : null });
     } else {
         res.json({ streams: result.streams });

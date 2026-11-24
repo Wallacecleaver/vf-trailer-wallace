@@ -17,7 +17,7 @@
     aiomSourceUrl = url;
     field.disabled = false;
     document.getElementById('aiom-source-save').disabled = false;
-    document.getElementById('aiom-response-format').textContent = url ? '1 bande-annonce YouTube ou MP4' : '1 bande-annonce VF en MP4';
+    document.getElementById('aiom-response-format').textContent = url ? 'Bande-annonce VF et lecture directe si disponible' : '1 bande-annonce VF en MP4';
     document.getElementById('aiom-response-source').textContent = url ? 'Manifest source externe' : 'YouTube 1080p, Allociné ou Stockage DB';
     const key = document.getElementById('aiom-key-status');
     key.hidden = !!url;

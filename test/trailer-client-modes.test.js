@@ -117,11 +117,15 @@ test('le manifest partagé annonce meta avec une source externe et sert toujours
     assert.equal(dashboard.sourceManifestUrl, source);
 
     const path = '/aiom/stream/series/tt0000001%3A2%3A4.json';
-    assert.deepEqual((await getJson(path)).streams, [{ ytId, title: 'Bande-annonce VF' }]);
+    const streams = [
+        { url: mp4, title: 'Série VF' },
+        { ytId, title: 'Bande-annonce VF' },
+    ];
+    assert.deepEqual((await getJson(path)).streams, streams);
     assert.match(safeFetch.mock.calls.at(-1).arguments[0], /\/nuvio-strict\/meta\/series\/tt0000001%3A2\.json$/);
     const { meta } = await getJson(path.replace('/stream/', '/meta/'));
     assert.equal(meta.id, 'tt0000001');
-    assert.deepEqual(meta.trailerStreams, [{ ytId, title: 'Bande-annonce VF' }]);
+    assert.deepEqual(meta.trailerStreams, streams);
     assert.deepEqual(meta.trailers, [{ source: ytId, type: 'Trailer', name: 'Bande-annonce VF' }]);
     assert.deepEqual(await getJson('/aiom/stream/movie/tt0000002.json'), { streams: [] });
     const missing = await request('/aiom/meta/movie/tt0000002.json');
