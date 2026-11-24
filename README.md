@@ -239,7 +239,7 @@ Partage `https://ton-domaine/aiom/manifest.json` comme **A trailer addon** dans 
 - Configure `TMDB_API_KEY` côté serveur pour la recherche YouTube et Allociné. Pour YouTube 1080p, configure l'URL Stockage DB et renseigne `AIOM_DIRECT_STOCKAGE_WRITE_KEY` avec une clé nommée ayant le scope `trailers:write`. Sur Stockage DB, active **Préparer les bandes-annonces YouTube en MP4 1080p** dans **Paramètres & Cache HLS → AIOMetadata** pour les vidéos dont l'import et la diffusion sont autorisés.
 - Le délai est réglable dans **Réglages → AIOMetadata** (1 à 12 s, 5 par défaut). AIOMetadata a son propre cache. Après un repli, sa fréquence de réessai dépend notamment de `TRAILER_ADDON_TTL` et `TRAILER_ADDON_EMPTY_TTL` sur son instance.
 
-Pour vérifier la réponse de l'addon avant le cache AIOMetadata, ouvre `https://ton-domaine/aiom/stream/movie/tt35866986.json` pour *Comment braquer une banque*. Une réponse peut contenir `streams[0].ytId` pour YouTube ou `streams[0].url` pour un MP4. Si la liste est vide, AIOMetadata peut reprendre la bande-annonce de son fournisseur de métadonnées.
+Avec une source externe, le lien partagé annonce la ressource `meta`. Pour vérifier la réponse avant le cache AIOMetadata, ouvre `https://ton-domaine/aiom/meta/movie/tt35866986.json` pour *Comment braquer une banque*. La vidéo se trouve dans `meta.trailerStreams`. La route `/aiom/stream/movie/tt35866986.json` reste accessible aux clients qui l'utilisent déjà. Si la source est momentanément indisponible, le relais renvoie un statut HTTP 503 pour qu'AIOMetadata puisse réessayer.
 
 ---
 

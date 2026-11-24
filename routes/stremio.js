@@ -9,7 +9,7 @@ const { manifest, decodeConfig, FALLBACK_TMDB_KEY, LOGO_URL } = require('../lib/
 const { resolveStreams, getBehaviorSettingsFast, buildMetaObject } = require('../lib/resolver');
 const { resolveAiomDirect, resolveSharedAiom } = require('../lib/aiom-direct');
 const { aiomTimeoutMs, withDeadline, aiomOutcome, resolveStreamsSingleFlight, logAiomRequest } = require('../lib/aiom');
-const { getAiomSource, resolveAiomSource } = require('../lib/aiom-source');
+const { AIOM_MANIFEST_ID, getAiomSource, resolveAiomSource } = require('../lib/aiom-source');
 const { buildNuvioMeta } = require('../lib/nuvio');
 
 // ---- Lien AIOMetadata PARTAGÉ : /aiom/manifest.json ----------------------------------------
@@ -18,7 +18,7 @@ const { buildNuvioMeta } = require('../lib/nuvio');
 // La source native utilise la clé TMDB du serveur. Ces routes DOIVENT être enregistrées avant
 // /:config?/manifest.json, sinon "aiom" serait pris pour un segment de config.
 const aiomManifest = {
-    id: 'org.vftrailers.aiom',
+    id: AIOM_MANIFEST_ID,
     version: manifest.version,
     name: 'W Bandes-Annonces VF (AIOMetadata)',
     description: 'Bande-annonce VF pour AIOMetadata',
@@ -67,7 +67,7 @@ function sharedAiomConfig() {
 
 // Mode AIOMetadata : réponse courte et lisible, journalisée dans le dashboard (Logs > AIOM),
 // sans stats globales ni journal "échecs" (voir logAiomRequest).
-async function respondAiom(req, res, config, type, imdbId, season, { shared = false } = {}) {
+async function respondAiom(res, config, type, imdbId, season, { shared = false, asMeta = false } = {}) {
     const t0 = Date.now();
     const behavior = await getBehaviorSettingsFast();
     const timeoutMs = aiomTimeoutMs(behavior);
@@ -83,7 +83,20 @@ async function respondAiom(req, res, config, type, imdbId, season, { shared = fa
     const cacheable = !sourceUrl && !result.timedOut && !result.pending;
     const maxAge = result.streams.length ? (shared ? 120 : 600) : 120;
     res.setHeader('Cache-Control', !cacheable ? 'no-store' : `public, max-age=${maxAge}`);
-    res.json({ streams: result.streams });
+    if (sourceUrl && (result.timedOut || result.sourceUnavailable)) {
+        // AIOMetadata garde les réponses 200 vides dans son propre cache, même avec no-store.
+        res.status(503);
+    }
+    if (asMeta) {
+        const [stream] = result.streams;
+        res.json({ meta: stream ? {
+            id: imdbId, type, name: result.officialTitle || imdbId,
+            trailerStreams: result.streams,
+            trailers: stream.ytId ? [{ source: stream.ytId, type: 'Trailer', name: stream.title }] : [],
+        } : null });
+    } else {
+        res.json({ streams: result.streams });
+    }
     // Journal et compteurs APRÈS l'envoi de la réponse : une base lente ou en erreur ne retarde plus
     // AIOMetadata et ne peut plus faire perdre une bande-annonce déjà trouvée. On les attend quand même
     // (sans bloquer la réponse) pour que l'hébergement serverless ne coupe pas l'écriture.
@@ -108,6 +121,21 @@ function parseStremioTarget(type, rawIdWithExt) {
     // et TMDB/Stockage BD n'ont pas de bande-annonce « Saison 0 ». On la traite comme la fiche série générale.
     const season = seasonNum && seasonNum >= 1 ? String(seasonNum) : null;
     return { imdbId: match[1], season };
+}
+
+async function respondSharedAiom(req, res, asMeta) {
+    const { type, idWithExt } = req.params;
+    const parsed = parseStremioTarget(type, idWithExt);
+    const empty = asMeta ? { meta: null } : { streams: [] };
+    if (!parsed) return res.json(empty);
+    try {
+        return await respondAiom(res, sharedAiomConfig(), type, parsed.imdbId, parsed.season, { shared: true, asMeta });
+    } catch {
+        res.setHeader('Cache-Control', 'no-store');
+        res.status(503).json(empty);
+        await logEvent({ level: 'error', context: 'AIOM', event: 'aiom_shared_error',
+            message: 'Résolution AIOMetadata partagée impossible', meta: { type, imdbId: parsed.imdbId } }).catch(() => {});
+    }
 }
 
 async function respondDirect(req, res, { asMeta = false, allowHls = false } = {}) {
@@ -162,23 +190,14 @@ async function respondNuvio(req, res, strict) {
 }
 
 module.exports = function registerStremioRoutes(app) {
-    app.get('/aiom/manifest.json', (req, res) => {
-        res.json(aiomManifest);
+    app.get('/aiom/manifest.json', async (_req, res) => {
+        res.setHeader('Cache-Control', 'no-store');
+        const sourceUrl = await getAiomSource();
+        res.json(sourceUrl ? { ...aiomManifest, resources: ['meta'] } : aiomManifest);
     });
 
-    app.get('/aiom/stream/:type/:idWithExt', async (req, res) => {
-        const config = sharedAiomConfig();
-        const { type } = req.params;
-        const parsed = parseStremioTarget(type, req.params.idWithExt);
-        if (!parsed) return res.json({ streams: [] });
-        try {
-            return await respondAiom(req, res, config, type, parsed.imdbId, parsed.season, { shared: true });
-        } catch {
-            await logEvent({ level: 'error', context: 'AIOM', event: 'aiom_shared_error',
-                message: 'Résolution AIOMetadata partagée impossible', meta: { type, imdbId: parsed.imdbId } });
-            res.json({ streams: [] });
-        }
-    });
+    app.get('/aiom/meta/:type/:idWithExt', (req, res) => respondSharedAiom(req, res, true));
+    app.get('/aiom/stream/:type/:idWithExt', (req, res) => respondSharedAiom(req, res, false));
 
     app.get('/aiom-direct/manifest.json', (_req, res) => res.json(aiomDirectManifest));
     app.get('/aiom-direct/stream/:type/:idWithExt', (req, res) => respondDirect(req, res));
@@ -249,7 +268,7 @@ module.exports = function registerStremioRoutes(app) {
             if (!parsed) return res.json({ streams: [] });
             const { imdbId, season } = parsed;
 
-            if (config.aiom) return await respondAiom(req, res, config, type, imdbId, season);
+            if (config.aiom) return await respondAiom(res, config, type, imdbId, season);
 
             const { streams, officialTitle, hidden, pending } = await resolveStreams(type, imdbId, season, config);
             if (pending) res.setHeader('Cache-Control', 'no-store');

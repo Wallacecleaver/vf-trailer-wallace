@@ -13,6 +13,7 @@ const source = 'https://trailers.example/nuvio-strict/manifest.json';
 const ytId = 'uXFBBDDvCzk';
 const mp4 = 'https://video.example/trailer.mp4';
 const episodes = [{ id: 'tt0000001:2:1', season: 2, episode: 1, title: 'Épisode 1' }];
+let sourceOutage = true;
 const safeFetch = mock.method(require('../lib/security'), 'safeFetch', async (raw, options, settings) => {
     const url = new URL(raw);
     assert.equal(url.hostname, 'trailers.example');
@@ -21,17 +22,19 @@ const safeFetch = mock.method(require('../lib/security'), 'safeFetch', async (ra
     assert.ok(options.signal);
     if (url.pathname.endsWith('/manifest.json')) {
         return { ok: true, json: async () => ({
-            id: 'io.trailerio.nuvio.strict', resources: url.pathname.startsWith('/nuvio') ? ['meta'] : ['stream'],
+            id: url.pathname.startsWith('/nuvio') ? 'io.trailerio.nuvio.strict' : 'org.vftrailers.aiom',
+            resources: ['meta'],
             types: ['movie', 'series'], idPrefixes: ['tt'],
         }) };
     }
     const [type, file] = decodeURIComponent(url.pathname).split('/').slice(-2);
     const id = file.slice(0, -5).split(':')[0];
-    if (id === 'tt0000003') return { ok: false };
+    if (id === 'tt0000003' && sourceOutage) return { ok: false };
     return { ok: true, json: async () => ({ meta: {
         id, type, name: 'Titre',
         trailers: [{ source: 'abcdefghijk', name: 'Bande-annonce VOSTFR' }],
-        trailerStreams: id === 'tt0000001' ? [{ ytId: 'abcdefghijk' }, { ytId, title: 'Bande-annonce VF' }] : [],
+        trailerStreams: ['tt0000001', 'tt0000003'].includes(id)
+            ? [{ ytId: 'abcdefghijk' }, { ytId, title: 'Bande-annonce VF' }] : [],
     } }) };
 });
 mock.method(require('../lib/media-link'), 'probeDirectLink', async url => ({ ok: url === mp4, media: 'mp4' }));
@@ -100,27 +103,42 @@ test('Fusion et Nuvio ont des manifests dédiés et des formats lisibles par leu
     assert.deepEqual(strict.trailerStreams, []);
 });
 
-test('le dashboard change la source AIOM sans modifier le manifest partagé ni les anciens liens', async () => {
+test('le manifest partagé annonce meta avec une source externe et sert toujours les clients stream', async () => {
     const manifest = await getJson('/aiom/manifest.json');
     const film = '/stream/movie/tt0000005.json';
+    assert.deepEqual(manifest.resources, ['stream']);
     assert.equal((await request('/api/settings/aiom-source', postOptions({ sourceManifestUrl: source }))).status, 401);
     assert.deepEqual((await getJson('/aiom' + film)).streams, [{ title: 'Film VF', url: mp4 }]);
     assert.equal((await save('https://127.0.0.1/manifest.json')).status, 400);
     assert.equal((await save('https://trailers.example/aiom/manifest.json')).status, 400);
     assert.deepEqual(await (await save(source)).json(), { sourceManifestUrl: source });
-    assert.deepEqual(await getJson('/aiom/manifest.json'), manifest);
+    assert.deepEqual(await getJson('/aiom/manifest.json'), { ...manifest, resources: ['meta'] });
     const dashboard = await getJson('/api/aiom-stats', { headers: { 'x-admin-token': token } });
     assert.equal(dashboard.sourceManifestUrl, source);
 
     const path = '/aiom/stream/series/tt0000001%3A2%3A4.json';
     assert.deepEqual((await getJson(path)).streams, [{ ytId, title: 'Bande-annonce VF' }]);
     assert.match(safeFetch.mock.calls.at(-1).arguments[0], /\/nuvio-strict\/meta\/series\/tt0000001%3A2\.json$/);
+    const { meta } = await getJson(path.replace('/stream/', '/meta/'));
+    assert.equal(meta.id, 'tt0000001');
+    assert.deepEqual(meta.trailerStreams, [{ ytId, title: 'Bande-annonce VF' }]);
+    assert.deepEqual(meta.trailers, [{ source: ytId, type: 'Trailer', name: 'Bande-annonce VF' }]);
     assert.deepEqual(await getJson('/aiom/stream/movie/tt0000002.json'), { streams: [] });
+    const missing = await request('/aiom/meta/movie/tt0000002.json');
+    assert.equal(missing.status, 200);
+    assert.deepEqual(await missing.json(), { meta: null });
     assert.deepEqual(await getJson('/aiom/stream/movie/tt0000004.json'), { streams: [] });
-    const outage = await request('/aiom/stream/movie/tt0000003.json');
-    assert.equal(outage.headers.get('cache-control'), 'no-store');
-    assert.deepEqual(await outage.json(), { streams: [] });
+    for (const format of ['meta', 'stream']) {
+        const outage = await request('/aiom/' + format + '/movie/tt0000003.json');
+        assert.equal(outage.status, 503);
+        assert.equal(outage.headers.get('cache-control'), 'no-store');
+        assert.deepEqual(await outage.json(), format === 'meta' ? { meta: null } : { streams: [] });
+    }
+    sourceOutage = false;
+    assert.equal((await getJson('/aiom/meta/movie/tt0000003.json')).meta.trailers[0].source, ytId);
     assert.deepEqual(await getJson('/aiom' + film), { streams: [] });
     assert.deepEqual(await (await save('')).json(), { sourceManifestUrl: '' });
+    assert.deepEqual(await getJson('/aiom/manifest.json'), manifest);
     assert.deepEqual((await getJson('/aiom' + film)).streams, [{ title: 'Film VF', url: mp4 }]);
+    assert.deepEqual((await getJson('/aiom' + film.replace('/stream/', '/meta/'))).meta.trailerStreams, [{ title: 'Film VF', url: mp4 }]);
 });
