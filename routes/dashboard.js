@@ -386,8 +386,10 @@ module.exports = function registerDashboardRoutes(app) {
     app.delete('/api/cache', requireAuth, async (req, res) => {
         const only = req.query.only === 'failures' ? 'failures' : null;
         const ok = only ? await clearCacheFailures() : await clearAllCache();
-        if (ok) await logEvent({ level: 'info', context: 'SETTINGS', event: 'cache_cleared', message: only ? 'Échecs du cache des bandes-annonces purgés' : 'Cache des bandes-annonces vidé manuellement' });
-        res.json({ success: ok });
+        if (!ok) return res.status(503).json({ success: false });
+        federation.clearCache({ failuresOnly: !!only });
+        await logEvent({ level: 'info', context: 'SETTINGS', event: 'cache_cleared', message: only ? 'Échecs du cache des bandes-annonces purgés' : 'Cache des bandes-annonces vidé manuellement' });
+        return res.json({ success: true });
     });
 
     // Joignabilité réelle de la base SQLite (pas juste « configurée »).

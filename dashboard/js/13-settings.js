@@ -136,6 +136,7 @@
     const desc = document.getElementById('cache-stats-desc');
     try {
       const res = await authFetch('/api/cache/stats', { headers: authHeaders() });
+      if (!res.ok) throw new Error('Statistiques indisponibles');
       const data = await res.json();
       desc.textContent = data.count > 0
         ? `${data.count} entrée${data.count > 1 ? 's' : ''} en cache (${data.success || 0} succès · ${data.failures || 0} échec${data.failures === 1 ? '' : 's'})`
@@ -146,13 +147,12 @@
   }
 
   async function clearTrailerCache(only) {
-    const label = only === 'failures' ? 'les échecs du cache' : 'tout le cache des bandes-annonces';
     if (!confirm(only === 'failures'
       ? 'Vider uniquement les échecs en cache ? Les titres qui échouaient seront re-testés à la prochaine requête, les succès sont conservés.'
-      : 'Vider tout le cache des bandes-annonces ? Les prochaines requêtes re-vérifieront auprès de TMDB.')) return;
+      : 'Vider tout le cache des bandes-annonces ? Les prochaines requêtes consulteront à nouveau les sources configurées.')) return;
     try {
       const res = await authFetch('/api/cache' + (only === 'failures' ? '?only=failures' : ''), { method: 'DELETE', headers: authHeaders() });
-      if (res.ok) { toast('✅ ' + (only === 'failures' ? 'Échecs vidés' : 'Cache vidé')); loadCacheStats(); }
+      if (res.ok && (await res.json()).success) { toast('✅ ' + (only === 'failures' ? 'Échecs vidés' : 'Cache vidé')); loadCacheStats(); }
       else toast('❌ Erreur');
     } catch (e) { toast('❌ ' + e.message); }
   }

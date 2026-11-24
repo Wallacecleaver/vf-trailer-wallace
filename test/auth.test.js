@@ -85,7 +85,7 @@ test('auth : session conservée après redémarrage, recréation sans volume par
     const file = path.join(dataDir, 'dashboard-session-secret');
     const original = fs.readFileSync(file, 'utf8');
     assert.match(original.trim(), /^[a-f0-9]{64}$/);
-    assert.equal(fs.statSync(file).mode & 0o777, 0o600);
+    if (process.platform !== 'win32') assert.equal(fs.statSync(file).mode & 0o777, 0o600);
     const res = await protectedRequest();
     assert.equal(res.status, 200);
     assert.equal(res.headers.get('cache-control'), 'no-store');

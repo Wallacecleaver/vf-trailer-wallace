@@ -32,6 +32,8 @@ const { resolveAnimeTrailers } = require('../lib/anime-sources');
 const { applyDisplayMode, buildExternalYoutubeStream } = require('../lib/stream-format');
 const { setOverride, getFailedLog, getOverrideUses } = require('../lib/overrides');
 const { getInstallStats } = require('../lib/install-stats');
+const { setCached, getCached } = require('../lib/cache');
+const federation = require('../lib/netflix-federation');
 const app = require('../api/index');
 
 let server, base;
@@ -131,6 +133,9 @@ test('Routes Stremio : ignore les IDs non-IMDb sans polluer failed_log, gère Sa
         title: 'Série Moderne',
         mediaType: 'series',
     });
+    await setOverride({
+        imdbId: 'tt12345678', season: 2, ytId: 'abcdefghijk', title: 'Série Moderne', mediaType: 'series',
+    });
 
     netStubState.handler = async (url) => {
         if (url.includes('/find/tt12345678')) {
@@ -168,6 +173,8 @@ test('Routes Stremio : ignore les IDs non-IMDb sans polluer failed_log, gère Sa
     const metaRes = await fetch(`${base}/${cfg}/meta/series/tt12345678.json`).then(r => r.json());
     assert.ok(metaRes.meta);
     assert.deepEqual(metaRes.meta.trailers, [{ source: 'dQw4w9WgXcQ', type: 'Trailer' }]);
+    const seasonMeta = await fetch(`${base}/${cfg}/meta/series/tt12345678%3A2%3A1.json`).then(r => r.json());
+    assert.deepEqual(seasonMeta.meta.trailers, [{ source: 'abcdefghijk', type: 'Trailer' }]);
     assert.equal((await getOverrideUses())['tt12345678:'], '0');
 
     // 4. Saison 0 (Specials Stremio : tt12345678:0:1) retombe sur la série générale sans "(Saison 0)" et incrémente uses une seule fois.
@@ -179,4 +186,45 @@ test('Routes Stremio : ignore les IDs non-IMDb sans polluer failed_log, gère Sa
     // 5. /meta renvoie null (et non un objet vide qui écraserait Cinemeta) quand aucune bande-annonce n'existe.
     const emptyMeta = await fetch(`${base}/${cfg}/meta/movie/tt99999999.json`).then(r => r.json());
     assert.equal(emptyMeta.meta, null);
+});
+
+test('purge du dashboard : inclut tous les caches de bandes-annonces, SQLite et Stockage BD', async () => {
+    const { token } = await fetch(base + '/api/login', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ password: process.env.DASHBOARD_PASSWORD }),
+    }).then(r => r.json());
+    assert.ok(token);
+    const headers = { 'x-admin-token': token };
+    const stats = () => fetch(base + '/api/cache/stats', { headers }).then(r => r.json());
+    const baseline = await stats();
+    const hits = {
+        'cache:trailers:film': { streams: [{ ytId: 'abcdefghijk' }] },
+        'cache:direct:v1:film': { url: 'https://example.com/film.mp4' },
+        'cache:aiom-direct:v3:film': { url: 'https://example.com/film.mp4' },
+        'cache:aiom-fallback:v1:film': { video: { url: 'https://example.com/film.mp4' } },
+        'cache:aiom-source:v1:positif': { streams: [{ ytId: 'abcdefghijk' }] },
+        'cache:aiom-youtube:v1:positif': { stream: { ytId: 'abcdefghijk' } },
+        'cache:override-link:serie': { index: 0 },
+    };
+    const misses = {
+        'cache:trailers:echec': { streams: [] },
+        'cache:aiom-source:v1:echec': { streams: [] },
+        'cache:aiom-youtube:v1:echec': { stream: null },
+    };
+    await Promise.all(Object.entries({ ...hits, ...misses }).map(([key, value]) => setCached(key, value, 60)));
+    await setCached('cache:direct:expire', { url: 'https://example.com/film.mp4' }, -1);
+    await setCached('loginattempts:fixture', { count: 3 }, 60);
+    federation._cache.set('stockage-positif', { result: { found: true } });
+    federation._cache.set('stockage-echec', { result: { found: false } });
+
+    assert.deepEqual(await stats(), { count: baseline.count + 10, success: baseline.success + 7, failures: baseline.failures + 3 });
+    const purge = suffix => fetch(base + '/api/cache' + suffix, { method: 'DELETE', headers }).then(r => r.json());
+    assert.deepEqual(await purge('?only=failures'), { success: true });
+    assert.deepEqual(await stats(), { count: baseline.success + 7, success: baseline.success + 7, failures: 0 });
+    assert.equal(federation._cache.has('stockage-positif'), true);
+    assert.equal(federation._cache.has('stockage-echec'), false);
+    assert.deepEqual(await purge(''), { success: true });
+    assert.deepEqual(await stats(), { count: 0, success: 0, failures: 0 });
+    assert.equal(federation._cache.size, 0);
+    assert.deepEqual(await getCached('loginattempts:fixture'), { count: 3 });
 });

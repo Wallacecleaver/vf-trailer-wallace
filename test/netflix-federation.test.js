@@ -72,11 +72,16 @@ test('resolveFederatedTrailer : transmet season + strict_season + imdb/tmdb grou
     const realFetch = require.cache[fetchPath];
     const seen = [];
     let responder = () => ({ found: false, trailers: [] });
+    let status = 200;
+    let offline = false;
     require.cache[fetchPath] = {
         id: fetchPath, filename: fetchPath, loaded: true,
-        exports: async (url) => {
+        exports: async (url, opts) => {
             seen.push(url);
-            return { ok: true, status: 200, headers: { get: () => null }, text: async () => JSON.stringify(responder(url)) };
+            assert.ok(opts.signal instanceof AbortSignal);
+            assert.ok(opts.size > 0);
+            if (offline) throw new Error('Connexion interrompue');
+            return { ok: status < 400, status, headers: { get: () => null }, text: async () => JSON.stringify(responder(url)) };
         },
     };
     delete require.cache[require.resolve('../lib/security')];
@@ -132,6 +137,27 @@ test('resolveFederatedTrailer : transmet season + strict_season + imdb/tmdb grou
         const p2 = await fed.resolveFederatedTrailer({ imdbId: 'tt9999999', baseUrl: 'https://netflix.exemple.fr' });
         assert.strictEqual(p2.found, true);
         assert.strictEqual(seen.length, 2);
+
+        // 4) Une réponse temporairement inutilisable est suivie d'un nouvel essai sur le même titre.
+        fed.clearCache();
+        seen.length = 0;
+        const params = { imdbId: 'tt9999999', baseUrl: 'https://netflix.exemple.fr' };
+        offline = true;
+        assert.strictEqual((await fed.resolveFederatedTrailer(params)).pending, true);
+        offline = false;
+        status = 503;
+        assert.strictEqual((await fed.resolveFederatedTrailer(params)).pending, true);
+        status = 200;
+        responder = () => null;
+        assert.strictEqual((await fed.resolveFederatedTrailer(params)).pending, true);
+        responder = () => ({ found: true, title: { imdb_id: params.imdbId }, trailers: [{ url: 'https://x/ok.mp4' }] });
+        assert.strictEqual((await fed.resolveFederatedTrailer(params)).found, true);
+        assert.strictEqual(seen.length, 4);
+
+        responder = () => ({ found: false, trailers: [] });
+        assert.strictEqual((await fed.resolveFederatedTrailer({ ...params, useCache: false })).found, false);
+        assert.strictEqual((await fed.resolveFederatedTrailer(params)).found, true);
+        assert.strictEqual(seen.length, 5);
     } finally {
         if (realFetch) require.cache[fetchPath] = realFetch; else delete require.cache[fetchPath];
         delete require.cache[fedPath];

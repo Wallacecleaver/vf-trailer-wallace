@@ -251,7 +251,7 @@ module.exports = function registerStremioRoutes(app) {
             const parsed = parseStremioTarget(type, req.params.idWithExt);
             if (!parsed) return res.json({ meta: null });
 
-            const meta = await buildMetaObject(type, parsed.imdbId, config);
+            const meta = await buildMetaObject(type, parsed.imdbId, config, { season: parsed.season });
             res.json({ meta: meta || null });
         } catch (err) {
             console.error('Erreur /meta:', err);
