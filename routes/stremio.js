@@ -9,18 +9,19 @@ const { manifest, decodeConfig, FALLBACK_TMDB_KEY, LOGO_URL } = require('../lib/
 const { resolveStreams, getBehaviorSettingsFast, buildMetaObject } = require('../lib/resolver');
 const { resolveAiomDirect, resolveSharedAiom } = require('../lib/aiom-direct');
 const { aiomTimeoutMs, withDeadline, aiomOutcome, resolveStreamsSingleFlight, logAiomRequest } = require('../lib/aiom');
+const { getAiomSource, resolveAiomSource } = require('../lib/aiom-source');
+const { buildNuvioMeta } = require('../lib/nuvio');
 
 // ---- Lien AIOMetadata PARTAGÉ : /aiom/manifest.json ----------------------------------------
 // Un seul lien identique pour tout le monde (comme https://trailerio.cc/fr/manifest.json) : pas de
-// config dans l'URL, pas de page /configure. La config est fixée ici (mode aiom, un seul MP4)
-// et la clé TMDB est celle du serveur (TMDB_API_KEY) ; le délai max reste réglable dans
-// le dashboard (Réglages > AIOMetadata). Ces routes DOIVENT être enregistrées avant
+// config dans l'URL, pas de page /configure. Le dashboard choisit la source du lien partagé.
+// La source native utilise la clé TMDB du serveur. Ces routes DOIVENT être enregistrées avant
 // /:config?/manifest.json, sinon "aiom" serait pris pour un segment de config.
 const aiomManifest = {
     id: 'org.vftrailers.aiom',
     version: manifest.version,
     name: 'W Bandes-Annonces VF (AIOMetadata)',
-    description: 'Bande-annonce VF en MP4 (YouTube 1080p, Allociné ou Stockage DB) pour AIOMetadata',
+    description: 'Bande-annonce VF pour AIOMetadata',
     logo: LOGO_URL,
     resources: ['stream'],
     types: ['movie', 'series'],
@@ -40,6 +41,25 @@ const directTrailerManifest = {
     description: 'Bandes-annonces VF en vidéo directe MP4 ou HLS',
     resources: manifest.resources,
 };
+const fusionManifest = {
+    ...aiomManifest,
+    id: 'org.vftrailers.fusion',
+    name: 'W Bandes-Annonces VF (Fusion)',
+    description: 'Bandes-annonces VF en MP4 ou HLS dans Fusion',
+    resources: ['meta'],
+};
+const nuvioManifest = {
+    ...aiomManifest,
+    id: 'org.vftrailers.nuvio',
+    name: 'W Bandes-Annonces VF (Nuvio)',
+    description: 'Bandes-annonces YouTube en VF sur les fiches Nuvio',
+    resources: ['meta'],
+};
+const nuvioStrictManifest = {
+    ...nuvioManifest,
+    id: 'org.vftrailers.nuvio.strict',
+    name: 'W Bandes-Annonces VF (Nuvio VF stricte)',
+};
 
 function sharedAiomConfig() {
     return { aiom: true, pseudo: 'AIOMetadata', tmdbKey: FALLBACK_TMDB_KEY || null };
@@ -51,13 +71,16 @@ async function respondAiom(req, res, config, type, imdbId, season, { shared = fa
     const t0 = Date.now();
     const behavior = await getBehaviorSettingsFast();
     const timeoutMs = aiomTimeoutMs(behavior);
-    const work = shared ? resolveSharedAiom(type, imdbId, season, config.tmdbKey, behavior, timeoutMs)
-        : resolveStreamsSingleFlight(type, imdbId, season, config);
+    const sourceUrl = shared ? await getAiomSource() : '';
+    let work;
+    if (sourceUrl) work = resolveAiomSource(sourceUrl, type, imdbId, season, behavior, timeoutMs);
+    else if (shared) work = resolveSharedAiom(type, imdbId, season, config.tmdbKey, behavior, timeoutMs);
+    else work = resolveStreamsSingleFlight(type, imdbId, season, config);
     const result = await withDeadline(work, timeoutMs);
     const ms = Date.now() - t0;
     // Cache navigateur/CDN : 2 min sur le lien partagé. Une préparation ou un timeout
     // conserve la possibilité d'obtenir la vidéo prioritaire dès le prochain appel.
-    const cacheable = !result.timedOut && !result.pending;
+    const cacheable = !sourceUrl && !result.timedOut && !result.pending;
     const maxAge = result.streams.length ? (shared ? 120 : 600) : 120;
     res.setHeader('Cache-Control', !cacheable ? 'no-store' : `public, max-age=${maxAge}`);
     res.json({ streams: result.streams });
@@ -120,6 +143,24 @@ async function respondDirect(req, res, { asMeta = false, allowHls = false } = {}
     }
 }
 
+async function respondNuvio(req, res, strict) {
+    const { type, idWithExt } = req.params;
+    const target = parseStremioTarget(type, idWithExt);
+    res.setHeader('Cache-Control', 'no-store');
+    if (!target) return res.json({ meta: null });
+
+    try {
+        const behavior = await getBehaviorSettingsFast();
+        const timeoutMs = aiomTimeoutMs(behavior);
+        const work = buildNuvioMeta(type, target.imdbId, target.season, FALLBACK_TMDB_KEY, behavior, { strict, timeoutMs });
+        const meta = await withDeadline(work, timeoutMs, null);
+        if (meta?.trailers.length) res.setHeader('Cache-Control', 'public, max-age=120');
+        return res.json({ meta });
+    } catch {
+        return res.json({ meta: null });
+    }
+}
+
 module.exports = function registerStremioRoutes(app) {
     app.get('/aiom/manifest.json', (req, res) => {
         res.json(aiomManifest);
@@ -145,6 +186,13 @@ module.exports = function registerStremioRoutes(app) {
     app.get('/direct/manifest.json', (_req, res) => res.json(directTrailerManifest));
     app.get('/direct/stream/:type/:idWithExt', (req, res) => respondDirect(req, res, { allowHls: true }));
     app.get('/direct/meta/:type/:idWithExt', (req, res) => respondDirect(req, res, { asMeta: true, allowHls: true }));
+
+    app.get('/fusion/manifest.json', (_req, res) => res.json(fusionManifest));
+    app.get('/fusion/meta/:type/:idWithExt', (req, res) => respondDirect(req, res, { asMeta: true, allowHls: true }));
+    app.get('/nuvio/manifest.json', (_req, res) => res.json(nuvioManifest));
+    app.get('/nuvio/meta/:type/:idWithExt', (req, res) => respondNuvio(req, res, false));
+    app.get('/nuvio-strict/manifest.json', (_req, res) => res.json(nuvioStrictManifest));
+    app.get('/nuvio-strict/meta/:type/:idWithExt', (req, res) => respondNuvio(req, res, true));
 
     // Manifest et stream acceptent un segment de config optionnel en tête d'URL.
     app.get('/:config?/manifest.json', async (req, res) => {

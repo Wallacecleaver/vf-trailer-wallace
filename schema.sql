@@ -134,6 +134,11 @@ CREATE TABLE IF NOT EXISTS aiom_stats (
     PRIMARY KEY (day, outcome)
 );
 
+CREATE TABLE IF NOT EXISTS aiom_settings (
+    id                  INTEGER PRIMARY KEY CHECK (id = 1),
+    source_manifest_url TEXT NOT NULL
+);
+
 -- Réglages du dashboard : une seule ligne (id = 1) par table.
 -- NULL = « valeur par défaut du code » (voir DEFAULT_CONFIGURE / DEFAULT_BEHAVIOR dans lib/settings.js).
 CREATE TABLE IF NOT EXISTS configure_settings (

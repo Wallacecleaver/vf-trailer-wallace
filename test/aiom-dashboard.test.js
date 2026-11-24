@@ -55,6 +55,24 @@ test('onglet AIOM : copie du lien complet', async () => {
     assert.deepEqual(ui.network, []);
 });
 
+test('onglet AIOM : enregistre la source et conserve le lien de partage', async () => {
+    const ui = dashboard();
+    const url = 'https://trailers.example/nuvio-strict/manifest.json';
+    ui.context.authFetch = async (path, options) => {
+        if (path === '/api/aiom-stats') return response(sample({ sourceManifestUrl: '' }));
+        assert.equal(path, '/api/settings/aiom-source');
+        assert.equal(options.headers['Content-Type'], 'application/json');
+        assert.deepEqual(JSON.parse(options.body), { sourceManifestUrl: url });
+        return response({ sourceManifestUrl: url });
+    };
+    await ui.context.loadAiomSettings();
+    ui.node('aiom-source-url').value = url;
+    await ui.context.saveAiomSource();
+    assert.equal(ui.node('aiom-source-status').textContent, 'Source externe active.');
+    assert.equal(ui.node('aiom-manifest-url').value, 'https://addon.example/aiom/manifest.json');
+    assert.equal(ui.node('aiom-key-status').hidden, true);
+});
+
 test('onglet AIOM : copie de secours et sélection manuelle si le presse-papiers échoue', async () => {
     const ui = dashboard(false);
     await ui.context.copyAiomManifest();

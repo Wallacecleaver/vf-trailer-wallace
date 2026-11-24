@@ -10,6 +10,7 @@ const { logEvent, getLogs, clearLogs } = require('../lib/logs');
 const { getStats, resetStats } = require('../lib/stats');
 const { getInstallStats, resetInstalls, removeInstall } = require('../lib/install-stats');
 const { getAiomStats, resetAiomStats } = require('../lib/aiom-stats');
+const { getAiomSource, setAiomSource, parseManifestUrl, validateAiomSource } = require('../lib/aiom-source');
 const {
     getOverrides, setOverride, deleteOverride,
     getFailedLog, clearFailedLog, getResolvedLog, clearResolvedLog } = require('../lib/overrides');
@@ -186,13 +187,41 @@ module.exports = function registerDashboardRoutes(app) {
     });
 
     // ---- AIOMetadata (onglet dédié du dashboard) ----
-    app.get('/api/aiom-stats', requireAuth, async (req, res) => {
-        const stats = await getAiomStats();
-        if (!stats) return res.json({ configured: false });
-        const behavior = await getBehaviorSettings();
-        const logs = (await getLogs()).filter(l => l.context === 'AIOM').slice(0, 30);
-        res.json({ configured: true, ...stats, tmdbConfigured: !!FALLBACK_TMDB_KEY,
-            timeoutSeconds: behavior.aiomTimeoutSeconds, recent: logs });
+    app.get('/api/aiom-stats', requireAuth, async (req, res, next) => {
+        try {
+            const [stats, sourceManifestUrl] = await Promise.all([getAiomStats(), getAiomSource()]);
+            if (!stats) return res.json({ configured: false, sourceManifestUrl });
+            const behavior = await getBehaviorSettings();
+            const logs = (await getLogs()).filter(l => l.context === 'AIOM').slice(0, 30);
+            return res.json({ configured: true, ...stats, sourceManifestUrl, tmdbConfigured: !!FALLBACK_TMDB_KEY,
+                timeoutSeconds: behavior.aiomTimeoutSeconds, recent: logs });
+        } catch (error) { return next(error); }
+    });
+
+    app.post('/api/settings/aiom-source', requireAuth, async (req, res, next) => {
+        const value = req.body?.sourceManifestUrl;
+        if (typeof value !== 'string' || value.length > 2048) return res.status(400).json({ error: 'URL du manifest invalide.' });
+        let sourceManifestUrl = '';
+        if (value.trim()) {
+            let url;
+            try { url = parseManifestUrl(value); }
+            catch { return res.status(400).json({ error: 'Saisis un manifest public en HTTPS dont le chemin se termine par /manifest.json.' }); }
+            try {
+                if (!await validateAiomSource(url)) {
+                    return res.status(400).json({ error: 'Ce manifest doit fournir les fiches IMDb des films et séries dans la ressource meta.' });
+                }
+                sourceManifestUrl = url.href;
+            } catch {
+                return res.status(502).json({ error: 'Le manifest est inaccessible ou renvoie une réponse invalide.' });
+            }
+        }
+
+        try {
+            await setAiomSource(sourceManifestUrl);
+            await logEvent({ level: 'info', context: 'AIOM', event: 'aiom_source_updated',
+                message: sourceManifestUrl ? 'Source externe activée pour le lien AIOM partagé' : 'Source native rétablie pour le lien AIOM partagé' });
+            return res.json({ sourceManifestUrl });
+        } catch (error) { return next(error); }
     });
 
     app.post('/api/aiom-stats/reset', requireAuth, async (req, res) => {

@@ -49,9 +49,20 @@
                   <button type="button" id="aiom-copy" class="btn-save" onclick="copyAiomManifest()">Copier le lien .json</button>
                   <a id="aiom-open" class="btn-outline-sm" target="_blank" rel="noopener noreferrer">Ouvrir le manifest ↗</a>
                 </div>
+                <form class="aiom-source-form" onsubmit="event.preventDefault(); saveAiomSource()">
+                  <div class="form-field">
+                    <label for="aiom-source-url">Manifest source</label>
+                    <input type="url" id="aiom-source-url" placeholder="https://ton-addon/nuvio-strict/manifest.json" spellcheck="false" maxlength="2048" aria-describedby="aiom-source-hint" disabled>
+                    <small class="hint" id="aiom-source-hint">Colle le manifest d’un addon VF compatible Nuvio. Laisse vide pour utiliser les sources de Bandes-Annonces VF.</small>
+                  </div>
+                  <div class="header-actions">
+                    <button type="submit" id="aiom-source-save" class="btn-save" disabled>Enregistrer la source</button>
+                    <small id="aiom-source-status" role="status"></small>
+                  </div>
+                </form>
                 <div id="aiom-key-warning" class="aiom-warning" hidden><strong>La clé TMDB du serveur est absente.</strong> Renseigne <code>TMDB_API_KEY</code> pour la recherche YouTube et Allociné.</div>
                 <div class="aiom-link-details">
-                  <div><span>Format de réponse</span><strong>1 bande-annonce VF en MP4</strong><small>YouTube 1080p, Allociné ou Stockage DB</small></div>
+                  <div><span>Format de réponse</span><strong id="aiom-response-format">1 bande-annonce VF en MP4</strong><small id="aiom-response-source">YouTube 1080p, Allociné ou Stockage DB</small></div>
                   <div><span>Délai maximum</span><strong id="aiom-timeout">—</strong><button type="button" class="aiom-text-button" onclick="showPage('settings')">Régler le délai ↗</button></div>
                 </div>
                 <p class="aiom-note">Si aucun trailer VF n’est trouvé ou si le délai est dépassé, AIOMetadata peut garder celui de son fournisseur.</p>
@@ -67,6 +78,11 @@
                   <li><span aria-hidden="true">3</span><div><strong>Enregistre ta configuration</strong><p>Les prochaines fiches utiliseront ce fournisseur.</p></div></li>
                 </ol>
                 <p class="aiom-note aiom-compatibility">Les anciens liens AIOM restent compatibles. Les profils Stremio gardent leur configuration personnelle.</p>
+                <div class="header-actions aiom-link-actions">
+                  <a href="/fusion/manifest.json" class="btn-outline-sm" target="_blank" rel="noopener noreferrer">Manifest Fusion ↗</a>
+                  <a href="/nuvio/manifest.json" class="btn-outline-sm" target="_blank" rel="noopener noreferrer">Manifest Nuvio ↗</a>
+                  <a href="/nuvio-strict/manifest.json" class="btn-outline-sm" target="_blank" rel="noopener noreferrer">Manifest Nuvio VF stricte ↗</a>
+                </div>
               </div>
             </div>
           </div>

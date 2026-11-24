@@ -7,6 +7,56 @@
 
   let aiomStatsRequest = 0;
   let aiomStatsLoaded = false;
+  let aiomSourceUrl = null;
+  let aiomSourceRevision = 0;
+  let aiomSourceSaving = false;
+
+  function renderAiomSource(url) {
+    const field = document.getElementById('aiom-source-url');
+    if (aiomSourceUrl === null || field.value === aiomSourceUrl) field.value = url;
+    aiomSourceUrl = url;
+    field.disabled = false;
+    document.getElementById('aiom-source-save').disabled = false;
+    document.getElementById('aiom-response-format').textContent = url ? '1 bande-annonce YouTube ou MP4' : '1 bande-annonce VF en MP4';
+    document.getElementById('aiom-response-source').textContent = url ? 'Manifest source externe' : 'YouTube 1080p, Allociné ou Stockage DB';
+    const key = document.getElementById('aiom-key-status');
+    key.hidden = !!url;
+    document.getElementById('aiom-key-warning').hidden = !!url || key.dataset.state !== 'missing';
+  }
+
+  async function saveAiomSource() {
+    if (aiomSourceUrl === null || aiomSourceSaving) return;
+    const field = document.getElementById('aiom-source-url');
+    const button = document.getElementById('aiom-source-save');
+    const status = document.getElementById('aiom-source-status');
+    aiomSourceSaving = true;
+    ++aiomSourceRevision;
+    field.disabled = button.disabled = true;
+    status.dataset.state = '';
+    status.textContent = 'Vérification du manifest…';
+    try {
+      const response = await authFetch('/api/settings/aiom-source', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ sourceManifestUrl: field.value.trim() }),
+      });
+      const data = await response.json();
+      if (!response.ok || typeof data.sourceManifestUrl !== 'string') {
+        status.dataset.state = 'error';
+        status.textContent = data.error || 'Enregistrement impossible.';
+        return;
+      }
+      field.value = data.sourceManifestUrl;
+      renderAiomSource(data.sourceManifestUrl);
+      status.textContent = data.sourceManifestUrl ? 'Source externe active.' : 'Sources natives rétablies.';
+    } catch {
+      status.dataset.state = 'error';
+      status.textContent = 'Enregistrement impossible. Réessaie.';
+    } finally {
+      aiomSourceSaving = false;
+      ++aiomSourceRevision;
+      field.disabled = button.disabled = false;
+    }
+  }
 
   function loadAiomSettings() {
     setAiomManifestLink();
@@ -15,6 +65,7 @@
 
   async function loadAiomStats() {
     const request = ++aiomStatsRequest;
+    const sourceRevision = aiomSourceRevision;
     const refresh = document.getElementById('aiom-refresh');
     const stats = document.getElementById('aiom-stats');
     refresh.disabled = true;
@@ -25,6 +76,9 @@
       const data = await response.json();
       // Une réponse ancienne ne doit jamais remplacer une actualisation plus récente.
       if (request !== aiomStatsRequest) return;
+      if (!aiomSourceSaving && sourceRevision === aiomSourceRevision && typeof data.sourceManifestUrl === 'string') {
+        renderAiomSource(data.sourceManifestUrl);
+      }
       if (!data.configured) throw new Error('Statistiques indisponibles');
       renderAiomStats(data);
       aiomStatsLoaded = true;
@@ -73,7 +127,7 @@
     const status = document.getElementById('aiom-key-status');
     status.dataset.state = data.tmdbConfigured ? 'ready' : 'missing';
     status.textContent = data.tmdbConfigured ? 'Clé TMDB configurée' : 'Clé TMDB absente';
-    document.getElementById('aiom-key-warning').hidden = !!data.tmdbConfigured;
+    document.getElementById('aiom-key-warning').hidden = !!aiomSourceUrl || !!data.tmdbConfigured;
     document.getElementById('aiom-activity').innerHTML = renderAiomActivity(data.days || []);
     document.getElementById('aiom-outcomes').innerHTML = [
       ['ytId', 'YouTube', 'red'], ['url', 'Vidéo directe', 'blue'], ['aucun', 'Aucun trailer VF', 'muted'],

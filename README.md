@@ -10,7 +10,7 @@ Addon [Stremio](https://www.stremio.com/) qui affiche la **bande-annonce officie
 4. [Configuration](#configuration)
 5. [Dashboard d'administration](#dashboard-dadministration)
 6. [AIOMetadata](#aiometadata)
-7. [Nuvio et Odin](#nuvio-et-odin)
+7. [Fusion, Nuvio et Odin](#fusion-nuvio-et-odin)
 8. [Stockage BD (optionnel)](#stockage-bd-optionnel)
 9. [Exploitation](#exploitation)
 10. [Développement](#développement)
@@ -23,7 +23,7 @@ Addon [Stremio](https://www.stremio.com/) qui affiche la **bande-annonce officie
 - **VF stricte** : seules les vidéos reconnues comme françaises sont proposées (langue TMDB + nom de la vidéo, voir plus bas).
 - **Plusieurs sources en cascade** : TMDB, TheTVDB, AniList (animés), recherche YouTube VF, Allociné, puis une instance Stockage BD.
 - **Teaser puis bande-annonce** dans Stremio, avec options d'extras, de teasers et de nombre de liens.
-- **Mode AIOMetadata** : un seul lien MP4 sur le manifest partagé, avec un délai maximum réglable.
+- **Mode AIOMetadata** avec un manifest partagé, une source externe facultative et un délai maximum réglable.
 - **Dashboard d'administration** : statistiques, utilisateurs, mapping manuel des liens, demandes de la communauté, test des flux, **test aléatoire en masse**, logs, réglages, cache.
 - **Pages publiques** : configuration de l'addon (`/configure`) et proposition de liens par la communauté (`/proposer`).
 - **Léger** : un seul processus Node, SQLite intégré, aucune tâche de fond.
@@ -234,22 +234,22 @@ Options : type (films, séries ou les deux), échantillon (« populaires » : to
 
 Partage `https://ton-domaine/aiom/manifest.json` comme **A trailer addon** dans **AIOMetadata → Meta Providers → Trailers**. Le dashboard propose ce lien dans **AIOM**.
 
-- Le manifest renvoie un seul MP4 VF pour chaque film ou série. Après les mappings manuels, la priorité va à **YouTube 1080p → Allociné → Stockage DB**. Le premier appel peut servir un repli pendant que Stockage DB prépare le MP4 YouTube.
+- Avec la source native, le manifest renvoie un seul MP4 VF pour chaque film ou série. Après les mappings manuels, la priorité va à **YouTube 1080p → Allociné → Stockage DB**. Le premier appel peut servir un repli pendant que Stockage DB prépare le MP4 YouTube.
+- Pour utiliser Trailerio VF, colle son URL [Nuvio VF stricte](https://trailerio-vf.ddnsfree.com/nuvio-strict/manifest.json) dans **AIOM → Manifest source**, puis clique sur **Enregistrer la source**. Le lien partagé conserve son adresse. Il reprend une bande-annonce YouTube ou MP4 de la fiche IMDb du fournisseur. Vide le champ et enregistre pour revenir à la source native.
 - Configure `TMDB_API_KEY` côté serveur pour la recherche YouTube et Allociné. Pour YouTube 1080p, configure l'URL Stockage DB et renseigne `AIOM_DIRECT_STOCKAGE_WRITE_KEY` avec une clé nommée ayant le scope `trailers:write`. Sur Stockage DB, active **Préparer les bandes-annonces YouTube en MP4 1080p** dans **Paramètres & Cache HLS → AIOMetadata** pour les vidéos dont l'import et la diffusion sont autorisés.
 - Le délai est réglable dans **Réglages → AIOMetadata** (1 à 12 s, 5 par défaut). AIOMetadata a son propre cache. Après un repli, sa fréquence de réessai dépend notamment de `TRAILER_ADDON_TTL` et `TRAILER_ADDON_EMPTY_TTL` sur son instance.
 
-Pour vérifier la réponse de l'addon sans passer par le cache AIOMetadata, ouvre `https://ton-domaine/aiom/stream/movie/tt1234567.json` en remplaçant l'identifiant IMDb. Le champ `streams[0].url` pointe vers le MP4 et le titre contient `YouTube 1080p` quand ce fournisseur a été retenu. Recharge après la préparation, puis essaie le même titre dans AIOMetadata.
+Pour vérifier la réponse de l'addon avant le cache AIOMetadata, ouvre `https://ton-domaine/aiom/stream/movie/tt35866986.json` pour *Comment braquer une banque*. Une réponse peut contenir `streams[0].ytId` pour YouTube ou `streams[0].url` pour un MP4. Si la liste est vide, AIOMetadata peut reprendre la bande-annonce de son fournisseur de métadonnées.
 
 ---
 
-## Nuvio et Odin
+## Fusion, Nuvio et Odin
 
-Le manifest `https://ton-domaine/direct/manifest.json` fournit une bande-annonce VF en MP4 ou HLS (`.m3u8`) selon les sources disponibles. Il reprend le format `meta.links` de [Trailerio Lite](https://github.com/emreyild/trailerio-lite/blob/main/src/index.js) et fournit aussi une URL vidéo dans la ressource `stream`.
+- **Fusion** utilise `https://ton-domaine/fusion/manifest.json` comme addon de bandes-annonces. Il fournit une vidéo VF en MP4 ou HLS via le mapping manuel, Stockage BD ou Allociné.
+- **Nuvio** utilise `https://ton-domaine/nuvio/manifest.json` pour afficher une bande-annonce YouTube VF dans la section **Bandes-annonces**. Place-le avant les autres fournisseurs de fiches IMDb et désactive **Enrichissement TMDB → Bandes-annonces** pour conserver sa sélection. L'URL `https://ton-domaine/nuvio-strict/manifest.json` laisse la section vide lorsqu'une fiche complète est disponible sans bande-annonce VF. Les routes Nuvio utilisent les fiches Cinemeta et le moteur de recherche VF du serveur.
+- **Odin** peut utiliser le manifest partagé d'AIOMetadata comme source de bandes-annonces via [l'interface Jellyfin d'AIOMetadata](https://github.com/cedya77/aiometadata/blob/dev/docs/jellyfin.md).
 
-- **Nuvio** : ajoute le manifest dans les addons pour retrouver le flux de bande-annonce parmi les flux du titre. Pour l'utiliser comme source du bouton de bande-annonce avec AIOMetadata, ajoute le même manifest dans **Meta Providers → Trailers → A trailer addon**.
-- **Odin** : ajoute le manifest comme source de bandes-annonces dans AIOMetadata, puis connecte Odin à [l'interface Jellyfin d'AIOMetadata](https://github.com/cedya77/aiometadata/blob/dev/docs/jellyfin.md) avec l'adresse et les identifiants fournis par AIOMetadata.
-
-Le mode direct utilise les liens vidéo du mapping manuel, puis Stockage BD si configuré, puis Allociné si activé. Renseigne `TMDB_API_KEY` côté serveur pour la recherche Allociné. Si aucune vidéo VF directe n'est disponible, le manifest ne propose aucun flux pour le titre.
+Renseigne `TMDB_API_KEY` côté serveur pour la recherche de bandes-annonces. Le manifest `https://ton-domaine/direct/manifest.json` reste disponible pour les flux vidéo directs via `stream` et `meta.links`.
 
 ---
 

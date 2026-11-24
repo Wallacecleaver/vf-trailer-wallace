@@ -743,9 +743,14 @@
   .aiom-badge[data-state="ready"] { color:var(--green); }
   .aiom-badge[data-state="missing"] { color:var(--aiom-amber); }
   .aiom-tag { color:var(--text2); background:var(--surface2); padding:5px 9px; border:1px solid var(--border); border-radius:6px; font-size:10px; font-weight:600; }
-  #page-aiom #aiom-manifest-url { font-family:'JetBrains Mono',monospace; font-size:12px; padding:13px; }
+  #page-aiom #aiom-manifest-url, #page-aiom #aiom-source-url { font-family:'JetBrains Mono',monospace; font-size:12px; padding:13px; min-width:0; }
   #page-aiom .form-field .hint { line-height:1.6; }
-  .aiom-link-actions { margin-top:18px; }
+  .aiom-link-actions { margin-top:18px; flex-wrap:wrap; }
+  .aiom-source-form { margin-top:22px; padding-top:20px; border-top:1px solid var(--border); }
+  .aiom-source-form .header-actions { flex-wrap:wrap; }
+  #aiom-source-status { color:var(--text2); font-size:11px; line-height:1.5; }
+  #aiom-source-status[data-state="error"] { color:var(--aiom-amber); }
+  #aiom-key-status[hidden] { display:none; }
   .aiom-link-details { display:grid; grid-template-columns:1fr 1fr; gap:20px; padding:20px 0; margin-top:22px; border-top:1px solid var(--border); }
   .aiom-link-details > div { display:flex; flex-direction:column; align-items:flex-start; gap:6px; min-width:0; }
   .aiom-link-details span, .aiom-link-details small { color:var(--text2); font-size:11px; line-height:1.5; }
