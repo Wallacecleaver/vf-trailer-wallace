@@ -540,6 +540,7 @@
   .trace-icon { flex-shrink:0; width:16px; text-align:center; }
   .trace-step-name { flex-shrink:0; font-weight:700; color:var(--text2); }
   .trace-step-detail { color:var(--muted); overflow:hidden; text-overflow:ellipsis; white-space:nowrap; flex:1; min-width:0; }
+  .trace-step-detail.wrap { white-space:normal; overflow:visible; text-overflow:clip; word-break:break-word; line-height:1.45; }
   .trace-ms { flex-shrink:0; color:var(--muted); font-size:11px; }
   .trace-step.fail .trace-step-name { color:var(--accent); }
   .trace-step.ok .trace-step-name { color:var(--green); }

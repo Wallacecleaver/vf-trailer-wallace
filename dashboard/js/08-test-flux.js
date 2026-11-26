@@ -251,7 +251,7 @@
       return '<div class="trace-step ' + (t.ok ? 'ok' : 'fail') + '">' +
         '<span class="trace-icon">' + icon + '</span>' +
         '<span class="trace-step-name">' + escapeHtml(TRACE_STEP_LABELS[t.step] || t.step) + '</span>' +
-        '<span class="trace-step-detail">' + escapeHtml(t.detail || '') + '</span>' +
+        '<span class="trace-step-detail' + ((t.detail || '').length > 90 ? ' wrap' : '') + '" title="' + escapeHtml(t.detail || '') + '">' + escapeHtml(t.detail || '') + '</span>' +
         ms + '</div>';
     }).join('');
     return '<div class="trace-box"><div class="trace-title">🔍 Trace de résolution</div>' + rows + '</div>';
