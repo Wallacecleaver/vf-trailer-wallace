@@ -265,3 +265,19 @@ test('lien partagé AIOMetadata : dernier recours après Allociné et Stockage B
     assert.match(result.streams[0].url, /^https:\/\/addon\.example\/ytd\/cccccccccc1\./);
     assert.equal(result.pending, false);
 });
+
+test('Test des flux (mode AIOMetadata) : la VF YouTube est convertie en lecture directe, avec une étape dans la trace', async () => {
+    const { testResolve } = require('../lib/resolver');
+    const off = await testResolve('movie', 'tt0000044', null, true, true);
+    assert.ok(off.streams[0].ytId, 'désactivé : lien YouTube comme avant');
+    assert.ok(!off.trace.some(step => step.step === 'Lecture directe YouTube'));
+
+    await save({ ytDirectEnabled: true, ytDirectInstances: 'https://inv.example' });
+    const on = await testResolve('movie', 'tt0000044', null, true, true);
+    assert.match(on.streams[0].url, /^https:\/\/addon\.example\/ytd\/cccccccccc1\./);
+    assert.ok(on.streams.some(s => s.ytId), 'le lien YouTube reste en repli');
+    assert.equal(on.trace.find(step => step.step === 'Lecture directe YouTube').ok, true);
+
+    const plain = await testResolve('movie', 'tt0000044', null, true, false);
+    assert.ok(!plain.streams.some(s => s.url && /\/ytd\//.test(s.url)), 'hors mode AIOMetadata : inchangé');
+});
