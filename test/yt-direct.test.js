@@ -281,3 +281,16 @@ test('Test des flux (mode AIOMetadata) : la VF YouTube est convertie en lecture 
     const plain = await testResolve('movie', 'tt0000044', null, true, false);
     assert.ok(!plain.streams.some(s => s.url && /\/ytd\//.test(s.url)), 'hors mode AIOMetadata : inchangé');
 });
+
+test('Test des flux : si la conversion échoue, la trace donne la raison de chaque instance', async () => {
+    const { testResolve } = require('../lib/resolver');
+    await save({ ytDirectEnabled: true, ytDirectInstances: 'https://inv.example' });
+    invidious = 'no-mp4';
+    await require('../lib/cache').setCached('cache:aiom-direct:yt:v1:cccccccccc1', { none: true }, 60); // purge du résultat des tests précédents
+    const result = await testResolve('movie', 'tt0000045', null, true, true);
+    assert.ok(result.streams[0].ytId && !result.streams[0].url);
+    const step = result.trace.find(item => item.step === 'Lecture directe YouTube');
+    assert.equal(step.ok, false);
+    assert.match(step.detail, /cccccccccc1/);
+    assert.match(step.detail, /inv\.example : aucun MP4 avec son/);
+});
