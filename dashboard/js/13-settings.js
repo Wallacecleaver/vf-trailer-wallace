@@ -158,7 +158,11 @@
         list.innerHTML = rows.map(r => (r.ok ? '✓ ' : '✗ ') + escapeHtml(r.base) + ' — '
           + (r.ok ? r.ms + ' ms' + (r.height ? ' · ' + r.height + 'p' : '') : escapeHtml(r.error || 'erreur'))).join('<br>');
         if (good) {
-          const keep = rows.filter(r => r.ok).map(r => (r.type === 'piped' ? 'piped:' : '') + r.base).join(', ');
+          const tokens = (input ? input.value : '').split(/[\s,]+/).filter(Boolean);
+          const keep = rows.filter(r => r.ok).map(r => {
+            const own = tokens.find(t => t.replace(/^[a-z]+:(?=https:)/i, '').replace(/#.*$/, '').replace(/\/+$/, '') === r.base);
+            return own || ((r.type === 'invidious' ? '' : r.type + ':') + r.base);
+          }).join(', ');
           const btn = document.createElement('button');
           btn.type = 'button'; btn.className = 'btn-outline-sm'; btn.style.marginTop = '8px';
           btn.textContent = '✅ Garder uniquement celles qui fonctionnent';

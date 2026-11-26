@@ -18,7 +18,9 @@ let invidious = 'ok';
 let pipedUrl = 'https://proxy.example/videoplayback?id=1';
 let pipedProxy = 'https://proxy.example';
 const security = require('../lib/security');
-mock.method(security, 'safeFetch', async raw => {
+const cobaltCalls = [];
+let cobaltMode = 'ok';
+mock.method(security, 'safeFetch', async (raw, opts) => {
     const url = new URL(raw);
     fetched.push(url.href);
     const down = { ok: false, status: 503, body: { destroy() {} } };
@@ -36,6 +38,11 @@ mock.method(security, 'safeFetch', async raw => {
             { url: pipedUrl, mimeType: 'video/mp4', videoOnly: false, quality: '360p', height: 360 },
             { url: 'https://proxy.example/video-only', mimeType: 'video/mp4', videoOnly: true, quality: '1080p', height: 1080 },
         ] }) };
+    }
+    if (url.host === 'cobalt.example') {
+        cobaltCalls.push({ url: url.href, opts });
+        if (cobaltMode === 'error') return { ok: false, status: 400, json: async () => ({ status: 'error', error: { code: 'error.api.youtube.login' } }) };
+        return { ok: true, status: 200, json: async () => ({ status: 'tunnel', url: 'https://cobalt.example/tunnel?id=abc', filename: 'x.mp4' }) };
     }
     return down;
 });
@@ -293,4 +300,25 @@ test('Test des flux : si la conversion échoue, la trace donne la raison de chaq
     assert.equal(step.ok, false);
     assert.match(step.detail, /cccccccccc1/);
     assert.match(step.detail, /inv\.example : aucun MP4 avec son/);
+});
+
+test('cobalt : POST avec clé d’API, lien tunnel sans sonde, cache court, erreur sans panne d’instance', async () => {
+    const list = ytDirect.parseInstances('cobalt:https://cobalt.example#secretkey');
+    assert.deepEqual(list, [{ type: 'cobalt', base: 'https://cobalt.example', key: 'secretkey' }]);
+    await save({ ytDirectEnabled: true, ytDirectInstances: 'cobalt:https://cobalt.example#secretkey' });
+    cobaltCalls.length = 0; cobaltMode = 'ok';
+    const found = await ytDirect.resolveYoutubeDirect('eeeeeeeeee1');
+    assert.equal(found.url, 'https://cobalt.example/tunnel?id=abc');
+    assert.equal(found.ttl, 60);
+    assert.equal(cobaltCalls[0].opts.method, 'POST');
+    assert.equal(cobaltCalls[0].opts.headers.authorization, 'Api-Key secretkey');
+    assert.equal(JSON.parse(cobaltCalls[0].opts.body).url, 'https://www.youtube.com/watch?v=eeeeeeeeee1');
+    assert.ok(!cobaltCalls[0].url.includes('secretkey'));
+    cobaltMode = 'error';
+    assert.equal(await ytDirect.resolveYoutubeDirect('eeeeeeeeee2'), null);
+    const rows = await ytDirect.diagnose(undefined, 'eeeeeeeeee3');
+    assert.equal(rows[0].ok, false);
+    assert.match(rows[0].error, /youtube\.login/);
+    assert.ok(!JSON.stringify(rows).includes('secretkey'));
+    cobaltMode = 'ok';
 });
