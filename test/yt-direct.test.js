@@ -16,6 +16,7 @@ process.env.DASHBOARD_PASSWORD = 'yt-direct-fixture';
 const fetched = [];
 let invidious = 'ok';
 let pipedUrl = 'https://proxy.example/videoplayback?id=1';
+let pipedProxy = 'https://proxy.example';
 const security = require('../lib/security');
 mock.method(security, 'safeFetch', async raw => {
     const url = new URL(raw);
@@ -31,7 +32,7 @@ mock.method(security, 'safeFetch', async raw => {
         ] }) };
     }
     if (url.host === 'piped.example') {
-        return { ok: true, status: 200, json: async () => ({ videoStreams: [
+        return { ok: true, status: 200, json: async () => ({ proxyUrl: pipedProxy, videoStreams: [
             { url: pipedUrl, mimeType: 'video/mp4', videoOnly: false, quality: '360p', height: 360 },
             { url: 'https://proxy.example/video-only', mimeType: 'video/mp4', videoOnly: true, quality: '1080p', height: 1080 },
         ] }) };
@@ -80,6 +81,7 @@ beforeEach(async () => {
     process.env.YT_DIRECT_INSTANCES = '';
     invidious = 'ok';
     pipedUrl = 'https://proxy.example/videoplayback?id=1';
+    pipedProxy = 'https://proxy.example';
     fetched.length = 0;
     probe.mock.resetCalls();
     ytDirect.resetForTests();
@@ -115,14 +117,21 @@ test('Invidious : prend le meilleur MP4 avec son, renvoie le lien proxifié et l
     assert.equal(fetched.length, calls, 'le second appel vient du cache');
 });
 
-test('Piped : ignore les flux sans son et refuse un lien googlevideo lié à l’IP de l’instance', async () => {
+test('Piped : ignore les flux sans son et passe les liens googlevideo par le proxy de l’instance', async () => {
     process.env.YT_DIRECT_INSTANCES = 'piped:https://piped.example';
     const found = await ytDirect.resolveYoutubeDirect('aaaaaaaaaa3');
     assert.equal(found.url, 'https://proxy.example/videoplayback?id=1');
     assert.equal(found.height, 360);
 
-    pipedUrl = 'https://rr1---sn-abc.googlevideo.com/videoplayback?ip=1.2.3.4';
-    assert.equal(await ytDirect.resolveYoutubeDirect('aaaaaaaaaa4'), null);
+    // Lien googlevideo brut : réécrit comme le site Piped (hôte du proxy + paramètre host).
+    pipedUrl = 'https://rr1---sn-abc.googlevideo.com/videoplayback?expire=1&itag=18';
+    const proxied = await ytDirect.resolveYoutubeDirect('aaaaaaaaaa4');
+    assert.equal(proxied.url, 'https://proxy.example/videoplayback?expire=1&itag=18&host=rr1---sn-abc.googlevideo.com');
+
+    // Sans proxy utilisable, un lien googlevideo (lié à l'IP de l'instance) est refusé.
+    ytDirect.resetForTests();
+    pipedProxy = '';
+    assert.equal(await ytDirect.resolveYoutubeDirect('aaaaaaaab11'), null);
 });
 
 test('un lien que la vérification de lecture refuse est écarté', async () => {
@@ -193,7 +202,7 @@ test('dashboard : l’interrupteur active la liste automatique, le champ la remp
     await save({ ytDirectInstances: 'https://inv.example, piped:https://piped.example' });
     assert.equal((await read()).ytDirectInstances, 'https://inv.example, piped:https://piped.example');
     assert.equal((await ytDirect.resolveYoutubeDirect('dddddddddd1')).provider.startsWith('https://'), true);
-    assert.ok(fetched.every(url => !/nerdvpn|tiekoetter/.test(url)), 'la liste saisie remplace la liste automatique');
+    assert.ok(fetched.every(url => !/kavin\.rocks|leptons/.test(url)), 'la liste saisie remplace la liste automatique');
 
     await save({ ytDirectEnabled: false });
     assert.equal(ytDirect.isEnabled(), false);

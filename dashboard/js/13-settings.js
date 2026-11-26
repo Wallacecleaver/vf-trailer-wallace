@@ -154,8 +154,19 @@
       status.textContent = !rows.length ? '✗ Aucune instance valide dans la liste'
         : good ? '✓ ' + good + ' instance' + (good > 1 ? 's' : '') + ' sur ' + rows.length + ' fonctionne' + (good > 1 ? 'nt' : '')
         : '✗ Aucune instance ne répond — mets tes propres instances';
-      if (list) list.innerHTML = rows.map(r => (r.ok ? '✓ ' : '✗ ') + escapeHtml(r.base) + ' — '
-        + (r.ok ? r.ms + ' ms' + (r.height ? ' · ' + r.height + 'p' : '') : escapeHtml(r.error || 'erreur'))).join('<br>');
+      if (list) {
+        list.innerHTML = rows.map(r => (r.ok ? '✓ ' : '✗ ') + escapeHtml(r.base) + ' — '
+          + (r.ok ? r.ms + ' ms' + (r.height ? ' · ' + r.height + 'p' : '') : escapeHtml(r.error || 'erreur'))).join('<br>');
+        if (good) {
+          const keep = rows.filter(r => r.ok).map(r => (r.type === 'piped' ? 'piped:' : '') + r.base).join(', ');
+          const btn = document.createElement('button');
+          btn.type = 'button'; btn.className = 'btn-outline-sm'; btn.style.marginTop = '8px';
+          btn.textContent = '✅ Garder uniquement celles qui fonctionnent';
+          btn.onclick = () => { if (input) { input.value = keep; input.dispatchEvent(new Event('input', { bubbles: true })); } btn.remove(); toast('✅ Liste mise à jour'); };
+          list.appendChild(document.createElement('br'));
+          list.appendChild(btn);
+        }
+      }
     } catch (e) {
       status.className = 'link-status bad';
       status.textContent = '✗ ' + e.message;
