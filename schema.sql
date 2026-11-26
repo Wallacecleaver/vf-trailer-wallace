@@ -203,6 +203,8 @@ CREATE TABLE IF NOT EXISTS behavior_settings (
     cache_failures                 INTEGER,
     failure_cache_ttl_minutes      REAL,
     aiom_timeout_seconds           INTEGER,
+    yt_direct_enabled              INTEGER, -- lecture directe des VF YouTube (lib/yt-direct.js)
+    yt_direct_instances            TEXT,    -- instances Invidious/Piped, vide = liste automatique
     updated_at                     TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))
 );
 INSERT INTO behavior_settings (id) VALUES (1) ON CONFLICT (id) DO NOTHING;

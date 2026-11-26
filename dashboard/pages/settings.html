@@ -83,6 +83,26 @@
           </div>
 
           <div class="card">
+            <div class="card-head"><div><div class="card-title">▶️ Lecture directe YouTube</div><div class="card-desc">Lance les bandes-annonces YouTube directement dans le lecteur de l'appli (Odin, Nuvio…) au lieu d'ouvrir YouTube</div></div></div>
+            <div class="toggle-row">
+              <div><div class="label">Activer la lecture directe</div><div class="desc">Dernier recours, après Allociné et Stockage BD : la VF YouTube trouvée est convertie en lien vidéo via une instance Invidious ou Piped. La vidéo ne passe jamais par ton serveur (simple redirection). Si rien ne marche, l'addon renvoie le lien YouTube comme avant</div></div>
+              <label class="switch"><input type="checkbox" id="set-ytDirectEnabled"><span class="slider"></span></label>
+            </div>
+            <div class="card-body">
+              <div class="form-field full">
+                <label>Instances <span class="hint">(vide = liste automatique d'instances publiques)</span></label>
+                <div class="nf-api-row">
+                  <input type="text" id="set-ytDirectInstances" placeholder="auto  ·  ou  https://invidious.mondomaine.fr, piped:https://api.piped.mondomaine.fr" spellcheck="false" autocomplete="off">
+                  <button class="btn-outline-sm" type="button" onclick="testYtDirect()">🔌 Tester</button>
+                </div>
+                <div class="link-status" id="yt-direct-test-status"></div>
+                <div id="yt-direct-test-list" class="desc"></div>
+              </div>
+              <div class="info-box">Sépare les instances par une virgule ou un espace ; sans préfixe, une instance est de type Invidious (<code>piped:</code> pour Piped). Les instances publiques tombent régulièrement : si le test échoue, mets les tiennes. Qualité limitée aux MP4 avec son (360p, parfois 720p). Les instances en panne sont mises en pause 10 min (événement <code>yt_direct_provider_down</code> dans les logs).</div>
+            </div>
+          </div>
+
+          <div class="card">
             <div class="card-head"><div><div class="card-title">🧩 AIOMetadata</div><div class="card-desc">Délai commun au lien partagé et aux anciens liens AIOMetadata</div></div></div>
             <div class="toggle-row">
               <div><div class="label">Délai maximum de réponse (secondes)</div><div class="desc">Au-delà, l'addon répond sans trailer et AIOMetadata garde celui de son fournisseur. La recherche continue en arrière-plan : le résultat sera dans le cache à la requête suivante. De 1 à 12 s, 5 par défaut</div></div>

@@ -17,6 +17,8 @@
     { id: 'set-failureCacheTtlMinutes', get: el => Math.min(180, Math.max(5, Number(el.value) || 30)) },
     { id: 'set-extraVfKeywords', get: el => el.value.split(',').map(s => s.trim().toLowerCase()).filter(Boolean) },
     { id: 'set-aiomTimeoutSeconds', get: el => Math.min(12, Math.max(1, Number(el.value) || 5)) },
+    { id: 'set-ytDirectEnabled', get: el => el.checked },
+    { id: 'set-ytDirectInstances', get: el => el.value.trim() },
   ];
   const SETTING_NAMES = {
     youtubeEnabled: 'set-youtubeEnabled',
@@ -29,6 +31,7 @@
     allocineCacheTtlHours: 'set-allocineCacheTtlHours', youtubeSearchCacheTtlHours: 'set-youtubeSearchCacheTtlHours',
     cacheFailures: 'set-cacheFailures', failureCacheTtlMinutes: 'set-failureCacheTtlMinutes',
     extraVfKeywords: 'set-extraVfKeywords', aiomTimeoutSeconds: 'set-aiomTimeoutSeconds',
+    ytDirectEnabled: 'set-ytDirectEnabled', ytDirectInstances: 'set-ytDirectInstances',
   };
 
   let settingsSaveTimer = null;
@@ -126,6 +129,33 @@
         status.className = 'link-status bad';
         status.textContent = '✗ ' + (d.reason || 'Instance injoignable');
       }
+    } catch (e) {
+      status.className = 'link-status bad';
+      status.textContent = '✗ ' + e.message;
+    }
+  }
+
+  // Bouton « Tester » de la lecture directe YouTube : essaie chaque instance avec une vidéo connue.
+  async function testYtDirect() {
+    const status = document.getElementById('yt-direct-test-status');
+    const list = document.getElementById('yt-direct-test-list');
+    if (!status) return;
+    const input = document.getElementById('set-ytDirectInstances');
+    status.className = 'link-status pending';
+    status.textContent = 'Test des instances…';
+    if (list) list.textContent = '';
+    try {
+      const res = await authFetch('/api/yt-direct/test?instances=' + encodeURIComponent((input ? input.value : '').trim()), { headers: authHeaders() });
+      const d = await res.json();
+      if (!res.ok) throw new Error(d.error || 'Erreur');
+      const rows = d.results || [];
+      const good = rows.filter(r => r.ok).length;
+      status.className = 'link-status ' + (good ? 'ok' : 'bad');
+      status.textContent = !rows.length ? '✗ Aucune instance valide dans la liste'
+        : good ? '✓ ' + good + ' instance' + (good > 1 ? 's' : '') + ' sur ' + rows.length + ' fonctionne' + (good > 1 ? 'nt' : '')
+        : '✗ Aucune instance ne répond — mets tes propres instances';
+      if (list) list.innerHTML = rows.map(r => (r.ok ? '✓ ' : '✗ ') + escapeHtml(r.base) + ' — '
+        + (r.ok ? r.ms + ' ms' + (r.height ? ' · ' + r.height + 'p' : '') : escapeHtml(r.error || 'erreur'))).join('<br>');
     } catch (e) {
       status.className = 'link-status bad';
       status.textContent = '✗ ' + e.message;

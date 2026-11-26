@@ -10,6 +10,7 @@ process.env.TOKEN_SECRET = 'fixture-token-secret';
 process.env.APP_BASE_URL = 'https://addon.example';
 process.env.TMDB_API_KEY = 'fixture-tmdb-key';
 process.env.YT_DIRECT_INSTANCES = '';
+process.env.DASHBOARD_PASSWORD = 'yt-direct-fixture';
 
 // ---- Instances simulées ----
 const fetched = [];
@@ -50,13 +51,22 @@ const sql = require('../lib/db');
 const { ensureSchema } = require('../lib/migrate');
 const { resolveAiomDirect, resolveSharedAiom } = require('../lib/aiom-direct');
 const app = require('../api');
-let server, base;
+let server, base, headers;
+
+// Passe par la vraie route du dashboard (enregistrement SQL + application immédiate).
+const save = body => fetch(base + '/api/settings/behavior', {
+    method: 'POST', headers: { ...headers, 'Content-Type': 'application/json' }, body: JSON.stringify(body),
+}).then(r => r.json());
 
 before(async () => {
     await ensureSchema();
     server = app.listen(0, '127.0.0.1');
     await new Promise(resolve => server.once('listening', resolve));
     base = 'http://127.0.0.1:' + server.address().port;
+    const login = await fetch(base + '/api/login', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ password: 'yt-direct-fixture' }),
+    }).then(r => r.json());
+    headers = { 'x-admin-token': login.token };
 });
 
 after(async () => {
@@ -65,7 +75,8 @@ after(async () => {
     fs.rmSync(dataDir, { recursive: true, force: true });
 });
 
-beforeEach(() => {
+beforeEach(async () => {
+    await fetch(base + '/api/settings/behavior/reset', { method: 'POST', headers });
     process.env.YT_DIRECT_INSTANCES = '';
     invidious = 'ok';
     pipedUrl = 'https://proxy.example/videoplayback?id=1';
@@ -150,7 +161,7 @@ test('une vidéo sans MP4 ne met pas l’instance en pause', async () => {
 });
 
 test('/ytd/ : lien signé, redirection 302 vers le MP4, signature et ID vérifiés', async () => {
-    process.env.YT_DIRECT_INSTANCES = 'https://inv.example';
+    assert.deepEqual(await save({ ytDirectEnabled: true, ytDirectInstances: 'https://inv.example' }), { success: true });
     const signed = new URL(ytDirect.playbackUrl('bbbbbbbbbb1'));
     assert.match(signed.pathname, /^\/ytd\/bbbbbbbbbb1\.[A-Za-z0-9_-]{16}\.mp4$/);
     assert.equal(signed.origin, 'https://addon.example');
@@ -164,8 +175,53 @@ test('/ytd/ : lien signé, redirection 302 vers le MP4, signature et ID vérifi�
     assert.equal((await fetch(base + forged, { redirect: 'manual' })).status, 404);
     assert.equal((await fetch(base + '/ytd/pas-un-lien.mp4', { redirect: 'manual' })).status, 404);
 
-    process.env.YT_DIRECT_INSTANCES = '';
-    assert.equal((await fetch(base + signed.pathname, { redirect: 'manual' })).status, 404);
+    await save({ ytDirectEnabled: false });
+    assert.equal((await fetch(base + signed.pathname, { redirect: 'manual' })).status, 404, 'désactivé depuis le dashboard');
+});
+
+test('dashboard : l’interrupteur active la liste automatique, le champ la remplace, la réinitialisation désactive', async () => {
+    const read = () => fetch(base + '/api/settings/behavior', { headers }).then(r => r.json());
+    const defaults = await read();
+    assert.equal(defaults.ytDirectEnabled, false);
+    assert.equal(defaults.ytDirectInstances, '');
+    assert.equal(ytDirect.isEnabled(), false);
+
+    await save({ ytDirectEnabled: true });                       // champ vide = liste automatique
+    assert.equal(ytDirect.isEnabled(), true);
+    assert.equal((await read()).ytDirectEnabled, true);
+
+    await save({ ytDirectInstances: 'https://inv.example, piped:https://piped.example' });
+    assert.equal((await read()).ytDirectInstances, 'https://inv.example, piped:https://piped.example');
+    assert.equal((await ytDirect.resolveYoutubeDirect('dddddddddd1')).provider.startsWith('https://'), true);
+    assert.ok(fetched.every(url => !/nerdvpn|tiekoetter/.test(url)), 'la liste saisie remplace la liste automatique');
+
+    await save({ ytDirectEnabled: false });
+    assert.equal(ytDirect.isEnabled(), false);
+    assert.equal((await read()).ytDirectInstances.length > 0, true, 'la liste saisie est conservée');
+
+    await save({ ytDirectEnabled: true });
+    await fetch(base + '/api/settings/behavior/reset', { method: 'POST', headers });
+    assert.equal(ytDirect.isEnabled(), false);
+});
+
+test('dashboard : /api/yt-direct/test exige la connexion et vérifie chaque instance', async () => {
+    const url = '/api/yt-direct/test?instances=' + encodeURIComponent('https://inv.example, piped:https://piped.example, https://mort.example');
+    assert.equal((await fetch(base + url)).status, 401);
+    const { results } = await fetch(base + url, { headers }).then(r => r.json());
+    assert.equal(results.length, 3);
+    const byHost = Object.fromEntries(results.map(r => [new URL(r.base).host, r]));
+    assert.equal(byHost['inv.example'].ok, true);
+    assert.equal(byHost['inv.example'].height, 720);
+    assert.equal(byHost['piped.example'].ok, true);
+    assert.equal(byHost['mort.example'].ok, false);
+    assert.match(byHost['mort.example'].error, /503/);
+
+    // Champ vide ou « auto » : la liste automatique est testée ; sans effet sur le cache ni sur la pause.
+    fetched.length = 0;
+    const auto = await fetch(base + '/api/yt-direct/test?instances=', { headers }).then(r => r.json());
+    assert.ok(auto.results.length >= 3);
+    assert.ok(auto.results.every(r => r.ok === false));
+    assert.equal(ytDirect.isEnabled(), false, 'tester ne modifie pas le réglage');
 });
 
 test('repli du moteur : la VF YouTube devient un lien direct, uniquement quand la fonction est active', async () => {

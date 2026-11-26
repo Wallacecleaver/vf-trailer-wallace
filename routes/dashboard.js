@@ -22,7 +22,8 @@ const { getMaintenanceSettings, setMaintenanceSettings } = require('../lib/maint
 const { searchYoutubeRaw } = require('../lib/youtube-search');
 const { probeDirectLink } = require('../lib/media-link');
 const federation = require('../lib/netflix-federation');
-const { testResolve, invalidateBehaviorCache } = require('../lib/resolver');
+const { testResolve, invalidateBehaviorCache, getBehaviorSettingsFast } = require('../lib/resolver');
+const ytDirect = require('../lib/yt-direct');
 const { pickRandomTitles, POOLS } = require('../lib/random-titles');
 const { buildStreamPreviewVariants } = require('../lib/stream-format');
 const { assertSafeUrl, rateLimit } = require('../lib/security');
@@ -362,16 +363,30 @@ module.exports = function registerDashboardRoutes(app) {
         const ok = await setBehaviorSettings(req.body || {});
         if (ok) {
             invalidateBehaviorCache();
+            await getBehaviorSettingsFast(); // recharge tout de suite (applique la lecture directe YouTube)
             federation.clearCache();
             await logEvent({ level: 'info', context: 'SETTINGS', event: 'settings_behavior_updated', message: 'Réglages de comportement mis à jour' });
         }
         res.json({ success: ok });
     });
 
+    // Bouton « Tester » de la lecture directe YouTube : vérifie chaque instance avec une vidéo connue.
+    // ?instances= teste la valeur en cours de saisie (liste automatique si vide ou « auto »).
+    app.get('/api/yt-direct/test', requireAuth, async (req, res) => {
+        res.setHeader('Cache-Control', 'no-store');
+        try {
+            const raw = 'instances' in req.query ? String(req.query.instances || '').slice(0, 2000) : undefined;
+            res.json({ results: await ytDirect.diagnose(raw) });
+        } catch (err) {
+            res.status(500).json({ error: err.message });
+        }
+    });
+
     app.post('/api/settings/behavior/reset', requireAuth, async (req, res) => {
         const ok = await resetBehaviorSettings();
         if (ok) {
             invalidateBehaviorCache();
+            await getBehaviorSettingsFast();
             federation.clearCache();
             await logEvent({ level: 'info', context: 'SETTINGS', event: 'settings_behavior_reset', message: 'Réglages de comportement réinitialisés' });
         }

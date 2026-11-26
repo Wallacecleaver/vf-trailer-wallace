@@ -225,6 +225,7 @@ module.exports = function registerStremioRoutes(app) {
         res.setHeader('Access-Control-Allow-Origin', '*');
         const match = /^([A-Za-z0-9_-]{11})\.([A-Za-z0-9_-]{16})\.mp4$/.exec(req.params.file);
         if (!match || !ytDirect.verifySignature(match[1], match[2])) return res.status(404).json({ error: 'Not found' });
+        await getBehaviorSettingsFast(); // charge le réglage du dashboard (premier appel après un redémarrage)
         const target = await ytDirect.resolveYoutubeDirect(match[1]);
         if (!target) return res.status(404).json({ error: 'Vidéo indisponible' });
         res.redirect(302, target.url);
