@@ -11,6 +11,8 @@ const { resolveAiomDirect, resolveSharedAiom } = require('../lib/aiom-direct');
 const { aiomTimeoutMs, withDeadline, aiomOutcome, resolveStreamsSingleFlight, logAiomRequest } = require('../lib/aiom');
 const { AIOM_MANIFEST_ID, getAiomSource, resolveAiomSource } = require('../lib/aiom-source');
 const { buildNuvioMeta } = require('../lib/nuvio');
+const { rateLimit } = require('../lib/security');
+const ytDirect = require('../lib/yt-direct');
 
 // ---- Lien AIOMetadata PARTAGÉ : /aiom/manifest.json ----------------------------------------
 // Un seul lien identique pour tout le monde (comme https://trailerio.cc/fr/manifest.json) : pas de
@@ -66,17 +68,29 @@ function sharedAiomConfig() {
 }
 
 async function resolveSharedAiomSource(sourceUrl, type, imdbId, season, tmdbKey, behavior, timeoutMs) {
+    const startedAt = Date.now();
     const source = withDeadline(resolveAiomSource(sourceUrl, type, imdbId, season, behavior, timeoutMs), timeoutMs);
     // Recherche en parallèle, avec son propre délai pour conserver la VF YouTube si le MP4 tarde.
+    // youtubeDirect: false : ici on convertit la VF YouTube de la source elle-même (plus bas), pas une autre.
     const direct = withDeadline(
-        resolveAiomDirect(type, imdbId, season, tmdbKey, behavior, { allowHls: true }).catch(() => null),
+        resolveAiomDirect(type, imdbId, season, tmdbKey, behavior, { allowHls: true, youtubeDirect: false }).catch(() => null),
         Math.min(timeoutMs, 2500), null,
     );
     const result = await source;
-    if (!result.streams[0]?.ytId) return result;
+    const ytId = result.streams[0]?.ytId;
+    if (!ytId) return result;
 
+    // Lecture directe de la VF YouTube de la source (optionnel, voir lib/yt-direct.js). Lancée tout de
+    // suite : même si le délai est dépassé, le résultat est mis en cache pour la requête suivante.
+    const converted = ytDirect.isEnabled() && behavior.youtubeEnabled !== false
+        ? ytDirect.resolvePlayableUrl(ytId).catch(() => null) : null;
     const playable = (await direct)?.streams[0];
-    return playable?.url ? { ...result, streams: [playable, ...result.streams] } : result;
+    if (playable?.url) return { ...result, streams: [playable, ...result.streams] };
+
+    const url = converted ? await withDeadline(converted, Math.max(300, timeoutMs - (Date.now() - startedAt)), null) : null;
+    return url
+        ? { ...result, streams: [{ title: result.streams[0].title || 'Bande-annonce VF · YouTube', url }, ...result.streams] }
+        : result;
 }
 
 // Mode AIOMetadata : réponse courte et lisible, journalisée dans le dashboard (Logs > AIOM),
@@ -203,6 +217,19 @@ async function respondNuvio(req, res, strict) {
 }
 
 module.exports = function registerStremioRoutes(app) {
+    // Lecture directe d'une VF YouTube (optionnel, voir lib/yt-direct.js) : lien signé, un simple 302 vers
+    // le MP4 résolu au moment de la lecture. La vidéo ne passe pas par ce serveur.
+    const ytdLimit = rateLimit({ windowMs: 60_000, max: 120, name: 'ytd' });
+    app.get('/ytd/:file', ytdLimit, async (req, res) => {
+        res.setHeader('Cache-Control', 'no-store');
+        res.setHeader('Access-Control-Allow-Origin', '*');
+        const match = /^([A-Za-z0-9_-]{11})\.([A-Za-z0-9_-]{16})\.mp4$/.exec(req.params.file);
+        if (!match || !ytDirect.verifySignature(match[1], match[2])) return res.status(404).json({ error: 'Not found' });
+        const target = await ytDirect.resolveYoutubeDirect(match[1]);
+        if (!target) return res.status(404).json({ error: 'Vidéo indisponible' });
+        res.redirect(302, target.url);
+    });
+
     app.get('/aiom/manifest.json', async (_req, res) => {
         res.setHeader('Cache-Control', 'no-store');
         const sourceUrl = await getAiomSource();
