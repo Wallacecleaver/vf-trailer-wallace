@@ -24,6 +24,7 @@ const { probeDirectLink } = require('../lib/media-link');
 const federation = require('../lib/netflix-federation');
 const { testResolve, invalidateBehaviorCache, getBehaviorSettingsFast } = require('../lib/resolver');
 const ytDirect = require('../lib/yt-direct');
+const ytdlp = require('../lib/yt-dlp');
 const { pickRandomTitles, POOLS } = require('../lib/random-titles');
 const { buildStreamPreviewVariants } = require('../lib/stream-format');
 const { assertSafeUrl, rateLimit } = require('../lib/security');
@@ -372,6 +373,26 @@ module.exports = function registerDashboardRoutes(app) {
 
     // Bouton « Tester » de la lecture directe YouTube : vérifie chaque instance avec une vidéo connue.
     // ?instances= teste la valeur en cours de saisie (liste automatique si vide ou « auto »).
+    // Cookies YouTube pour yt-dlp (compte Google jetable). Écrits sur le disque, jamais renvoyés.
+    app.get('/api/yt-direct/cookies', requireAuth, (_req, res) => {
+        res.setHeader('Cache-Control', 'no-store');
+        res.json(ytdlp.cookiesStatus());
+    });
+    app.post('/api/yt-direct/cookies', requireAuth, async (req, res) => {
+        res.setHeader('Cache-Control', 'no-store');
+        try {
+            const saved = ytdlp.saveCookies(String(req.body?.cookies || ''));
+            await logEvent({ level: 'info', context: 'SETTINGS', event: 'yt_cookies_saved', message: `Cookies YouTube enregistrés (${saved.count})` });
+            res.json({ ...ytdlp.cookiesStatus() });
+        } catch (err) {
+            res.status(400).json({ error: err.message });
+        }
+    });
+    app.delete('/api/yt-direct/cookies', requireAuth, (_req, res) => {
+        ytdlp.deleteCookies();
+        res.json(ytdlp.cookiesStatus());
+    });
+
     app.get('/api/yt-direct/test', requireAuth, async (req, res) => {
         res.setHeader('Cache-Control', 'no-store');
         try {

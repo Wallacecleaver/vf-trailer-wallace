@@ -13,6 +13,7 @@ const { AIOM_MANIFEST_ID, getAiomSource, resolveAiomSource } = require('../lib/a
 const { buildNuvioMeta } = require('../lib/nuvio');
 const { rateLimit } = require('../lib/security');
 const ytDirect = require('../lib/yt-direct');
+const ytdlp = require('../lib/yt-dlp');
 
 // ---- Lien AIOMetadata PARTAGÉ : /aiom/manifest.json ----------------------------------------
 // Un seul lien identique pour tout le monde (comme https://trailerio.cc/fr/manifest.json) : pas de
@@ -228,6 +229,13 @@ module.exports = function registerStremioRoutes(app) {
         await getBehaviorSettingsFast(); // charge le réglage du dashboard (premier appel après un redémarrage)
         const target = await ytDirect.resolveYoutubeDirect(match[1]);
         if (!target) return res.status(404).json({ error: 'Vidéo indisponible' });
+        if (target.local) {
+            // yt-dlp intégré : le MP4 est sur le disque du VPS ; sendFile gère la lecture partielle (Range).
+            let file;
+            try { file = await ytdlp.getFile(match[1]); } catch { return res.status(404).json({ error: 'Vidéo indisponible' }); }
+            res.setHeader('Cache-Control', 'private, max-age=600');
+            return res.sendFile(file, { headers: { 'Content-Type': 'video/mp4' }, cacheControl: false, dotfiles: 'allow' });
+        }
         res.redirect(302, target.url);
     });
 

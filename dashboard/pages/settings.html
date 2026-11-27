@@ -99,6 +99,16 @@
                 <div id="yt-direct-test-list" class="desc"></div>
               </div>
               <div class="info-box">Sépare les instances par une virgule ou un espace ; sans préfixe, une instance est de type Invidious (<code>piped:</code> pour Piped, <code>cobalt:</code> pour une API cobalt, ex. <code>cobalt:https://cobalt.mondomaine.fr</code> ou avec clé <code>cobalt:https://api.exemple.fr#MA_CLE</code>). La liste automatique contient des API Piped publiques ; beaucoup sont mortes ou bloquées par YouTube selon l'IP du serveur. Clique sur Tester, puis sur « Garder uniquement celles qui fonctionnent ». Attention : le test utilise une vidéo très populaire, un ✓ ne garantit pas que toutes les vidéos passent (une instance peut répondre HTTP 500 sur les vidéos récentes) — vérifie avec un vrai titre dans « Test des flux » (mode AIOMetadata). Qualité limitée aux MP4 avec son (360p, parfois 720p). Les instances en panne sont mises en pause 10 min (événement <code>yt_direct_provider_down</code> dans les logs).</div>
+              <div class="form-field full">
+                <label>Option yt-dlp intégré <span class="hint">(écris <code>ytdlp</code> dans le champ Instances)</span></label>
+                <div class="desc">L'addon télécharge la bande-annonce une seule fois sur ton VPS (MP4 ≤ 720p, quelques Mo), la garde 12 h en cache (400 Mo maximum) et la sert à l'appli. YouTube bloque souvent les IP de serveurs : colle ici les cookies d'un compte Google <b>jetable</b> (format cookies.txt, export par l'extension « Get cookies.txt LOCALLY » depuis une fenêtre privée). Ils restent sur ton serveur et ne sont jamais réaffichés.</div>
+                <textarea id="yt-cookies-input" rows="4" spellcheck="false" autocomplete="off" placeholder="# Netscape HTTP Cookie File&#10;.youtube.com&#9;TRUE&#9;/&#9;TRUE&#9;…" style="width:100%;font-family:monospace;font-size:12px"></textarea>
+                <div class="nf-api-row" style="margin-top:6px">
+                  <button class="btn-outline-sm" type="button" onclick="saveYtCookies()">💾 Enregistrer les cookies</button>
+                  <button class="btn-outline-sm" type="button" onclick="deleteYtCookies()">🗑️ Supprimer</button>
+                </div>
+                <div class="link-status" id="yt-cookies-status"></div>
+              </div>
             </div>
           </div>
 

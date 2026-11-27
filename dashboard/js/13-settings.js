@@ -69,6 +69,7 @@
       settingsDirty = false;
     } catch (e) { toast('❌ Erreur de chargement'); }
     loadCacheStats();
+    loadYtCookiesStatus();
     loadDiagnostics(false);
   }
 
@@ -161,7 +162,7 @@
           const tokens = (input ? input.value : '').split(/[\s,]+/).filter(Boolean);
           const keep = rows.filter(r => r.ok).map(r => {
             const own = tokens.find(t => t.replace(/^[a-z]+:(?=https:)/i, '').replace(/#.*$/, '').replace(/\/+$/, '') === r.base);
-            return own || ((r.type === 'invidious' ? '' : r.type + ':') + r.base);
+            return own || ((r.type === 'invidious' ? '' : r.type === 'ytdlp' ? '' : r.type + ':') + r.base);
           }).join(', ');
           const btn = document.createElement('button');
           btn.type = 'button'; btn.className = 'btn-outline-sm'; btn.style.marginTop = '8px';
@@ -175,6 +176,42 @@
       status.className = 'link-status bad';
       status.textContent = '✗ ' + e.message;
     }
+  }
+
+  function showYtCookies(d) {
+    const el = document.getElementById('yt-cookies-status');
+    if (!el) return;
+    el.className = 'link-status ' + (d.present ? (d.hasAuth ? 'ok' : 'pending') : '');
+    el.textContent = !d.present ? 'Aucun cookie enregistré'
+      : '✓ ' + d.count + ' cookies enregistrés' + (d.hasAuth ? ' (compte connecté)' : ' — attention : pas de session Google détectée, connecte-toi à YouTube avant l\'export');
+  }
+  async function loadYtCookiesStatus() {
+    try {
+      const res = await authFetch('/api/yt-direct/cookies', { headers: authHeaders() });
+      if (res.ok) showYtCookies(await res.json());
+    } catch { /* statut indisponible */ }
+  }
+  async function saveYtCookies() {
+    const box = document.getElementById('yt-cookies-input');
+    const el = document.getElementById('yt-cookies-status');
+    try {
+      const res = await authFetch('/api/yt-direct/cookies', {
+        method: 'POST', headers: { ...authHeaders(), 'Content-Type': 'application/json' }, body: JSON.stringify({ cookies: box ? box.value : '' }),
+      });
+      const d = await res.json();
+      if (!res.ok) throw new Error(d.error || 'Erreur');
+      if (box) box.value = '';
+      showYtCookies(d);
+      toast('✅ Cookies enregistrés');
+    } catch (e) {
+      if (el) { el.className = 'link-status bad'; el.textContent = '✗ ' + e.message; }
+    }
+  }
+  async function deleteYtCookies() {
+    try {
+      const res = await authFetch('/api/yt-direct/cookies', { method: 'DELETE', headers: authHeaders() });
+      if (res.ok) { showYtCookies(await res.json()); toast('Cookies supprimés'); }
+    } catch { /* ignoré */ }
   }
 
   async function loadCacheStats() {

@@ -13,6 +13,12 @@ ENV NODE_OPTIONS="--max-old-space-size=192 --disable-warning=ExperimentalWarning
 WORKDIR /app
 
 # Dépendances d'abord (meilleur cache Docker)
+# yt-dlp (option « ytdlp » de la lecture directe YouTube) : script autonome + Python. Il se met à jour tout seul
+# (yt-dlp -U, une fois par jour) car YouTube change souvent.
+RUN apk add --no-cache python3 \
+ && wget -q -O /usr/local/bin/yt-dlp https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp \
+ && chmod 755 /usr/local/bin/yt-dlp && chown node:node /usr/local/bin/yt-dlp
+
 COPY package*.json ./
 RUN npm ci --omit=dev && npm cache clean --force
 
