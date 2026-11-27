@@ -23,7 +23,7 @@ const url = args[args.length - 1];
 if (/botbotbot01/.test(url)) { console.error('ERROR: [youtube] botbotbot01: Sign in to confirm you’re not a bot'); process.exit(1); }
 if (/privateeee1/.test(url)) { console.error('ERROR: [youtube] privateeee1: Private video. Sign in if you\\'ve been granted access'); process.exit(1); }
 if (args.includes('--simulate')) { console.log('720'); process.exit(0); }
-fs.writeFileSync(args[args.indexOf('-o') + 1], Buffer.from('0123456789abcdefghij'));
+fs.writeFileSync(args[args.indexOf('-o') + 1], Buffer.from('0123ftyp89abcdefghij'));
 `, { mode: 0o755 });
 process.env.YTDLP_BIN = fake;
 
@@ -143,4 +143,14 @@ test('Tester : vérifie yt-dlp sans rien télécharger', async () => {
     assert.equal(res.results[0].ok, true);
     assert.equal(res.results[0].height, 720);
     assert.equal(res.results[0].type, 'ytdlp');
+});
+
+test('un fichier qui n’est pas un vrai MP4 (ex. flux HLS brut) est refusé et le format exclut le HLS', async () => {
+    fs.writeFileSync(callsLog, '');
+    const badId = 'badmp4file1';
+    fs.mkdirSync(ytdlp.cacheDir(), { recursive: true });
+    fs.writeFileSync(path.join(ytdlp.cacheDir(), `${badId}.mp4`), Buffer.from('G@\u0000\u0010 pas un mp4 du tout, flux brut'));
+    const file = await ytdlp.getFile(badId); // le faux fichier en cache est ignoré puis retéléchargé
+    assert.equal(fs.readFileSync(file).slice(4, 8).toString(), 'ftyp');
+    assert.match(fs.readFileSync(callsLog, 'utf8'), /protocol=https/);
 });
